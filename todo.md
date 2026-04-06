@@ -62,5 +62,5 @@
 - [x] End-to-end testing
 
 ## Deployment
-- [ ] Final checkpoint
-- [ ] Deploy to live URL
+- [x] Final checkpoint
+- [x] Deploy to live URL
