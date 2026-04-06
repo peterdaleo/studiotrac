@@ -14,8 +14,9 @@ import CalendarView from "./pages/CalendarView";
 import Notifications from "./pages/Notifications";
 import Timeline from "./pages/Timeline";
 import Settings from "./pages/Settings";
+import ClientPortal from "./pages/ClientPortal";
 
-function Router() {
+function DashboardRouter() {
   return (
     <DashboardLayout>
       <Switch>
@@ -42,7 +43,12 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <Switch>
+            {/* Public client portal — no auth, no dashboard layout */}
+            <Route path="/portal/:token" component={ClientPortal} />
+            {/* All other routes go through the dashboard */}
+            <Route component={DashboardRouter} />
+          </Switch>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

@@ -160,3 +160,18 @@ export const emailLog = mysqlTable("email_log", {
 
 export type EmailLogEntry = typeof emailLog.$inferSelect;
 export type InsertEmailLogEntry = typeof emailLog.$inferInsert;
+
+// ── Client Share Tokens ───────────────────────────────────────────
+export const clientShareTokens = mysqlTable("client_share_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  label: varchar("label", { length: 255 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  expiresAt: timestamp("expiresAt"),
+  createdById: int("createdById"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ClientShareToken = typeof clientShareTokens.$inferSelect;
+export type InsertClientShareToken = typeof clientShareTokens.$inferInsert;

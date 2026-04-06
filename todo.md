@@ -91,3 +91,25 @@
 - [x] Tests for new features (35 tests passing)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 3 Features
+
+### Client Portal (Public Shareable View)
+- [x] Database table for client_share_tokens (projectId, token, expiresAt, isActive)
+- [x] tRPC procedure to generate/revoke share links per project
+- [x] Public tRPC endpoint to fetch project data by share token (no auth required)
+- [x] Client Portal page (read-only): project progress, milestones, client-visible notes, shared files
+- [x] Share link button in Project Detail page with copy-to-clipboard
+- [x] Token expiration and revocation support
+
+### Improved Inline Editing UX
+- [x] Edit project details (dates, phase, status, PM) with clear edit buttons/inline editing
+- [x] Edit task details (deadline, priority, assignee, status) with inline editing
+- [x] Add Task dialog with all fields (title, assignee, priority, deadline, description)
+- [x] Visual edit affordances (pencil icons, hover states, click-to-edit)
+- [x] Confirmation for destructive actions (delete project/task)
+
+### Deployment
+- [x] Tests for new features (41 tests passing)
+- [x] Final checkpoint
+- [x] Redeploy to live URL

@@ -78,6 +78,22 @@ vi.mock("./db", () => ({
     { id: 1, name: "Riverside Cultural Center", deadline: new Date(Date.now() + 2 * 86400000) },
   ]),
 
+  // Client Share Tokens
+  createShareToken: vi.fn().mockResolvedValue({ id: 1 }),
+  listShareTokens: vi.fn().mockResolvedValue([
+    { id: 1, projectId: 1, token: "test-token-abc123", label: "Client Link", isActive: true, expiresAt: new Date(Date.now() + 30 * 86400000), createdAt: new Date() },
+  ]),
+  getShareToken: vi.fn().mockResolvedValue({
+    id: 1, projectId: 1, token: "test-token-abc123", isActive: true, expiresAt: new Date(Date.now() + 30 * 86400000),
+  }),
+  revokeShareToken: vi.fn().mockResolvedValue(undefined),
+  getPublicProjectData: vi.fn().mockResolvedValue({
+    project: { id: 1, name: "Riverside Cultural Center", clientName: "City of Portland", status: "on_track", phase: "construction_documents", completionPercentage: 68, address: "450 NW Waterfront Dr", startDate: new Date("2025-12-07"), deadline: new Date("2026-07-05"), billing25: true, billing50: true, billing75: false, billing100: false, billingOk: true, description: "A cultural center" },
+    notes: [{ id: 1, content: "River terrace approved", isClientVisible: true, createdAt: new Date() }],
+    files: [{ id: 1, fileName: "floor-plan.pdf", url: "https://cdn.example.com/plan.pdf", mimeType: "application/pdf", fileSize: 2048000, category: "drawing", createdAt: new Date() }],
+    manager: { name: "Sarah Chen" },
+  }),
+
   // Gantt
   getGanttData: vi.fn().mockResolvedValue({
     projects: [
@@ -461,6 +477,80 @@ describe("gantt", () => {
     expect(data.members).toHaveLength(1);
     expect(data.projects[0]?.name).toBe("Riverside Cultural Center");
     expect(data.members[0]?.name).toBe("Sarah Chen");
+  });
+});
+
+// ── Phase 3 Tests ──────────────────────────────────────────────
+
+describe("shareTokens (client portal links)", () => {
+  it("lists share tokens for a project", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const tokens = await caller.shareTokens.list({ projectId: 1 });
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]?.token).toBe("test-token-abc123");
+    expect(tokens[0]?.label).toBe("Client Link");
+  });
+
+  it("creates a share token", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.shareTokens.create({
+      projectId: 1,
+      label: "New Client Link",
+    });
+    expect(result).toBeDefined();
+    expect(result.id).toBe(1);
+  });
+
+  it("creates a share token with expiration", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.shareTokens.create({
+      projectId: 1,
+      label: "30-Day Link",
+      expiresInDays: 30,
+    });
+    expect(result).toBeDefined();
+  });
+
+  it("revokes a share token", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await caller.shareTokens.revoke({ id: 1 });
+  });
+});
+
+describe("portal (public client view)", () => {
+  it("returns project data for valid token (no auth required)", async () => {
+    const ctx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.portal.getProject({ token: "test-token-abc123" });
+    expect(result.error).toBeNull();
+    expect(result.data).toBeDefined();
+    expect(result.data?.project.name).toBe("Riverside Cultural Center");
+    expect(result.data?.notes).toHaveLength(1);
+    expect(result.data?.files).toHaveLength(1);
+    expect(result.data?.manager?.name).toBe("Sarah Chen");
+  });
+
+  it("returns error for invalid token", async () => {
+    const { getShareToken } = await import("./db");
+    (getShareToken as any).mockResolvedValueOnce(null);
+    
+    const ctx: TrpcContext = {
+      user: null,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.portal.getProject({ token: "invalid-token" });
+    expect(result.error).toBeTruthy();
+    expect(result.data).toBeNull();
   });
 });
 

@@ -10,6 +10,7 @@ import {
   projectFiles, InsertProjectFile,
   emailPreferences, InsertEmailPreference,
   emailLog, InsertEmailLogEntry,
+  clientShareTokens, InsertClientShareToken,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -410,6 +411,74 @@ export async function getTeamMemberStats(memberId: number) {
     completedTasks: Number(taskResult[0]?.completed ?? 0),
     overdueTasks: Number(taskResult[0]?.overdue ?? 0),
     activeProjects: Number(projectResult[0]?.count ?? 0),
+  };
+}
+
+// ── Client Share Tokens ──────────────────────────────────────────
+export async function createShareToken(data: InsertClientShareToken) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(clientShareTokens).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function listShareTokens(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(clientShareTokens).where(eq(clientShareTokens.projectId, projectId)).orderBy(desc(clientShareTokens.createdAt));
+}
+
+export async function getShareToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(clientShareTokens).where(and(eq(clientShareTokens.token, token), eq(clientShareTokens.isActive, true))).limit(1);
+  if (!result[0]) return undefined;
+  // Check expiration
+  if (result[0].expiresAt && result[0].expiresAt < new Date()) return undefined;
+  return result[0];
+}
+
+export async function revokeShareToken(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(clientShareTokens).set({ isActive: false }).where(eq(clientShareTokens.id, id));
+}
+
+export async function getPublicProjectData(projectId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project[0]) return null;
+  // Get client-visible notes only
+  const visibleNotes = await db.select().from(projectNotes).where(and(eq(projectNotes.projectId, projectId), eq(projectNotes.isClientVisible, true))).orderBy(desc(projectNotes.createdAt));
+  // Get files
+  const files = await db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId)).orderBy(desc(projectFiles.createdAt));
+  // Get project manager name
+  let managerName = null;
+  if (project[0].projectManagerId) {
+    const manager = await db.select().from(teamMembers).where(eq(teamMembers.id, project[0].projectManagerId)).limit(1);
+    managerName = manager[0]?.name ?? null;
+  }
+  return {
+    project: {
+      name: project[0].name,
+      clientName: project[0].clientName,
+      address: project[0].address,
+      status: project[0].status,
+      phase: project[0].phase,
+      completionPercentage: project[0].completionPercentage,
+      startDate: project[0].startDate,
+      deadline: project[0].deadline,
+      billing25: project[0].billing25,
+      billing50: project[0].billing50,
+      billing75: project[0].billing75,
+      billing100: project[0].billing100,
+      billingOk: project[0].billingOk,
+      description: project[0].description,
+      managerName,
+    },
+    notes: visibleNotes,
+    files,
   };
 }
 

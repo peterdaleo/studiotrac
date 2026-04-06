@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -23,7 +24,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   ArrowLeft,
   MapPin,
@@ -47,6 +60,13 @@ import {
   File,
   Download,
   X,
+  Share2,
+  Link2,
+  Copy,
+  ExternalLink,
+  Pencil,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import {
@@ -72,6 +92,13 @@ const taskStatusColors: Record<string, string> = {
   overdue: "bg-red-100 text-red-700",
 };
 
+const taskStatusOptions = [
+  { value: "todo", label: "To Do" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+  { value: "overdue", label: "Overdue" },
+];
+
 export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
   const projectId = Number(params.id);
@@ -79,15 +106,23 @@ export default function ProjectDetail() {
   const [noteContent, setNoteContent] = useState("");
   const [noteClientVisible, setNoteClientVisible] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [editTaskData, setEditTaskData] = useState<any>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [fileCategory, setFileCategory] = useState<string>("other");
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [editingProjectDates, setEditingProjectDates] = useState(false);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editDeadline, setEditDeadline] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescription, setEditDescription] = useState("");
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
   const { data: notes } = trpc.notes.list.useQuery({ projectId });
   const { data: projectFiles } = trpc.files.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
+  const { data: shareTokens } = trpc.shareTokens.list.useQuery({ projectId });
   const utils = trpc.useUtils();
 
   const updateProject = trpc.projects.update.useMutation({
@@ -98,11 +133,33 @@ export default function ProjectDetail() {
     },
   });
 
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Project deleted");
+      setLocation("/projects");
+    },
+  });
+
   const createTask = trpc.tasks.create.useMutation({
     onSuccess: () => {
       utils.tasks.list.invalidate({ projectId });
       setTaskDialogOpen(false);
       toast.success("Task created");
+    },
+  });
+
+  const updateTask = trpc.tasks.update.useMutation({
+    onSuccess: () => {
+      utils.tasks.list.invalidate({ projectId });
+      setEditingTaskId(null);
+      setEditTaskData(null);
+    },
+  });
+
+  const deleteTask = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      utils.tasks.list.invalidate({ projectId });
+      toast.success("Task deleted");
     },
   });
 
@@ -122,12 +179,6 @@ export default function ProjectDetail() {
     },
   });
 
-  const updateTask = trpc.tasks.update.useMutation({
-    onSuccess: () => {
-      utils.tasks.list.invalidate({ projectId });
-    },
-  });
-
   const uploadFile = trpc.files.upload.useMutation({
     onSuccess: () => {
       utils.files.list.invalidate({ projectId });
@@ -144,6 +195,20 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.files.list.invalidate({ projectId });
       toast.success("File deleted");
+    },
+  });
+
+  const createShareToken = trpc.shareTokens.create.useMutation({
+    onSuccess: () => {
+      utils.shareTokens.list.invalidate({ projectId });
+      toast.success("Share link created");
+    },
+  });
+
+  const revokeShareToken = trpc.shareTokens.revoke.useMutation({
+    onSuccess: () => {
+      utils.shareTokens.list.invalidate({ projectId });
+      toast.success("Share link revoked");
     },
   });
 
@@ -197,6 +262,44 @@ export default function ProjectDetail() {
 
   const getMemberName = (id: number | null) =>
     teamMembers?.find((m) => m.id === id)?.name ?? "Unassigned";
+
+  const copyShareLink = (token: string) => {
+    const url = `${window.location.origin}/portal/${token}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Link copied to clipboard");
+  };
+
+  const formatDate = (d: Date | string | null | undefined) => {
+    if (!d) return "";
+    const date = new Date(d);
+    return date.toISOString().split("T")[0];
+  };
+
+  const startEditTask = (task: any) => {
+    setEditingTaskId(task.id);
+    setEditTaskData({
+      title: task.title,
+      assigneeId: task.assigneeId,
+      priority: task.priority,
+      deadline: task.deadline ? formatDate(task.deadline) : "",
+      status: task.status,
+      description: task.description || "",
+    });
+  };
+
+  const saveEditTask = () => {
+    if (!editTaskData || !editingTaskId) return;
+    updateTask.mutate({
+      id: editingTaskId,
+      title: editTaskData.title,
+      assigneeId: editTaskData.assigneeId || null,
+      priority: Number(editTaskData.priority),
+      deadline: editTaskData.deadline ? new Date(editTaskData.deadline) : null,
+      status: editTaskData.status,
+      completedAt: editTaskData.status === "done" ? new Date() : null,
+    });
+    toast.success("Task updated");
+  };
 
   if (isLoading) {
     return (
@@ -264,6 +367,106 @@ export default function ProjectDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Share button */}
+          <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Share2 className="h-3.5 w-3.5 mr-1.5" /> Share with Client
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Link2 className="h-5 w-5" /> Client Portal Links
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Generate a read-only link for your client. They can view project progress, milestones, client-visible notes, and shared documents — no login required.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => createShareToken.mutate({ projectId, label: "Client Link" })}
+                    disabled={createShareToken.isPending}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    {createShareToken.isPending ? "Creating..." : "Generate New Link"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => createShareToken.mutate({ projectId, label: "Expiring Link", expiresInDays: 30 })}
+                    disabled={createShareToken.isPending}
+                  >
+                    <Clock className="h-3.5 w-3.5 mr-1" /> 30-Day Link
+                  </Button>
+                </div>
+                <Separator />
+                {!shareTokens || shareTokens.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No share links yet. Generate one above.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {shareTokens.map((st: any) => (
+                      <div key={st.id} className={`flex items-center gap-2 p-3 rounded-lg border ${st.isActive ? "bg-muted/30" : "bg-muted/10 opacity-50"}`}>
+                        <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{st.label || "Share Link"}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>Created {new Date(st.createdAt).toLocaleDateString()}</span>
+                            {st.expiresAt && (
+                              <span className="text-amber-600">
+                                Expires {new Date(st.expiresAt).toLocaleDateString()}
+                              </span>
+                            )}
+                            {!st.isActive && <Badge variant="outline" className="text-[10px] text-red-500 border-red-200">Revoked</Badge>}
+                          </div>
+                        </div>
+                        {st.isActive && (
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyShareLink(st.token)}>
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy link</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                  <a href={`/portal/${st.token}`} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Open portal</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-600"
+                                  onClick={() => revokeShareToken.mutate({ id: st.id })}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Revoke link</TooltipContent>
+                            </Tooltip>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Select
             value={project.status}
             onValueChange={(v) => updateProject.mutate({ id: projectId, status: v as any })}
@@ -294,26 +497,30 @@ export default function ProjectDetail() {
                   const isCurrent = i === currentPhaseIndex;
                   const isPast = i < currentPhaseIndex;
                   return (
-                    <button
-                      key={phase.value}
-                      onClick={() => updateProject.mutate({ id: projectId, phase: phase.value as any })}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                        isCurrent
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : isPast
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {isPast ? (
-                        <CheckCircle2 className="h-3 w-3" />
-                      ) : (
-                        <span className="h-4 w-4 rounded-full border-2 flex items-center justify-center text-[9px] shrink-0" style={{ borderColor: isCurrent ? "currentColor" : "currentColor" }}>
-                          {i + 1}
-                        </span>
-                      )}
-                      {phase.shortLabel}
-                    </button>
+                    <Tooltip key={phase.value}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => updateProject.mutate({ id: projectId, phase: phase.value as any })}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all hover:scale-105 ${
+                            isCurrent
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : isPast
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}
+                        >
+                          {isPast ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : (
+                            <span className="h-4 w-4 rounded-full border-2 flex items-center justify-center text-[9px] shrink-0" style={{ borderColor: "currentColor" }}>
+                              {i + 1}
+                            </span>
+                          )}
+                          {phase.shortLabel}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Click to set phase to {phase.label}</TooltipContent>
+                    </Tooltip>
                   );
                 })}
               </div>
@@ -406,8 +613,81 @@ export default function ProjectDetail() {
                 <div className="divide-y">
                   {projectTasks.map((task) => {
                     const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
+                    const isEditing = editingTaskId === task.id;
+
+                    if (isEditing && editTaskData) {
+                      return (
+                        <div key={task.id} className="px-6 py-4 bg-primary/5 border-l-2 border-primary space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-primary uppercase tracking-wider">Editing Task</span>
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => { setEditingTaskId(null); setEditTaskData(null); }}>
+                                <X className="h-3.5 w-3.5 mr-1" /> Cancel
+                              </Button>
+                              <Button size="sm" onClick={saveEditTask} disabled={updateTask.isPending}>
+                                <Check className="h-3.5 w-3.5 mr-1" /> Save
+                              </Button>
+                            </div>
+                          </div>
+                          <Input
+                            value={editTaskData.title}
+                            onChange={(e) => setEditTaskData({ ...editTaskData, title: e.target.value })}
+                            className="font-medium"
+                            placeholder="Task title"
+                          />
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground uppercase">Assignee</Label>
+                              <select
+                                value={editTaskData.assigneeId || ""}
+                                onChange={(e) => setEditTaskData({ ...editTaskData, assigneeId: e.target.value ? Number(e.target.value) : null })}
+                                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                <option value="">Unassigned</option>
+                                {teamMembers?.map((m) => (
+                                  <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground uppercase">Priority</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={20}
+                                value={editTaskData.priority}
+                                onChange={(e) => setEditTaskData({ ...editTaskData, priority: Number(e.target.value) })}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground uppercase">Deadline</Label>
+                              <Input
+                                type="date"
+                                value={editTaskData.deadline}
+                                onChange={(e) => setEditTaskData({ ...editTaskData, deadline: e.target.value })}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground uppercase">Status</Label>
+                              <select
+                                value={editTaskData.status}
+                                onChange={(e) => setEditTaskData({ ...editTaskData, status: e.target.value })}
+                                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                {taskStatusOptions.map((s) => (
+                                  <option key={s.value} value={s.value}>{s.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div key={task.id} className="flex items-center gap-3 px-6 py-3 hover:bg-muted/30 transition-colors">
+                      <div key={task.id} className="flex items-center gap-3 px-6 py-3 hover:bg-muted/30 transition-colors group">
                         <button
                           onClick={() => {
                             const newStatus = task.status === "done" ? "todo" : "done";
@@ -445,6 +725,38 @@ export default function ProjectDetail() {
                         <Badge className={`text-[10px] shrink-0 border-0 ${taskStatusColors[task.status] ?? ""}`}>
                           {task.status === "in_progress" ? "In Progress" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                         </Badge>
+                        {/* Edit & Delete buttons */}
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditTask(task)}>
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit task</TooltipContent>
+                          </Tooltip>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Task</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{task.title}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteTask.mutate({ id: task.id })} className="bg-red-500 hover:bg-red-600">
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                     );
                   })}
@@ -462,7 +774,6 @@ export default function ProjectDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Upload area */}
               <div className="border-2 border-dashed border-border/60 rounded-lg p-4 text-center hover:border-primary/40 transition-colors">
                 <div className="flex items-center justify-center gap-3">
                   <Select value={fileCategory} onValueChange={setFileCategory}>
@@ -476,12 +787,7 @@ export default function ProjectDetail() {
                     </SelectContent>
                   </Select>
                   <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                      disabled={uploadingFile}
-                    />
+                    <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
                     <Button variant="outline" size="sm" asChild disabled={uploadingFile}>
                       <span>
                         <Upload className="h-3.5 w-3.5 mr-1.5" />
@@ -492,8 +798,6 @@ export default function ProjectDetail() {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2">Max 10MB per file. Drawings, specs, correspondence, photos, contracts.</p>
               </div>
-
-              {/* File list */}
               {!projectFiles || projectFiles.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No files attached yet</p>
               ) : (
@@ -515,12 +819,7 @@ export default function ProjectDetail() {
                             <Download className="h-3.5 w-3.5" />
                           </a>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => deleteFile.mutate({ id: file.id })}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteFile.mutate({ id: file.id })}>
                           <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
                       </div>
@@ -549,11 +848,7 @@ export default function ProjectDetail() {
                 />
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Switch
-                      checked={noteClientVisible}
-                      onCheckedChange={setNoteClientVisible}
-                      id="client-visible"
-                    />
+                    <Switch checked={noteClientVisible} onCheckedChange={setNoteClientVisible} id="client-visible" />
                     <Label htmlFor="client-visible" className="text-xs text-muted-foreground">
                       Visible to client
                     </Label>
@@ -562,11 +857,7 @@ export default function ProjectDetail() {
                     size="sm"
                     onClick={() => {
                       if (noteContent.trim()) {
-                        createNote.mutate({
-                          projectId,
-                          content: noteContent.trim(),
-                          isClientVisible: noteClientVisible,
-                        });
+                        createNote.mutate({ projectId, content: noteContent.trim(), isClientVisible: noteClientVisible });
                       }
                     }}
                     disabled={!noteContent.trim() || createNote.isPending}
@@ -618,7 +909,48 @@ export default function ProjectDetail() {
           {/* Project Info */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Details</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">Details</CardTitle>
+                {!editingProjectDates ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          setEditingProjectDates(true);
+                          setEditStartDate(formatDate(project.startDate));
+                          setEditDeadline(formatDate(project.deadline));
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit dates</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingProjectDates(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        updateProject.mutate({
+                          id: projectId,
+                          startDate: editStartDate ? new Date(editStartDate) : null,
+                          deadline: editDeadline ? new Date(editDeadline) : null,
+                        });
+                        setEditingProjectDates(false);
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
@@ -627,10 +959,7 @@ export default function ProjectDetail() {
                   <Select
                     value={project.projectManagerId?.toString() ?? "none"}
                     onValueChange={(v) =>
-                      updateProject.mutate({
-                        id: projectId,
-                        projectManagerId: v === "none" ? null : Number(v),
-                      })
+                      updateProject.mutate({ id: projectId, projectManagerId: v === "none" ? null : Number(v) })
                     }
                   >
                     <SelectTrigger className="w-[140px] h-8 text-xs">
@@ -652,16 +981,34 @@ export default function ProjectDetail() {
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Start Date</span>
-                  <span className="text-sm">
-                    {project.startDate ? new Date(project.startDate).toLocaleDateString() : "Not set"}
-                  </span>
+                  {editingProjectDates ? (
+                    <Input
+                      type="date"
+                      value={editStartDate}
+                      onChange={(e) => setEditStartDate(e.target.value)}
+                      className="w-[140px] h-8 text-xs"
+                    />
+                  ) : (
+                    <span className="text-sm">
+                      {project.startDate ? new Date(project.startDate).toLocaleDateString() : "Not set"}
+                    </span>
+                  )}
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Deadline</span>
-                  <span className="text-sm">
-                    {project.deadline ? new Date(project.deadline).toLocaleDateString() : "Not set"}
-                  </span>
+                  {editingProjectDates ? (
+                    <Input
+                      type="date"
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
+                      className="w-[140px] h-8 text-xs"
+                    />
+                  ) : (
+                    <span className="text-sm">
+                      {project.deadline ? new Date(project.deadline).toLocaleDateString() : "Not set"}
+                    </span>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -718,16 +1065,84 @@ export default function ProjectDetail() {
           </Card>
 
           {/* Description */}
-          {project.description && (
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">Description</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground leading-relaxed">{project.description}</p>
-              </CardContent>
-            </Card>
-          )}
+                {!editingDescription ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          setEditingDescription(true);
+                          setEditDescription(project.description || "");
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit description</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingDescription(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        updateProject.mutate({ id: projectId, description: editDescription || null });
+                        setEditingDescription(false);
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {editingDescription ? (
+                <Textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={4}
+                  placeholder="Add a project description..."
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {project.description || "No description yet. Click the pencil icon to add one."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Delete Project */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600">
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Project
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Project</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete "{project.name}"? This will permanently remove the project, all its tasks, notes, and files. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => deleteProject.mutate({ id: projectId })} className="bg-red-500 hover:bg-red-600">
+                  Delete Project
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </div>

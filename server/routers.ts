@@ -279,6 +279,39 @@ export const appRouter = router({
     }),
   }),
 
+  // ── Client Share Tokens ─────────────────────────────────────
+  shareTokens: router({
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listShareTokens(input.projectId)),
+    create: protectedProcedure.input(z.object({
+      projectId: z.number(),
+      label: z.string().optional(),
+      expiresInDays: z.number().min(1).max(365).optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const token = nanoid(32);
+      const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86400000) : null;
+      return db.createShareToken({
+        projectId: input.projectId,
+        token,
+        label: input.label || null,
+        isActive: true,
+        expiresAt,
+        createdById: ctx.user.id,
+      });
+    }),
+    revoke: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.revokeShareToken(input.id)),
+  }),
+
+  // ── Public Client Portal ───────────────────────────────────
+  portal: router({
+    getProject: publicProcedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
+      const shareToken = await db.getShareToken(input.token);
+      if (!shareToken) return { error: "Invalid or expired link", data: null };
+      const data = await db.getPublicProjectData(shareToken.projectId);
+      if (!data) return { error: "Project not found", data: null };
+      return { error: null, data };
+    }),
+  }),
+
   // ── Gantt Timeline ──────────────────────────────────────────
   gantt: router({
     data: protectedProcedure.query(() => db.getGanttData()),
