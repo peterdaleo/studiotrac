@@ -4,6 +4,9 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
+import { storagePut } from "./storage";
+import { nanoid } from "nanoid";
+import { notifyOwner } from "./_core/notification";
 
 export const appRouter = router({
   system: systemRouter,
@@ -147,12 +150,138 @@ export const appRouter = router({
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProjectNote(input.id)),
   }),
 
+  // ── Project Files ────────────────────────────────────────────
+  files: router({
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectFiles(input.projectId)),
+    upload: protectedProcedure.input(z.object({
+      projectId: z.number(),
+      fileName: z.string().min(1),
+      fileData: z.string(), // base64 encoded
+      mimeType: z.string().optional(),
+      fileSize: z.number().optional(),
+      category: z.enum(["drawing", "specification", "correspondence", "photo", "contract", "other"]).optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const buffer = Buffer.from(input.fileData, "base64");
+      const ext = input.fileName.split(".").pop() || "bin";
+      const fileKey = `projects/${input.projectId}/files/${nanoid()}.${ext}`;
+      const { url } = await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
+      return db.createProjectFile({
+        projectId: input.projectId,
+        uploadedById: ctx.user.id,
+        fileName: input.fileName,
+        fileKey,
+        url,
+        mimeType: input.mimeType,
+        fileSize: input.fileSize,
+        category: input.category || "other",
+      });
+    }),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProjectFile(input.id)),
+    count: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectFileCount(input.projectId)),
+  }),
+
   // ── Notifications ────────────────────────────────────────────
   notifications: router({
     list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.id)),
     unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id)),
     markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.markNotificationRead(input.id)),
     markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id)),
+  }),
+
+  // ── Email Preferences ───────────────────────────────────────
+  emailPreferences: router({
+    get: protectedProcedure.query(({ ctx }) => db.getEmailPreferences(ctx.user.id)),
+    upsert: protectedProcedure.input(z.object({
+      emailAddress: z.string().email(),
+      deadlineAlerts: z.boolean().optional(),
+      overdueAlerts: z.boolean().optional(),
+      statusChangeAlerts: z.boolean().optional(),
+      alertDaysBefore: z.number().min(1).max(14).optional(),
+    })).mutation(({ input, ctx }) => db.upsertEmailPreferences(ctx.user.id, input)),
+  }),
+
+  // ── Email Notifications ─────────────────────────────────────
+  emailNotifications: router({
+    log: protectedProcedure.query(() => db.listEmailLog()),
+    checkDeadlines: protectedProcedure.mutation(async () => {
+      // Check for tasks due in 3 days and 1 day
+      const tasks3Day = await db.getUpcomingDeadlineTasks(3);
+      const tasks1Day = await db.getUpcomingDeadlineTasks(1);
+      const overdueTasks = await db.getOverdueTasks();
+      const projects3Day = await db.getUpcomingDeadlineProjects(3);
+
+      const alerts: Array<{ type: string; title: string; message: string; daysUntil?: number }> = [];
+
+      for (const task of tasks1Day) {
+        alerts.push({
+          type: "task_deadline_1day",
+          title: `Urgent: "${task.title}" due tomorrow`,
+          message: `Task is due on ${task.deadline?.toLocaleDateString()}`,
+          daysUntil: 1,
+        });
+      }
+
+      for (const task of tasks3Day) {
+        const isDuplicate = tasks1Day.some(t => t.id === task.id);
+        if (!isDuplicate) {
+          alerts.push({
+            type: "task_deadline_3day",
+            title: `Upcoming: "${task.title}" due in 3 days`,
+            message: `Task deadline is ${task.deadline?.toLocaleDateString()}`,
+            daysUntil: 3,
+          });
+        }
+      }
+
+      for (const task of overdueTasks) {
+        alerts.push({
+          type: "task_overdue",
+          title: `Overdue: "${task.title}"`,
+          message: `Task was due on ${task.deadline?.toLocaleDateString()}`,
+        });
+      }
+
+      for (const project of projects3Day) {
+        alerts.push({
+          type: "project_deadline",
+          title: `Project deadline approaching: "${project.name}"`,
+          message: `Project deadline is ${project.deadline?.toLocaleDateString()}`,
+        });
+      }
+
+      // Create in-app notifications for each alert
+      for (const alert of alerts) {
+        await db.createNotification({
+          type: alert.type.includes("overdue") ? "task_overdue" : "deadline_approaching",
+          title: alert.title,
+          message: alert.message,
+        });
+      }
+
+      // Log emails (simulated — actual email sending would require SMTP/provider)
+      for (const alert of alerts) {
+        await db.logEmail({
+          recipientEmail: "team@studio.com",
+          subject: alert.title,
+          body: alert.message,
+        });
+      }
+
+      // Notify owner via platform notification
+      if (alerts.length > 0) {
+        await notifyOwner({
+          title: `studioTrac: ${alerts.length} deadline alert(s)`,
+          content: alerts.map(a => `• ${a.title}`).join("\n"),
+        }).catch(() => {});
+      }
+
+      return { alertsGenerated: alerts.length, alerts };
+    }),
+  }),
+
+  // ── Gantt Timeline ──────────────────────────────────────────
+  gantt: router({
+    data: protectedProcedure.query(() => db.getGanttData()),
   }),
 
   // ── Dashboard ────────────────────────────────────────────────

@@ -113,3 +113,50 @@ export const notifications = mysqlTable("notifications", {
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+
+// ── Project Files ──────────────────────────────────────────────────
+export const projectFiles = mysqlTable("project_files", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  uploadedById: int("uploadedById"),
+  fileName: varchar("fileName", { length: 500 }).notNull(),
+  fileKey: varchar("fileKey", { length: 1000 }).notNull(),
+  url: text("url").notNull(),
+  mimeType: varchar("mimeType", { length: 255 }),
+  fileSize: int("fileSize"),
+  category: mysqlEnum("category", ["drawing", "specification", "correspondence", "photo", "contract", "other"]).default("other").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProjectFile = typeof projectFiles.$inferSelect;
+export type InsertProjectFile = typeof projectFiles.$inferInsert;
+
+// ── Email Preferences ──────────────────────────────────────────────
+export const emailPreferences = mysqlTable("email_preferences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  emailAddress: varchar("emailAddress", { length: 320 }).notNull(),
+  deadlineAlerts: boolean("deadlineAlerts").default(true).notNull(),
+  overdueAlerts: boolean("overdueAlerts").default(true).notNull(),
+  statusChangeAlerts: boolean("statusChangeAlerts").default(false).notNull(),
+  alertDaysBefore: int("alertDaysBefore").default(3).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailPreference = typeof emailPreferences.$inferSelect;
+export type InsertEmailPreference = typeof emailPreferences.$inferInsert;
+
+// ── Email Log ──────────────────────────────────────────────────────
+export const emailLog = mysqlTable("email_log", {
+  id: int("id").autoincrement().primaryKey(),
+  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  body: text("body"),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+  relatedProjectId: int("relatedProjectId"),
+  relatedTaskId: int("relatedTaskId"),
+});
+
+export type EmailLogEntry = typeof emailLog.$inferSelect;
+export type InsertEmailLogEntry = typeof emailLog.$inferInsert;

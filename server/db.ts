@@ -7,6 +7,9 @@ import {
   teamMembers, InsertTeamMember, TeamMember,
   projectNotes, InsertProjectNote,
   notifications, InsertNotification,
+  projectFiles, InsertProjectFile,
+  emailPreferences, InsertEmailPreference,
+  emailLog, InsertEmailLogEntry,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -128,6 +131,7 @@ export async function deleteProject(id: number) {
   if (!db) throw new Error("Database not available");
   await db.delete(tasks).where(eq(tasks.projectId, id));
   await db.delete(projectNotes).where(eq(projectNotes.projectId, id));
+  await db.delete(projectFiles).where(eq(projectFiles.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
 }
 
@@ -241,6 +245,118 @@ export async function getUnreadNotificationCount(userId?: number) {
   if (userId) conditions.push(or(eq(notifications.userId, userId), isNull(notifications.userId))!);
   const result = await db.select({ count: sql<number>`count(*)` }).from(notifications).where(and(...conditions));
   return result[0]?.count ?? 0;
+}
+
+// ── Project Files ─────────────────────────────────────────────────
+export async function listProjectFiles(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId)).orderBy(desc(projectFiles.createdAt));
+}
+
+export async function createProjectFile(data: InsertProjectFile) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(projectFiles).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function deleteProjectFile(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const file = await db.select().from(projectFiles).where(eq(projectFiles.id, id)).limit(1);
+  await db.delete(projectFiles).where(eq(projectFiles.id, id));
+  return file[0];
+}
+
+export async function getProjectFileCount(projectId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.select({ count: sql<number>`count(*)` }).from(projectFiles).where(eq(projectFiles.projectId, projectId));
+  return result[0]?.count ?? 0;
+}
+
+// ── Email Preferences ─────────────────────────────────────────────
+export async function getEmailPreferences(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(emailPreferences).where(eq(emailPreferences.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function upsertEmailPreferences(userId: number, data: Partial<InsertEmailPreference>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(emailPreferences).where(eq(emailPreferences.userId, userId)).limit(1);
+  if (existing.length > 0) {
+    await db.update(emailPreferences).set(data).where(eq(emailPreferences.userId, userId));
+    return { id: existing[0]!.id };
+  } else {
+    const result = await db.insert(emailPreferences).values({ userId, emailAddress: data.emailAddress || '', ...data });
+    return { id: result[0].insertId };
+  }
+}
+
+// ── Email Log ─────────────────────────────────────────────────────
+export async function logEmail(data: InsertEmailLogEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(emailLog).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function listEmailLog(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(emailLog).orderBy(desc(emailLog.sentAt)).limit(limit);
+}
+
+// ── Deadline Check (for email notifications) ──────────────────────
+export async function getUpcomingDeadlineTasks(daysAhead: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const future = new Date(now.getTime() + daysAhead * 86400000);
+  return db.select().from(tasks)
+    .where(and(
+      ne(tasks.status, 'done'),
+      ne(tasks.status, 'overdue'),
+      lte(tasks.deadline, future),
+      gte(tasks.deadline, now)
+    ))
+    .orderBy(asc(tasks.deadline));
+}
+
+export async function getOverdueTasks() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tasks)
+    .where(eq(tasks.status, 'overdue'))
+    .orderBy(asc(tasks.deadline));
+}
+
+export async function getUpcomingDeadlineProjects(daysAhead: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const future = new Date(now.getTime() + daysAhead * 86400000);
+  return db.select().from(projects)
+    .where(and(
+      ne(projects.status, 'completed'),
+      lte(projects.deadline, future),
+      gte(projects.deadline, now)
+    ))
+    .orderBy(asc(projects.deadline));
+}
+
+// ── Gantt Data ────────────────────────────────────────────────────
+export async function getGanttData() {
+  const db = await getDb();
+  if (!db) return { projects: [], tasks: [], members: [] };
+  const allProjects = await db.select().from(projects).where(ne(projects.status, 'completed')).orderBy(asc(projects.startDate));
+  const allTasks = await db.select().from(tasks).where(ne(tasks.status, 'done')).orderBy(asc(tasks.deadline));
+  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true));
+  return { projects: allProjects, tasks: allTasks, members: allMembers };
 }
 
 // ── Dashboard Stats ────────────────────────────────────────────────

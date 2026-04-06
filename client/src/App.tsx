@@ -12,6 +12,8 @@ import Tasks from "./pages/Tasks";
 import Team from "./pages/Team";
 import CalendarView from "./pages/CalendarView";
 import Notifications from "./pages/Notifications";
+import Timeline from "./pages/Timeline";
+import Settings from "./pages/Settings";
 
 function Router() {
   return (
@@ -24,7 +26,9 @@ function Router() {
         <Route path="/team" component={Team} />
         <Route path="/team/:id" component={Team} />
         <Route path="/calendar" component={CalendarView} />
+        <Route path="/timeline" component={Timeline} />
         <Route path="/notifications" component={Notifications} />
+        <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

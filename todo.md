@@ -64,3 +64,30 @@
 ## Deployment
 - [x] Final checkpoint
 - [x] Deploy to live URL
+
+## Phase 2 Features
+
+### Gantt Timeline View
+- [x] Gantt data endpoint returning projects with start/end dates
+- [x] Horizontal timeline page with overlapping project bars
+- [x] Color-coded by status, phase labels, resource conflict indicators
+- [x] Navigation link in sidebar
+
+### File Attachments per Project
+- [x] Database table for project_files (name, url, fileKey, mimeType, size, uploadedBy)
+- [x] S3 file upload tRPC procedure (storagePut)
+- [x] File list/download/delete tRPC procedures
+- [x] File attachments section in Project Detail page with upload
+- [x] File type icons and size display
+
+### Email Notifications
+- [x] Email notification preferences (opt-in per user)
+- [x] Deadline approaching alerts (configurable day warnings)
+- [x] Overdue task email alerts
+- [x] Notification settings page with full configuration
+- [x] Manual deadline check with alert generation
+
+### Deployment
+- [x] Tests for new features (35 tests passing)
+- [x] Final checkpoint
+- [x] Redeploy to live URL

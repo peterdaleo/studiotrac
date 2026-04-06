@@ -40,6 +40,13 @@ import {
   EyeOff,
   Clock,
   AlertTriangle,
+  Paperclip,
+  Upload,
+  FileText,
+  Image as ImageIcon,
+  File,
+  Download,
+  X,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import {
@@ -73,10 +80,13 @@ export default function ProjectDetail() {
   const [noteClientVisible, setNoteClientVisible] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [fileCategory, setFileCategory] = useState<string>("other");
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
   const { data: notes } = trpc.notes.list.useQuery({ projectId });
+  const { data: projectFiles } = trpc.files.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const utils = trpc.useUtils();
 
@@ -117,6 +127,73 @@ export default function ProjectDetail() {
       utils.tasks.list.invalidate({ projectId });
     },
   });
+
+  const uploadFile = trpc.files.upload.useMutation({
+    onSuccess: () => {
+      utils.files.list.invalidate({ projectId });
+      setUploadingFile(false);
+      toast.success("File uploaded successfully");
+    },
+    onError: (err) => {
+      setUploadingFile(false);
+      toast.error("Upload failed: " + err.message);
+    },
+  });
+
+  const deleteFile = trpc.files.delete.useMutation({
+    onSuccess: () => {
+      utils.files.list.invalidate({ projectId });
+      toast.success("File deleted");
+    },
+  });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be under 10MB");
+      return;
+    }
+    setUploadingFile(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      if (!base64) { setUploadingFile(false); return; }
+      uploadFile.mutate({
+        projectId,
+        fileName: file.name,
+        fileData: base64,
+        mimeType: file.type,
+        fileSize: file.size,
+        category: fileCategory as any,
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const getFileIcon = (mimeType?: string | null) => {
+    if (!mimeType) return <File className="h-4 w-4" />;
+    if (mimeType.startsWith("image/")) return <ImageIcon className="h-4 w-4" />;
+    if (mimeType.includes("pdf")) return <FileText className="h-4 w-4 text-red-500" />;
+    return <File className="h-4 w-4" />;
+  };
+
+  const formatFileSize = (bytes?: number | null) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  const FILE_CATEGORIES = [
+    { value: "drawing", label: "Drawing" },
+    { value: "specification", label: "Specification" },
+    { value: "correspondence", label: "Correspondence" },
+    { value: "photo", label: "Photo" },
+    { value: "contract", label: "Contract" },
+    { value: "other", label: "Other" },
+  ];
 
   const getMemberName = (id: number | null) =>
     teamMembers?.find((m) => m.id === id)?.name ?? "Unassigned";
@@ -371,6 +448,84 @@ export default function ProjectDetail() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* File Attachments */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                Files & Documents ({projectFiles?.length ?? 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Upload area */}
+              <div className="border-2 border-dashed border-border/60 rounded-lg p-4 text-center hover:border-primary/40 transition-colors">
+                <div className="flex items-center justify-center gap-3">
+                  <Select value={fileCategory} onValueChange={setFileCategory}>
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FILE_CATEGORIES.map(c => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      disabled={uploadingFile}
+                    />
+                    <Button variant="outline" size="sm" asChild disabled={uploadingFile}>
+                      <span>
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />
+                        {uploadingFile ? "Uploading..." : "Upload File"}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">Max 10MB per file. Drawings, specs, correspondence, photos, contracts.</p>
+              </div>
+
+              {/* File list */}
+              {!projectFiles || projectFiles.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No files attached yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {projectFiles.map((file) => (
+                    <div key={file.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+                      {getFileIcon(file.mimeType)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.fileName}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{file.category}</Badge>
+                          <span>{formatFileSize(file.fileSize)}</span>
+                          <span>{new Date(file.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                          <a href={file.url} target="_blank" rel="noopener noreferrer">
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => deleteFile.mutate({ id: file.id })}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

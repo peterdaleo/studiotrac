@@ -32,6 +32,8 @@ import {
   LogOut,
   PanelLeft,
   Building2,
+  GanttChart,
+  Settings,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -46,6 +48,7 @@ const menuItems = [
   { icon: CheckSquare, label: "Tasks", path: "/tasks" },
   { icon: Users, label: "Team", path: "/team" },
   { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+  { icon: GanttChart, label: "Timeline", path: "/timeline" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -252,6 +255,17 @@ function DashboardLayoutContent({
                         {unreadCount}
                       </Badge>
                     )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={location === "/settings"}
+                    onClick={() => setLocation("/settings")}
+                    tooltip="Settings"
+                    className="h-10 transition-all font-normal"
+                  >
+                    <Settings className={`h-4 w-4 ${location === "/settings" ? "text-sidebar-primary" : ""}`} />
+                    <span>Settings</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
