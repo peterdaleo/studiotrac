@@ -34,6 +34,8 @@ import {
   Building2,
   GanttChart,
   Settings,
+  DollarSign,
+  FileSpreadsheet,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -49,6 +51,8 @@ const menuItems = [
   { icon: Users, label: "Team", path: "/team" },
   { icon: CalendarDays, label: "Calendar", path: "/calendar" },
   { icon: GanttChart, label: "Timeline", path: "/timeline" },
+  { icon: DollarSign, label: "Financials", path: "/financials" },
+  { icon: FileSpreadsheet, label: "Reports", path: "/reports" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

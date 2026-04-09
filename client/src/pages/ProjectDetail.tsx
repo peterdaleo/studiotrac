@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -116,6 +117,11 @@ export default function ProjectDetail() {
   const [editDeadline, setEditDeadline] = useState("");
   const [editingDescription, setEditingDescription] = useState(false);
   const [editDescription, setEditDescription] = useState("");
+  const [editingFee, setEditingFee] = useState(false);
+  const [editFeeValue, setEditFeeValue] = useState("");
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
@@ -123,6 +129,7 @@ export default function ProjectDetail() {
   const { data: projectFiles } = trpc.files.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const { data: shareTokens } = trpc.shareTokens.list.useQuery({ projectId });
+  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId });
   const utils = trpc.useUtils();
 
   const updateProject = trpc.projects.update.useMutation({
@@ -195,6 +202,31 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.files.list.invalidate({ projectId });
       toast.success("File deleted");
+    },
+  });
+
+  const createInvoice = trpc.invoices.create.useMutation({
+    onSuccess: () => {
+      utils.invoices.list.invalidate({ projectId });
+      utils.projects.get.invalidate({ id: projectId });
+      setInvoiceDialogOpen(false);
+      toast.success("Invoice created");
+    },
+  });
+
+  const updateInvoice = trpc.invoices.update.useMutation({
+    onSuccess: () => {
+      utils.invoices.list.invalidate({ projectId });
+      utils.projects.get.invalidate({ id: projectId });
+      toast.success("Invoice updated");
+    },
+  });
+
+  const deleteInvoice = trpc.invoices.delete.useMutation({
+    onSuccess: () => {
+      utils.invoices.list.invalidate({ projectId });
+      utils.projects.get.invalidate({ id: projectId });
+      toast.success("Invoice deleted");
     },
   });
 
@@ -1061,6 +1093,88 @@ export default function ProjectDetail() {
                 <div className="flex-1" />
                 <Switch checked={project.billingOk} />
               </button>
+            </CardContent>
+          </Card>
+
+          {/* Budget & Invoices */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                Budget & Invoices
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Contracted Fee</span>
+                {editingFee && isAdmin ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">$</span>
+                    <Input type="number" value={editFeeValue} onChange={(e) => setEditFeeValue(e.target.value)} className="w-28 h-8 text-xs" min={0} step={100} />
+                    <Button size="sm" className="h-7 text-xs" onClick={() => { updateProject.mutate({ id: projectId, contractedFee: Math.round(Number(editFeeValue) * 100) }); setEditingFee(false); }}>Save</Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingFee(false)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-semibold">{project.contractedFee > 0 ? `$${(project.contractedFee / 100).toLocaleString()}` : "Not set"}</span>
+                    {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingFee(true); setEditFeeValue((project.contractedFee / 100).toString()); }}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Collected</span>
+                <span className="text-sm font-medium text-emerald-600">${(project.invoicedAmount / 100).toLocaleString()}</span>
+              </div>
+              {project.contractedFee > 0 && <Progress value={Math.min((project.invoicedAmount / project.contractedFee) * 100, 100)} className="h-2" />}
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Invoices</span>
+                {isAdmin && (
+                  <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-7 text-xs"><Plus className="h-3 w-3 mr-1" /> New Invoice</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle>Create Invoice</DialogTitle></DialogHeader>
+                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createInvoice.mutate({ projectId, amount: Math.round(Number(fd.get("amount")) * 100), invoiceNumber: (fd.get("invoiceNumber") as string) || undefined, description: (fd.get("description") as string) || undefined, status: (fd.get("status") as any) || "draft", invoiceDate: fd.get("invoiceDate") ? new Date(fd.get("invoiceDate") as string) : undefined, dueDate: fd.get("dueDate") ? new Date(fd.get("dueDate") as string) : null }); }} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2"><Label>Amount ($)</Label><Input name="amount" type="number" min={0} step={0.01} required placeholder="0.00" /></div>
+                          <div className="space-y-2"><Label>Invoice #</Label><Input name="invoiceNumber" placeholder="INV-001" /></div>
+                        </div>
+                        <div className="space-y-2"><Label>Description</Label><Input name="description" placeholder="25% milestone payment" /></div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-2"><Label>Status</Label><select name="status" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"><option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option></select></div>
+                          <div className="space-y-2"><Label>Date</Label><Input name="invoiceDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} /></div>
+                          <div className="space-y-2"><Label>Due Date</Label><Input name="dueDate" type="date" /></div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setInvoiceDialogOpen(false)}>Cancel</Button>
+                          <Button type="submit" disabled={createInvoice.isPending}>{createInvoice.isPending ? "Creating..." : "Create Invoice"}</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+              {!projectInvoices || projectInvoices.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-2">No invoices yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {projectInvoices.map((inv: any) => {
+                    const sc = inv.status === "paid" ? "bg-emerald-100 text-emerald-700" : inv.status === "sent" ? "bg-blue-100 text-blue-700" : inv.status === "overdue" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600";
+                    return (
+                      <div key={inv.id} className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2"><span className="text-sm font-medium">${(inv.amount / 100).toLocaleString()}</span><Badge className={`text-[10px] border-0 ${sc}`}>{inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}</Badge></div>
+                          <p className="text-[10px] text-muted-foreground truncate">{inv.invoiceNumber && `${inv.invoiceNumber} \u00b7 `}{inv.description || "No description"}</p>
+                        </div>
+                        {isAdmin && inv.status !== "paid" && <Button variant="ghost" size="sm" className="h-6 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600" onClick={() => updateInvoice.mutate({ id: inv.id, status: "paid", paidDate: new Date() })}>Mark Paid</Button>}
+                        {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteInvoice.mutate({ id: inv.id })}><Trash2 className="h-3 w-3 text-muted-foreground" /></Button>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 

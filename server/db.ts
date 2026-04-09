@@ -11,6 +11,7 @@ import {
   emailPreferences, InsertEmailPreference,
   emailLog, InsertEmailLogEntry,
   clientShareTokens, InsertClientShareToken,
+  invoices, InsertInvoice,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -133,6 +134,8 @@ export async function deleteProject(id: number) {
   await db.delete(tasks).where(eq(tasks.projectId, id));
   await db.delete(projectNotes).where(eq(projectNotes.projectId, id));
   await db.delete(projectFiles).where(eq(projectFiles.projectId, id));
+  await db.delete(invoices).where(eq(invoices.projectId, id));
+  await db.delete(clientShareTokens).where(eq(clientShareTokens.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
 }
 
@@ -360,6 +363,154 @@ export async function getGanttData() {
   return { projects: allProjects, tasks: allTasks, members: allMembers };
 }
 
+// ── Invoices ──────────────────────────────────────────────────────
+export async function listInvoices(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(invoices).where(eq(invoices.projectId, projectId)).orderBy(desc(invoices.invoiceDate));
+}
+
+export async function createInvoice(data: InsertInvoice) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(invoices).values(data);
+  // Recalculate project invoiced amount
+  await recalcProjectInvoiced(data.projectId);
+  return { id: result[0].insertId };
+}
+
+export async function updateInvoice(id: number, data: Partial<InsertInvoice>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get the invoice to know its projectId
+  const existing = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+  await db.update(invoices).set(data).where(eq(invoices.id, id));
+  if (existing[0]) await recalcProjectInvoiced(existing[0].projectId);
+}
+
+export async function deleteInvoice(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+  await db.delete(invoices).where(eq(invoices.id, id));
+  if (existing[0]) await recalcProjectInvoiced(existing[0].projectId);
+}
+
+async function recalcProjectInvoiced(projectId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const result = await db.select({
+    total: sql<number>`COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0)`,
+  }).from(invoices).where(eq(invoices.projectId, projectId));
+  const totalPaid = Number(result[0]?.total ?? 0);
+  await db.update(projects).set({ invoicedAmount: totalPaid }).where(eq(projects.id, projectId));
+}
+
+// ── Financial Overview ────────────────────────────────────────────
+export async function getFinancialOverview() {
+  const db = await getDb();
+  if (!db) return { projects: [], totals: { contracted: 0, invoiced: 0, outstanding: 0, paid: 0 } };
+  const allProjects = await db.select().from(projects).orderBy(desc(projects.updatedAt));
+  const allInvoices = await db.select().from(invoices).orderBy(desc(invoices.invoiceDate));
+  
+  let totalContracted = 0;
+  let totalInvoiced = 0;
+  let totalPaid = 0;
+  
+  const projectFinancials = allProjects.map(p => {
+    const projectInvoices = allInvoices.filter(i => i.projectId === p.id);
+    const invoicedTotal = projectInvoices.reduce((sum, i) => sum + i.amount, 0);
+    const paidTotal = projectInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0);
+    totalContracted += p.contractedFee;
+    totalInvoiced += invoicedTotal;
+    totalPaid += paidTotal;
+    return {
+      ...p,
+      invoiceCount: projectInvoices.length,
+      totalInvoiced: invoicedTotal,
+      totalPaid: paidTotal,
+      outstanding: invoicedTotal - paidTotal,
+    };
+  });
+  
+  return {
+    projects: projectFinancials,
+    totals: {
+      contracted: totalContracted,
+      invoiced: totalInvoiced,
+      outstanding: totalInvoiced - totalPaid,
+      paid: totalPaid,
+    },
+  };
+}
+
+// ── Export Data Helpers ──────────────────────────────────────────
+export async function getExportProjectsSummary() {
+  const db = await getDb();
+  if (!db) return [];
+  const allProjects = await db.select().from(projects).orderBy(asc(projects.name));
+  const allMembers = await db.select().from(teamMembers);
+  return allProjects.map(p => {
+    const manager = allMembers.find(m => m.id === p.projectManagerId);
+    return {
+      name: p.name,
+      client: p.clientName || '',
+      manager: manager?.name || 'Unassigned',
+      status: p.status,
+      phase: p.phase,
+      completion: p.completionPercentage,
+      startDate: p.startDate?.toISOString().split('T')[0] || '',
+      deadline: p.deadline?.toISOString().split('T')[0] || '',
+      contractedFee: (p.contractedFee / 100).toFixed(2),
+      invoicedAmount: (p.invoicedAmount / 100).toFixed(2),
+    };
+  });
+}
+
+export async function getExportTasksList() {
+  const db = await getDb();
+  if (!db) return [];
+  const allTasks = await db.select().from(tasks).orderBy(asc(tasks.priority));
+  const allMembers = await db.select().from(teamMembers);
+  const allProjects = await db.select().from(projects);
+  return allTasks.map(t => {
+    const assignee = allMembers.find(m => m.id === t.assigneeId);
+    const project = allProjects.find(p => p.id === t.projectId);
+    return {
+      title: t.title,
+      project: project?.name || '',
+      assignee: assignee?.name || 'Unassigned',
+      status: t.status,
+      priority: t.priority,
+      deadline: t.deadline?.toISOString().split('T')[0] || '',
+      completedAt: t.completedAt?.toISOString().split('T')[0] || '',
+    };
+  });
+}
+
+export async function getExportTeamWorkload() {
+  const db = await getDb();
+  if (!db) return [];
+  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true));
+  const allTasks = await db.select().from(tasks);
+  return allMembers.map(m => {
+    const memberTasks = allTasks.filter(t => t.assigneeId === m.id);
+    const completed = memberTasks.filter(t => t.status === 'done').length;
+    const overdue = memberTasks.filter(t => t.status === 'overdue').length;
+    const inProgress = memberTasks.filter(t => t.status === 'in_progress').length;
+    return {
+      name: m.name,
+      title: m.title || '',
+      email: m.email || '',
+      totalTasks: memberTasks.length,
+      completed,
+      inProgress,
+      overdue,
+      completionRate: memberTasks.length > 0 ? ((completed / memberTasks.length) * 100).toFixed(1) : '0.0',
+    };
+  });
+}
+
 // ── Dashboard Stats ────────────────────────────────────────────────
 export async function getDashboardStats() {
   const db = await getDb();
@@ -507,8 +658,8 @@ export async function seedDemoData() {
   // Seed projects
   const now = new Date();
   const projectData: InsertProject[] = [
-    { name: "Riverside Cultural Center", clientName: "City of Portland", address: "450 NW Waterfront Dr, Portland, OR", projectManagerId: members[0]?.id, status: "on_track", phase: "construction_documents", completionPercentage: 68, startDate: new Date(now.getTime() - 120 * 86400000), deadline: new Date(now.getTime() + 90 * 86400000), billing25: true, billing50: true, billing75: false, billing100: false, billingOk: true, description: "A 45,000 sq ft cultural center featuring exhibition galleries, performance spaces, and community rooms with river-facing terraces." },
-    { name: "Meridian Tower Residences", clientName: "Apex Development Group", address: "1200 S Michigan Ave, Chicago, IL", projectManagerId: members[2]?.id, status: "on_track", phase: "design_development", completionPercentage: 42, startDate: new Date(now.getTime() - 60 * 86400000), deadline: new Date(now.getTime() + 180 * 86400000), billing25: true, billing50: false, billing75: false, billing100: false, billingOk: true, description: "A 32-story luxury residential tower with ground-floor retail, rooftop amenities, and a distinctive crystalline facade." },
+    { name: "Riverside Cultural Center", clientName: "City of Portland", address: "450 NW Waterfront Dr, Portland, OR", projectManagerId: members[0]?.id, status: "on_track", phase: "construction_documents", completionPercentage: 68, startDate: new Date(now.getTime() - 120 * 86400000), deadline: new Date(now.getTime() + 90 * 86400000), billing25: true, billing50: true, billing75: false, billing100: false, billingOk: true, description: "A 45,000 sq ft cultural center featuring exhibition galleries, performance spaces, and community rooms with river-facing terraces.", contractedFee: 285000000, invoicedAmount: 142500000 },
+    { name: "Meridian Tower Residences", clientName: "Apex Development Group", address: "1200 S Michigan Ave, Chicago, IL", projectManagerId: members[2]?.id, status: "on_track", phase: "design_development", completionPercentage: 42, startDate: new Date(now.getTime() - 60 * 86400000), deadline: new Date(now.getTime() + 180 * 86400000), billing25: true, billing50: false, billing75: false, billing100: false, billingOk: true, description: "A 32-story luxury residential tower with ground-floor retail, rooftop amenities, and a distinctive crystalline facade.", contractedFee: 520000000, invoicedAmount: 130000000 },
     { name: "Greenleaf Elementary Renovation", clientName: "Unified School District", address: "789 Oak Street, Sacramento, CA", projectManagerId: members[0]?.id, status: "delayed", phase: "construction_administration", completionPercentage: 82, startDate: new Date(now.getTime() - 200 * 86400000), deadline: new Date(now.getTime() + 30 * 86400000), billing25: true, billing50: true, billing75: true, billing100: false, billingOk: false, description: "Complete renovation of a 1960s elementary school including seismic retrofitting, new HVAC, and modernized learning spaces." },
     { name: "Harbor View Office Complex", clientName: "Maritime Holdings LLC", address: "2100 Harbor Blvd, San Diego, CA", projectManagerId: members[3]?.id, status: "on_hold", phase: "schematic_design", completionPercentage: 18, startDate: new Date(now.getTime() - 30 * 86400000), deadline: new Date(now.getTime() + 300 * 86400000), billing25: false, billing50: false, billing75: false, billing100: false, billingOk: true, description: "A three-building waterfront office campus with shared courtyards, underground parking, and LEED Platinum certification target." },
     { name: "Artisan Loft Conversion", clientName: "Heritage Realty Partners", address: "55 Franklin St, Brooklyn, NY", projectManagerId: members[2]?.id, status: "on_track", phase: "bidding_negotiation", completionPercentage: 75, startDate: new Date(now.getTime() - 150 * 86400000), deadline: new Date(now.getTime() + 60 * 86400000), billing25: true, billing50: true, billing75: true, billing100: false, billingOk: true, description: "Adaptive reuse of a historic warehouse into 24 luxury loft residences preserving original timber and masonry elements." },
@@ -519,6 +670,19 @@ export async function seedDemoData() {
   for (const p of projectData) await db.insert(projects).values(p);
 
   const allProjects = await db.select().from(projects);
+
+  // Seed invoices for demo projects
+  const invoiceData: InsertInvoice[] = [
+    { projectId: allProjects[0]!.id, amount: 71250000, description: "25% Schematic Design milestone", invoiceNumber: "INV-2025-001", status: "paid", invoiceDate: new Date(now.getTime() - 90 * 86400000), paidDate: new Date(now.getTime() - 75 * 86400000) },
+    { projectId: allProjects[0]!.id, amount: 71250000, description: "50% Design Development milestone", invoiceNumber: "INV-2025-002", status: "paid", invoiceDate: new Date(now.getTime() - 45 * 86400000), paidDate: new Date(now.getTime() - 30 * 86400000) },
+    { projectId: allProjects[0]!.id, amount: 71250000, description: "75% Construction Documents milestone", invoiceNumber: "INV-2025-003", status: "sent", invoiceDate: new Date(now.getTime() - 5 * 86400000), dueDate: new Date(now.getTime() + 25 * 86400000) },
+    { projectId: allProjects[1]!.id, amount: 130000000, description: "25% Schematic Design milestone", invoiceNumber: "INV-2025-004", status: "paid", invoiceDate: new Date(now.getTime() - 30 * 86400000), paidDate: new Date(now.getTime() - 15 * 86400000) },
+    { projectId: allProjects[1]!.id, amount: 130000000, description: "50% Design Development milestone", invoiceNumber: "INV-2025-005", status: "draft", invoiceDate: new Date(now.getTime()) },
+    { projectId: allProjects[4]!.id, amount: 56250000, description: "25% milestone", invoiceNumber: "INV-2025-006", status: "paid", invoiceDate: new Date(now.getTime() - 100 * 86400000), paidDate: new Date(now.getTime() - 85 * 86400000) },
+    { projectId: allProjects[4]!.id, amount: 56250000, description: "50% milestone", invoiceNumber: "INV-2025-007", status: "paid", invoiceDate: new Date(now.getTime() - 60 * 86400000), paidDate: new Date(now.getTime() - 45 * 86400000) },
+    { projectId: allProjects[4]!.id, amount: 56250000, description: "75% milestone", invoiceNumber: "INV-2025-008", status: "sent", invoiceDate: new Date(now.getTime() - 10 * 86400000), dueDate: new Date(now.getTime() + 20 * 86400000) },
+  ];
+  for (const inv of invoiceData) await db.insert(invoices).values(inv);
 
   // Seed tasks
   const taskData: InsertTask[] = [

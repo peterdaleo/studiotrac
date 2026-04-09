@@ -22,7 +22,7 @@ vi.mock("./db", () => ({
   getProject: vi.fn().mockResolvedValue({
     id: 1, name: "Riverside Cultural Center", clientName: "City of Portland", status: "on_track",
     phase: "construction_documents", completionPercentage: 68, billing25: true, billing50: true,
-    billing75: false, billing100: false, billingOk: true,
+    billing75: false, billing100: false, billingOk: true, contractedFee: 50000000, invoicedAmount: 25000000,
   }),
   createProject: vi.fn().mockResolvedValue({ id: 3 }),
   updateProject: vi.fn().mockResolvedValue(undefined),
@@ -45,7 +45,6 @@ vi.mock("./db", () => ({
   updateProjectNote: vi.fn().mockResolvedValue(undefined),
   deleteProjectNote: vi.fn().mockResolvedValue(undefined),
 
-  // Project Files
   listProjectFiles: vi.fn().mockResolvedValue([
     { id: 1, projectId: 1, fileName: "floor-plan.pdf", fileKey: "projects/1/files/abc.pdf", url: "https://cdn.example.com/abc.pdf", mimeType: "application/pdf", fileSize: 2048000, category: "drawing", createdAt: new Date() },
     { id: 2, projectId: 1, fileName: "site-photo.jpg", fileKey: "projects/1/files/def.jpg", url: "https://cdn.example.com/def.jpg", mimeType: "image/jpeg", fileSize: 512000, category: "photo", createdAt: new Date() },
@@ -54,20 +53,17 @@ vi.mock("./db", () => ({
   deleteProjectFile: vi.fn().mockResolvedValue({ id: 1, fileName: "floor-plan.pdf" }),
   getProjectFileCount: vi.fn().mockResolvedValue(2),
 
-  // Email Preferences
   getEmailPreferences: vi.fn().mockResolvedValue({
     id: 1, userId: 1, emailAddress: "test@studio.com",
     deadlineAlerts: true, overdueAlerts: true, statusChangeAlerts: false, alertDaysBefore: 3,
   }),
   upsertEmailPreferences: vi.fn().mockResolvedValue({ id: 1 }),
 
-  // Email Log
   logEmail: vi.fn().mockResolvedValue({ id: 1 }),
   listEmailLog: vi.fn().mockResolvedValue([
     { id: 1, recipientEmail: "team@studio.com", subject: "Deadline approaching", body: "Task due tomorrow", sentAt: new Date() },
   ]),
 
-  // Deadline checks
   getUpcomingDeadlineTasks: vi.fn().mockResolvedValue([
     { id: 1, title: "Review drawings", status: "in_progress", deadline: new Date(Date.now() + 86400000) },
   ]),
@@ -78,7 +74,6 @@ vi.mock("./db", () => ({
     { id: 1, name: "Riverside Cultural Center", deadline: new Date(Date.now() + 2 * 86400000) },
   ]),
 
-  // Client Share Tokens
   createShareToken: vi.fn().mockResolvedValue({ id: 1 }),
   listShareTokens: vi.fn().mockResolvedValue([
     { id: 1, projectId: 1, token: "test-token-abc123", label: "Client Link", isActive: true, expiresAt: new Date(Date.now() + 30 * 86400000), createdAt: new Date() },
@@ -94,7 +89,6 @@ vi.mock("./db", () => ({
     manager: { name: "Sarah Chen" },
   }),
 
-  // Gantt
   getGanttData: vi.fn().mockResolvedValue({
     projects: [
       { id: 1, name: "Riverside Cultural Center", status: "on_track", phase: "construction_documents", startDate: new Date("2025-01-15"), deadline: new Date("2025-12-31"), completionPercentage: 68 },
@@ -108,6 +102,37 @@ vi.mock("./db", () => ({
       { id: 1, name: "Sarah Chen", title: "Principal Architect", avatarColor: "#6366f1", isActive: true },
     ],
   }),
+
+  // Invoices
+  listInvoices: vi.fn().mockResolvedValue([
+    { id: 1, projectId: 1, amount: 12500000, invoiceNumber: "INV-001", description: "25% milestone", status: "paid", invoiceDate: new Date(), paidDate: new Date(), createdAt: new Date() },
+    { id: 2, projectId: 1, amount: 12500000, invoiceNumber: "INV-002", description: "50% milestone", status: "sent", invoiceDate: new Date(), dueDate: new Date(Date.now() + 30 * 86400000), createdAt: new Date() },
+  ]),
+  createInvoice: vi.fn().mockResolvedValue({ id: 3 }),
+  updateInvoice: vi.fn().mockResolvedValue(undefined),
+  deleteInvoice: vi.fn().mockResolvedValue(undefined),
+
+  // Financials
+  getFinancialOverview: vi.fn().mockResolvedValue({
+    totalContracted: 350000000,
+    totalInvoiced: 175000000,
+    totalPaid: 125000000,
+    totalOutstanding: 50000000,
+    projects: [
+      { id: 1, name: "Riverside Cultural Center", clientName: "City of Portland", status: "on_track", contractedFee: 50000000, invoicedAmount: 25000000, paidAmount: 25000000, outstandingAmount: 0 },
+    ],
+  }),
+
+  // Exports
+  getExportProjectsSummary: vi.fn().mockResolvedValue([
+    { name: "Riverside Cultural Center", clientName: "City of Portland", status: "on_track", phase: "construction_documents", completionPercentage: 68, startDate: new Date(), deadline: new Date(), projectManagerName: "Sarah Chen", contractedFee: 50000000, invoicedAmount: 25000000, billingOk: true },
+  ]),
+  getExportTasksList: vi.fn().mockResolvedValue([
+    { title: "Finalize structural engineering", projectName: "Riverside Cultural Center", assigneeName: "Sarah Chen", priority: 3, status: "in_progress", deadline: new Date(), createdAt: new Date(), completedAt: null },
+  ]),
+  getExportTeamWorkload: vi.fn().mockResolvedValue([
+    { name: "Sarah Chen", role: "Principal Architect", activeTasks: 5, completedTasks: 3, overdueTasks: 1, projectCount: 4 },
+  ]),
 
   listNotifications: vi.fn().mockResolvedValue([
     { id: 1, type: "task_overdue", title: "Overdue task", message: "Test", isRead: false, createdAt: new Date() },
@@ -136,7 +161,7 @@ vi.mock("./_core/notification", () => ({
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createAuthContext(): { ctx: TrpcContext; clearedCookies: { name: string; options: Record<string, unknown> }[] } {
+function createAuthContext(role: "user" | "admin" = "user"): { ctx: TrpcContext; clearedCookies: { name: string; options: Record<string, unknown> }[] } {
   const clearedCookies: { name: string; options: Record<string, unknown> }[] = [];
   const user: AuthenticatedUser = {
     id: 1,
@@ -144,7 +169,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: { name: string
     email: "test@studio.com",
     name: "Test User",
     loginMethod: "manus",
-    role: "user",
+    role,
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
@@ -159,6 +184,14 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: { name: string
     } as TrpcContext["res"],
   };
   return { ctx, clearedCookies };
+}
+
+function createUnauthContext(): TrpcContext {
+  return {
+    user: null,
+    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+  };
 }
 
 describe("auth.logout", () => {
@@ -188,11 +221,19 @@ describe("teamMembers", () => {
     expect(member?.name).toBe("Sarah Chen");
   });
 
-  it("creates a team member", async () => {
-    const { ctx } = createAuthContext();
+  it("admin can create a team member", async () => {
+    const { ctx } = createAuthContext("admin");
     const caller = appRouter.createCaller(ctx);
     const result = await caller.teamMembers.create({ name: "New Member", email: "new@studio.com", title: "Architect" });
     expect(result).toEqual({ id: 3 });
+  });
+
+  it("non-admin cannot create a team member", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.teamMembers.create({ name: "New Member", email: "new@studio.com", title: "Architect" })
+    ).rejects.toThrow();
   });
 
   it("gets team member stats", async () => {
@@ -213,7 +254,7 @@ describe("projects", () => {
     expect(projectsList[0]?.name).toBe("Riverside Cultural Center");
   });
 
-  it("gets a single project with billing milestones", async () => {
+  it("gets a single project with billing milestones and budget", async () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const project = await caller.projects.get({ id: 1 });
@@ -222,10 +263,12 @@ describe("projects", () => {
     expect(project?.billing50).toBe(true);
     expect(project?.billing75).toBe(false);
     expect(project?.billingOk).toBe(true);
+    expect(project?.contractedFee).toBe(50000000);
+    expect(project?.invoicedAmount).toBe(25000000);
   });
 
-  it("creates a project", async () => {
-    const { ctx } = createAuthContext();
+  it("admin can create a project", async () => {
+    const { ctx } = createAuthContext("admin");
     const caller = appRouter.createCaller(ctx);
     const result = await caller.projects.create({
       name: "New Project",
@@ -235,8 +278,30 @@ describe("projects", () => {
     expect(result).toEqual({ id: 3 });
   });
 
+  it("non-admin cannot create a project", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.projects.create({ name: "New Project", clientName: "Test Client", phase: "schematic_design" })
+    ).rejects.toThrow();
+  });
+
+  it("admin can update a project", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await caller.projects.update({ id: 1, status: "on_hold" });
+  });
+
+  it("non-admin cannot update a project", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.projects.update({ id: 1, status: "on_hold" })
+    ).rejects.toThrow();
+  });
+
   it("validates project status enum", async () => {
-    const { ctx } = createAuthContext();
+    const { ctx } = createAuthContext("admin");
     const caller = appRouter.createCaller(ctx);
     await expect(
       caller.projects.create({ name: "Test", status: "invalid_status" as any })
@@ -244,7 +309,7 @@ describe("projects", () => {
   });
 
   it("validates project phase enum", async () => {
-    const { ctx } = createAuthContext();
+    const { ctx } = createAuthContext("admin");
     const caller = appRouter.createCaller(ctx);
     await expect(
       caller.projects.create({ name: "Test", phase: "invalid_phase" as any })
@@ -362,7 +427,7 @@ describe("files (project attachments)", () => {
     const result = await caller.files.upload({
       projectId: 1,
       fileName: "test-drawing.pdf",
-      fileData: "dGVzdCBjb250ZW50", // base64 "test content"
+      fileData: "dGVzdCBjb250ZW50",
       mimeType: "application/pdf",
       fileSize: 12,
       category: "drawing",
@@ -457,11 +522,8 @@ describe("emailNotifications", () => {
     const result = await caller.emailNotifications.checkDeadlines();
     expect(result.alertsGenerated).toBeGreaterThan(0);
     expect(result.alerts).toBeInstanceOf(Array);
-    // Should have at least: 1 upcoming task + 1 overdue task + 1 project deadline
     expect(result.alerts.length).toBeGreaterThanOrEqual(3);
-    
-    // Verify alert types
-    const types = result.alerts.map(a => a.type);
+    const types = result.alerts.map((a: any) => a.type);
     expect(types).toContain("task_overdue");
     expect(types).toContain("project_deadline");
   });
@@ -523,11 +585,7 @@ describe("shareTokens (client portal links)", () => {
 
 describe("portal (public client view)", () => {
   it("returns project data for valid token (no auth required)", async () => {
-    const ctx: TrpcContext = {
-      user: null,
-      req: { protocol: "https", headers: {} } as TrpcContext["req"],
-      res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
-    };
+    const ctx = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.portal.getProject({ token: "test-token-abc123" });
     expect(result.error).toBeNull();
@@ -541,16 +599,149 @@ describe("portal (public client view)", () => {
   it("returns error for invalid token", async () => {
     const { getShareToken } = await import("./db");
     (getShareToken as any).mockResolvedValueOnce(null);
-    
-    const ctx: TrpcContext = {
-      user: null,
-      req: { protocol: "https", headers: {} } as TrpcContext["req"],
-      res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
-    };
+    const ctx = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.portal.getProject({ token: "invalid-token" });
     expect(result.error).toBeTruthy();
     expect(result.data).toBeNull();
+  });
+});
+
+// ── Phase 4 Tests ──────────────────────────────────────────────
+
+describe("invoices (RBAC)", () => {
+  it("lists invoices for a project (any authenticated user)", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    const invoices = await caller.invoices.list({ projectId: 1 });
+    expect(invoices).toHaveLength(2);
+    expect(invoices[0]?.invoiceNumber).toBe("INV-001");
+    expect(invoices[0]?.status).toBe("paid");
+    expect(invoices[1]?.status).toBe("sent");
+  });
+
+  it("admin can create an invoice", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.invoices.create({
+      projectId: 1,
+      amount: 12500000,
+      invoiceNumber: "INV-003",
+      description: "75% milestone",
+      status: "draft",
+    });
+    expect(result).toEqual({ id: 3 });
+  });
+
+  it("non-admin cannot create an invoice", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.invoices.create({
+        projectId: 1,
+        amount: 12500000,
+        invoiceNumber: "INV-003",
+        description: "75% milestone",
+        status: "draft",
+      })
+    ).rejects.toThrow();
+  });
+
+  it("admin can update an invoice status", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await caller.invoices.update({ id: 2, status: "paid", paidDate: new Date() });
+  });
+
+  it("non-admin cannot update an invoice", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.invoices.update({ id: 2, status: "paid" })
+    ).rejects.toThrow();
+  });
+
+  it("admin can delete an invoice", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await caller.invoices.delete({ id: 1 });
+  });
+
+  it("non-admin cannot delete an invoice", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.invoices.delete({ id: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+describe("financials", () => {
+  it("returns financial overview", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const overview = await caller.financials.overview();
+    expect(overview.totalContracted).toBe(350000000);
+    expect(overview.totalInvoiced).toBe(175000000);
+    expect(overview.totalPaid).toBe(125000000);
+    expect(overview.projects).toHaveLength(1);
+    expect(overview.projects[0]?.name).toBe("Riverside Cultural Center");
+  });
+});
+
+describe("exports", () => {
+  it("exports projects summary CSV data", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.exports.projectsSummary();
+    expect(data).toHaveLength(1);
+    expect(data[0]?.name).toBe("Riverside Cultural Center");
+    expect(data[0]?.contractedFee).toBe(50000000);
+  });
+
+  it("exports tasks list CSV data", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.exports.tasksList();
+    expect(data).toHaveLength(1);
+    expect(data[0]?.title).toBe("Finalize structural engineering");
+    expect(data[0]?.assigneeName).toBe("Sarah Chen");
+  });
+
+  it("exports team workload CSV data", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.exports.teamWorkload();
+    expect(data).toHaveLength(1);
+    expect(data[0]?.name).toBe("Sarah Chen");
+    expect(data[0]?.activeTasks).toBe(5);
+    expect(data[0]?.overdueTasks).toBe(1);
+  });
+});
+
+describe("RBAC enforcement", () => {
+  it("admin can delete a team member", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await caller.teamMembers.delete({ id: 2 });
+  });
+
+  it("non-admin cannot delete a team member", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.teamMembers.delete({ id: 2 })).rejects.toThrow();
+  });
+
+  it("admin can delete a project", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await caller.projects.delete({ id: 1 });
+  });
+
+  it("non-admin cannot delete a project", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.projects.delete({ id: 1 })).rejects.toThrow();
   });
 });
 

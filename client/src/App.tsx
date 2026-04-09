@@ -14,6 +14,8 @@ import CalendarView from "./pages/CalendarView";
 import Notifications from "./pages/Notifications";
 import Timeline from "./pages/Timeline";
 import Settings from "./pages/Settings";
+import Financials from "./pages/Financials";
+import Reports from "./pages/Reports";
 import ClientPortal from "./pages/ClientPortal";
 
 function DashboardRouter() {
@@ -29,6 +31,8 @@ function DashboardRouter() {
         <Route path="/calendar" component={CalendarView} />
         <Route path="/timeline" component={Timeline} />
         <Route path="/notifications" component={Notifications} />
+        <Route path="/financials" component={Financials} />
+        <Route path="/reports" component={Reports} />
         <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

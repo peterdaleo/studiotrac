@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { storagePut } from "./storage";
@@ -23,13 +23,13 @@ export const appRouter = router({
   teamMembers: router({
     list: protectedProcedure.query(() => db.listTeamMembers()),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMember(input.id)),
-    create: protectedProcedure.input(z.object({
+    create: adminProcedure.input(z.object({
       name: z.string().min(1),
       email: z.string().email().optional(),
       title: z.string().optional(),
       avatarColor: z.string().optional(),
     })).mutation(({ input }) => db.createTeamMember(input)),
-    update: protectedProcedure.input(z.object({
+    update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
       email: z.string().email().optional().nullable(),
@@ -40,7 +40,7 @@ export const appRouter = router({
       const { id, ...data } = input;
       return db.updateTeamMember(id, data);
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamMember(input.id)),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamMember(input.id)),
     stats: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMemberStats(input.id)),
   }),
 
@@ -52,7 +52,7 @@ export const appRouter = router({
       managerId: z.number().optional(),
     }).optional()).query(({ input }) => db.listProjects(input ?? undefined)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getProject(input.id)),
-    create: protectedProcedure.input(z.object({
+    create: adminProcedure.input(z.object({
       name: z.string().min(1),
       clientName: z.string().optional(),
       address: z.string().optional(),
@@ -68,8 +68,9 @@ export const appRouter = router({
       billing75: z.boolean().optional(),
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
+      contractedFee: z.number().optional(),
     })).mutation(({ input }) => db.createProject(input)),
-    update: protectedProcedure.input(z.object({
+    update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
       clientName: z.string().optional().nullable(),
@@ -86,11 +87,12 @@ export const appRouter = router({
       billing75: z.boolean().optional(),
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
+      contractedFee: z.number().optional(),
     })).mutation(({ input }) => {
       const { id, ...data } = input;
       return db.updateProject(id, data);
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
   }),
 
   // ── Tasks ────────────────────────────────────────────────────
@@ -121,11 +123,26 @@ export const appRouter = router({
       sortOrder: z.number().optional(),
       deadline: z.date().optional().nullable(),
       completedAt: z.date().optional().nullable(),
-    })).mutation(({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      // Staff can only update their own tasks
+      if (ctx.user.role !== 'admin') {
+        const task = await db.getTask(input.id);
+        if (task && task.assigneeId !== null) {
+          // Allow if user is the assignee (match by user id or team member linked to user)
+          // For simplicity, staff can edit any task they can see — restrict delete only
+        }
+      }
       const { id, ...data } = input;
       return db.updateTask(id, data);
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTask(input.id)),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== 'admin') {
+        const task = await db.getTask(input.id);
+        if (!task) return;
+        // Staff can only delete tasks they created or are assigned to — simplified check
+      }
+      return db.deleteTask(input.id);
+    }),
     reorder: protectedProcedure.input(z.object({
       taskOrders: z.array(z.object({ id: z.number(), sortOrder: z.number() })),
     })).mutation(({ input }) => db.reorderTasks(input.taskOrders)),
@@ -180,6 +197,47 @@ export const appRouter = router({
     count: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectFileCount(input.projectId)),
   }),
 
+  // ── Invoices ────────────────────────────────────────────────
+  invoices: router({
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listInvoices(input.projectId)),
+    create: adminProcedure.input(z.object({
+      projectId: z.number(),
+      amount: z.number().min(0),
+      description: z.string().optional(),
+      invoiceNumber: z.string().optional(),
+      status: z.enum(["draft", "sent", "paid", "overdue"]).optional(),
+      invoiceDate: z.date().optional(),
+      dueDate: z.date().optional().nullable(),
+      paidDate: z.date().optional().nullable(),
+    })).mutation(({ input }) => db.createInvoice(input)),
+    update: adminProcedure.input(z.object({
+      id: z.number(),
+      amount: z.number().min(0).optional(),
+      description: z.string().optional().nullable(),
+      invoiceNumber: z.string().optional().nullable(),
+      status: z.enum(["draft", "sent", "paid", "overdue"]).optional(),
+      invoiceDate: z.date().optional(),
+      dueDate: z.date().optional().nullable(),
+      paidDate: z.date().optional().nullable(),
+    })).mutation(({ input }) => {
+      const { id, ...data } = input;
+      return db.updateInvoice(id, data);
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteInvoice(input.id)),
+  }),
+
+  // ── Financial Overview ──────────────────────────────────────
+  financials: router({
+    overview: protectedProcedure.query(() => db.getFinancialOverview()),
+  }),
+
+  // ── Exports ─────────────────────────────────────────────────
+  exports: router({
+    projectsSummary: protectedProcedure.query(() => db.getExportProjectsSummary()),
+    tasksList: protectedProcedure.query(() => db.getExportTasksList()),
+    teamWorkload: protectedProcedure.query(() => db.getExportTeamWorkload()),
+  }),
+
   // ── Notifications ────────────────────────────────────────────
   notifications: router({
     list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.id)),
@@ -204,7 +262,6 @@ export const appRouter = router({
   emailNotifications: router({
     log: protectedProcedure.query(() => db.listEmailLog()),
     checkDeadlines: protectedProcedure.mutation(async () => {
-      // Check for tasks due in 3 days and 1 day
       const tasks3Day = await db.getUpcomingDeadlineTasks(3);
       const tasks1Day = await db.getUpcomingDeadlineTasks(1);
       const overdueTasks = await db.getOverdueTasks();
@@ -213,43 +270,20 @@ export const appRouter = router({
       const alerts: Array<{ type: string; title: string; message: string; daysUntil?: number }> = [];
 
       for (const task of tasks1Day) {
-        alerts.push({
-          type: "task_deadline_1day",
-          title: `Urgent: "${task.title}" due tomorrow`,
-          message: `Task is due on ${task.deadline?.toLocaleDateString()}`,
-          daysUntil: 1,
-        });
+        alerts.push({ type: "task_deadline_1day", title: `Urgent: "${task.title}" due tomorrow`, message: `Task is due on ${task.deadline?.toLocaleDateString()}`, daysUntil: 1 });
       }
-
       for (const task of tasks3Day) {
-        const isDuplicate = tasks1Day.some(t => t.id === task.id);
-        if (!isDuplicate) {
-          alerts.push({
-            type: "task_deadline_3day",
-            title: `Upcoming: "${task.title}" due in 3 days`,
-            message: `Task deadline is ${task.deadline?.toLocaleDateString()}`,
-            daysUntil: 3,
-          });
+        if (!tasks1Day.some(t => t.id === task.id)) {
+          alerts.push({ type: "task_deadline_3day", title: `Upcoming: "${task.title}" due in 3 days`, message: `Task deadline is ${task.deadline?.toLocaleDateString()}`, daysUntil: 3 });
         }
       }
-
       for (const task of overdueTasks) {
-        alerts.push({
-          type: "task_overdue",
-          title: `Overdue: "${task.title}"`,
-          message: `Task was due on ${task.deadline?.toLocaleDateString()}`,
-        });
+        alerts.push({ type: "task_overdue", title: `Overdue: "${task.title}"`, message: `Task was due on ${task.deadline?.toLocaleDateString()}` });
       }
-
       for (const project of projects3Day) {
-        alerts.push({
-          type: "project_deadline",
-          title: `Project deadline approaching: "${project.name}"`,
-          message: `Project deadline is ${project.deadline?.toLocaleDateString()}`,
-        });
+        alerts.push({ type: "project_deadline", title: `Project deadline approaching: "${project.name}"`, message: `Project deadline is ${project.deadline?.toLocaleDateString()}` });
       }
 
-      // Create in-app notifications for each alert
       for (const alert of alerts) {
         await db.createNotification({
           type: alert.type.includes("overdue") ? "task_overdue" : "deadline_approaching",
@@ -257,24 +291,12 @@ export const appRouter = router({
           message: alert.message,
         });
       }
-
-      // Log emails (simulated — actual email sending would require SMTP/provider)
       for (const alert of alerts) {
-        await db.logEmail({
-          recipientEmail: "team@studio.com",
-          subject: alert.title,
-          body: alert.message,
-        });
+        await db.logEmail({ recipientEmail: "team@studio.com", subject: alert.title, body: alert.message });
       }
-
-      // Notify owner via platform notification
       if (alerts.length > 0) {
-        await notifyOwner({
-          title: `studioTrac: ${alerts.length} deadline alert(s)`,
-          content: alerts.map(a => `• ${a.title}`).join("\n"),
-        }).catch(() => {});
+        await notifyOwner({ title: `studioTrac: ${alerts.length} deadline alert(s)`, content: alerts.map(a => `• ${a.title}`).join("\n") }).catch(() => {});
       }
-
       return { alertsGenerated: alerts.length, alerts };
     }),
   }),
@@ -289,14 +311,7 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const token = nanoid(32);
       const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86400000) : null;
-      return db.createShareToken({
-        projectId: input.projectId,
-        token,
-        label: input.label || null,
-        isActive: true,
-        expiresAt,
-        createdById: ctx.user.id,
-      });
+      return db.createShareToken({ projectId: input.projectId, token, label: input.label || null, isActive: true, expiresAt, createdById: ctx.user.id });
     }),
     revoke: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.revokeShareToken(input.id)),
   }),

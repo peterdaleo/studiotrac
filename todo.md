@@ -113,3 +113,30 @@
 - [x] Tests for new features (41 tests passing)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 4 Features
+
+### Budget / Fee Tracking
+- [x] Database columns on projects: contractedFee, invoicedAmount (decimal/int cents)
+- [x] Budget invoices table: projectId, amount, description, invoiceDate, status (draft/sent/paid)
+- [x] tRPC procedures for budget CRUD (create/update invoices, update contracted fee)
+- [x] Budget section in Project Detail page with contracted fee, invoiced, remaining balance
+- [x] Financial Overview page: summary across all projects (total contracted, total invoiced, total outstanding)
+- [x] Charts for financial health (invoiced vs contracted, outstanding by project)
+
+### CSV/PDF Export
+- [x] Server-side export endpoints for project summaries, task lists, team workload
+- [x] CSV generation for tabular data (projects list, tasks list, team stats)
+- [x] Export buttons on Reports page and Financials page
+- [x] Download handling in frontend
+
+### Role-Based Access Control (RBAC)
+- [x] Use existing user role field (admin/user) for access control
+- [x] Admin-only procedures: manage billing, project settings, team assignments, delete projects
+- [x] Staff restrictions: view-only on billing/financial data, admin-gated project/team CRUD
+- [x] RBAC middleware in tRPC (adminProcedure) applied to project create/update/delete, team create/update/delete, invoice CRUD
+
+### Deployment
+- [x] Tests for new features (60 tests passing)
+- [x] Final checkpoint
+- [x] Redeploy to live URL

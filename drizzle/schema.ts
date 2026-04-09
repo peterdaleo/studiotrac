@@ -58,12 +58,32 @@ export const projects = mysqlTable("projects", {
   billing100: boolean("billing100").default(false).notNull(),
   billingOk: boolean("billingOk").default(false).notNull(),
   description: text("description"),
+  contractedFee: int("contractedFee").default(0).notNull(), // in cents
+  invoicedAmount: int("invoicedAmount").default(0).notNull(), // in cents (auto-calculated from invoices)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
+
+// ── Invoices ──────────────────────────────────────────────────────
+export const invoices = mysqlTable("invoices", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  amount: int("amount").notNull(), // in cents
+  description: varchar("description", { length: 500 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  status: mysqlEnum("status", ["draft", "sent", "paid", "overdue"]).default("draft").notNull(),
+  invoiceDate: timestamp("invoiceDate").defaultNow().notNull(),
+  dueDate: timestamp("dueDate"),
+  paidDate: timestamp("paidDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = typeof invoices.$inferInsert;
 
 // ── Tasks ──────────────────────────────────────────────────────────
 export const tasks = mysqlTable("tasks", {
