@@ -719,7 +719,7 @@ export default function ProjectDetail() {
                     }
 
                     return (
-                      <div key={task.id} className="flex items-center gap-3 px-6 py-3 hover:bg-muted/30 transition-colors group">
+                      <div key={task.id} className="flex items-center gap-3 px-6 py-3.5 hover:bg-muted/30 transition-colors">
                         <button
                           onClick={() => {
                             const newStatus = task.status === "done" ? "todo" : "done";
@@ -738,11 +738,14 @@ export default function ProjectDetail() {
                           )}
                         </button>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
+                          <p className={`text-sm font-medium ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
                             {task.title}
                           </p>
                           <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                            <span>{getMemberName(task.assigneeId)}</span>
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {getMemberName(task.assigneeId)}
+                            </span>
                             {task.deadline && (
                               <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
                                 <Clock className="h-3 w-3" />
@@ -757,20 +760,21 @@ export default function ProjectDetail() {
                         <Badge className={`text-[10px] shrink-0 border-0 ${taskStatusColors[task.status] ?? ""}`}>
                           {task.status === "in_progress" ? "In Progress" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
                         </Badge>
-                        {/* Edit & Delete buttons */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditTask(task)}>
-                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit task</TooltipContent>
-                          </Tooltip>
+                        {/* Edit & Delete buttons - ALWAYS VISIBLE */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs gap-1 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+                            onClick={() => startEditTask(task)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7">
-                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500">
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>

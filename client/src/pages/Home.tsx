@@ -12,10 +12,13 @@ import {
   TrendingUp,
   ArrowRight,
   Zap,
-  PauseCircle,
+  DollarSign,
+  Receipt,
+  CircleDollarSign,
+  Wallet,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { getPhaseShortLabel, getStatusLabel, getStatusColor } from "@shared/constants";
+import { getPhaseShortLabel, getStatusLabel } from "@shared/constants";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
 const statusColorMap: Record<string, string> = {
@@ -32,11 +35,18 @@ const statusBadgeMap: Record<string, string> = {
   completed: "bg-slate-500/10 text-slate-600 border-slate-200",
 };
 
+function formatCurrency(cents: number) {
+  if (cents === 0) return "$0";
+  if (cents >= 100000000) return `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
 export default function Home() {
   const [, setLocation] = useLocation();
   const { data: stats, isLoading: statsLoading } = trpc.dashboard.stats.useQuery();
   const { data: projects, isLoading: projectsLoading } = trpc.projects.list.useQuery({});
   const { data: allTasks } = trpc.tasks.list.useQuery({});
+  const { data: financials } = trpc.financials.overview.useQuery();
   const seedMutation = trpc.dashboard.seed.useMutation({
     onSuccess: () => window.location.reload(),
   });
@@ -108,6 +118,30 @@ export default function Home() {
     return acc;
   }, [] as { phase: string; count: number }[]) ?? [];
 
+  // Financial KPIs
+  const totals = financials?.totals;
+  const collectionRate = totals && totals.contracted > 0
+    ? Math.round((totals.paid / totals.contracted) * 100)
+    : 0;
+  const hasFinancialData = totals && totals.contracted > 0;
+
+  // Budget health indicator
+  const getBudgetHealthColor = () => {
+    if (!totals || totals.contracted === 0) return "text-muted-foreground";
+    const outstandingRatio = totals.outstanding / totals.contracted;
+    if (outstandingRatio > 0.5) return "text-red-600";
+    if (outstandingRatio > 0.25) return "text-amber-600";
+    return "text-emerald-600";
+  };
+
+  const getBudgetHealthLabel = () => {
+    if (!totals || totals.contracted === 0) return "No data";
+    const outstandingRatio = totals.outstanding / totals.contracted;
+    if (outstandingRatio > 0.5) return "Needs attention";
+    if (outstandingRatio > 0.25) return "Fair";
+    return "Healthy";
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -118,7 +152,7 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {/* Project Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow">
           <CardContent className="p-5">
@@ -187,6 +221,110 @@ export default function Home() {
             <Progress value={stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0} className="mt-3 h-1.5" />
           </CardContent>
         </Card>
+      </div>
+
+      {/* Financial KPIs Row */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            Financial Overview
+          </h2>
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/financials")} className="text-xs">
+            View Details <ArrowRight className="ml-1 h-3 w-3" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Contracted</p>
+                  <p className="text-2xl font-bold mt-1">
+                    {hasFinancialData ? formatCurrency(totals.contracted) : "$0"}
+                  </p>
+                </div>
+                <div className="h-11 w-11 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <Wallet className="h-5 w-5 text-blue-500" />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {financials?.projects.filter(p => p.contractedFee > 0).length ?? 0} projects with fees
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Collected</p>
+                  <p className="text-2xl font-bold mt-1 text-emerald-600">
+                    {hasFinancialData ? formatCurrency(totals.paid) : "$0"}
+                  </p>
+                </div>
+                <div className="h-11 w-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <CircleDollarSign className="h-5 w-5 text-emerald-500" />
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">Collection rate</span>
+                  <span className={`font-semibold ${collectionRate >= 50 ? "text-emerald-600" : collectionRate > 0 ? "text-amber-600" : "text-muted-foreground"}`}>
+                    {collectionRate}%
+                  </span>
+                </div>
+                <Progress value={collectionRate} className="h-1" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Outstanding</p>
+                  <p className={`text-2xl font-bold mt-1 ${totals && totals.outstanding > 0 ? "text-amber-600" : ""}`}>
+                    {hasFinancialData ? formatCurrency(totals.outstanding) : "$0"}
+                  </p>
+                </div>
+                <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <Receipt className="h-5 w-5 text-amber-500" />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Invoiced but unpaid</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Budget Health</p>
+                  <p className={`text-2xl font-bold mt-1 ${getBudgetHealthColor()}`}>
+                    {getBudgetHealthLabel()}
+                  </p>
+                </div>
+                <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${
+                  getBudgetHealthLabel() === "Healthy" ? "bg-emerald-500/10" :
+                  getBudgetHealthLabel() === "Fair" ? "bg-amber-500/10" :
+                  getBudgetHealthLabel() === "Needs attention" ? "bg-red-500/10" : "bg-muted"
+                }`}>
+                  <DollarSign className={`h-5 w-5 ${
+                    getBudgetHealthLabel() === "Healthy" ? "text-emerald-500" :
+                    getBudgetHealthLabel() === "Fair" ? "text-amber-500" :
+                    getBudgetHealthLabel() === "Needs attention" ? "text-red-500" : "text-muted-foreground"
+                  }`} />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {hasFinancialData
+                  ? `${formatCurrency(totals.contracted - totals.invoiced)} unbilled`
+                  : "Set project fees to track"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Charts Row */}
@@ -266,7 +404,7 @@ export default function Home() {
         <Card className="border-0 shadow-sm lg:col-span-2">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold">Recent Projects</CardTitle>
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setLocation("/projects")}>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/projects")} className="text-xs">
               View all <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           </CardHeader>

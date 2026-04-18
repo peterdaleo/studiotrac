@@ -140,3 +140,22 @@
 - [x] Tests for new features (60 tests passing)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 5 Features
+
+### Dashboard Financial KPIs Widget
+- [x] Add financial summary query to server (total contracted, total invoiced, total paid, outstanding)
+- [x] Add financial KPIs card row to dashboard with collection rate, outstanding invoices, budget health
+- [x] Visual indicators for financial health (green/yellow/red)
+
+### Task Editing in Project Detail
+- [x] Edit buttons always visible on each task row (not hidden behind hover)
+- [x] Clear "Edit" button with pencil icon on every task
+- [x] Inline edit form with title, assignee, priority, deadline, status fields
+- [x] Update task mutation wired to inline edit with Save/Cancel
+- [x] Status toggle via checkbox on each task
+
+### Deployment
+- [x] Tests passing (60 tests)
+- [x] Final checkpoint
+- [x] Redeploy to live URL
