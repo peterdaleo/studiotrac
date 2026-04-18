@@ -300,27 +300,25 @@ export default function Home() {
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Budget Health</p>
-                  <p className={`text-2xl font-bold mt-1 ${getBudgetHealthColor()}`}>
-                    {getBudgetHealthLabel()}
+                  <p className="text-sm font-medium text-muted-foreground">Net Income</p>
+                  <p className={`text-2xl font-bold mt-1 ${totals && (totals as any).netIncome !== undefined ? ((totals as any).netIncome >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-muted-foreground'}`}>
+                    {hasFinancialData && (totals as any).netIncome !== undefined
+                      ? `${(totals as any).netIncome >= 0 ? '' : '-'}${formatCurrency(Math.abs((totals as any).netIncome))}`
+                      : "$0"}
                   </p>
                 </div>
                 <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${
-                  getBudgetHealthLabel() === "Healthy" ? "bg-emerald-500/10" :
-                  getBudgetHealthLabel() === "Fair" ? "bg-amber-500/10" :
-                  getBudgetHealthLabel() === "Needs attention" ? "bg-red-500/10" : "bg-muted"
+                  totals && (totals as any).netIncome >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'
                 }`}>
-                  <DollarSign className={`h-5 w-5 ${
-                    getBudgetHealthLabel() === "Healthy" ? "text-emerald-500" :
-                    getBudgetHealthLabel() === "Fair" ? "text-amber-500" :
-                    getBudgetHealthLabel() === "Needs attention" ? "text-red-500" : "text-muted-foreground"
+                  <TrendingUp className={`h-5 w-5 ${
+                    totals && (totals as any).netIncome >= 0 ? 'text-emerald-500' : 'text-red-500'
                   }`} />
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 {hasFinancialData
-                  ? `${formatCurrency(totals.contracted - totals.invoiced)} unbilled`
-                  : "Set project fees to track"}
+                  ? `Collected ${formatCurrency(totals.paid)} − Consultants ${formatCurrency((totals as any).consultantPaid ?? 0)}`
+                  : "Fees collected minus consultant costs"}
               </p>
             </CardContent>
           </Card>

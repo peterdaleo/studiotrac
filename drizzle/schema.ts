@@ -195,3 +195,32 @@ export const clientShareTokens = mysqlTable("client_share_tokens", {
 
 export type ClientShareToken = typeof clientShareTokens.$inferSelect;
 export type InsertClientShareToken = typeof clientShareTokens.$inferInsert;
+
+// ── Consultant Contracts ─────────────────────────────────────────
+export const consultantContracts = mysqlTable("consultant_contracts", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  name: varchar("name", { length: 500 }).notNull(),
+  discipline: varchar("discipline", { length: 255 }).notNull(),
+  contractAmount: int("contractAmount").default(0).notNull(), // in cents
+  status: mysqlEnum("status", ["active", "completed", "terminated", "pending"]).default("active").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ConsultantContract = typeof consultantContracts.$inferSelect;
+export type InsertConsultantContract = typeof consultantContracts.$inferInsert;
+
+// ── Consultant Payments ──────────────────────────────────────────
+export const consultantPayments = mysqlTable("consultant_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  consultantId: int("consultantId").notNull(),
+  amount: int("amount").notNull(), // in cents
+  paymentDate: timestamp("paymentDate").defaultNow().notNull(),
+  notes: varchar("notes", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ConsultantPayment = typeof consultantPayments.$inferSelect;
+export type InsertConsultantPayment = typeof consultantPayments.$inferInsert;

@@ -332,6 +332,49 @@ export const appRouter = router({
     data: protectedProcedure.query(() => db.getGanttData()),
   }),
 
+  // ── Consultant Contracts ─────────────────────────────────────
+  consultants: router({
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listConsultantContracts(input.projectId)),
+    create: adminProcedure.input(z.object({
+      projectId: z.number(),
+      name: z.string().min(1),
+      discipline: z.string().min(1),
+      contractAmount: z.number().min(0),
+      status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
+      notes: z.string().optional(),
+    })).mutation(({ input }) => db.createConsultantContract(input)),
+    update: adminProcedure.input(z.object({
+      id: z.number(),
+      name: z.string().min(1).optional(),
+      discipline: z.string().min(1).optional(),
+      contractAmount: z.number().min(0).optional(),
+      status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
+      notes: z.string().optional().nullable(),
+    })).mutation(({ input }) => {
+      const { id, ...data } = input;
+      return db.updateConsultantContract(id, data);
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantContract(input.id)),
+  }),
+
+  // ── Consultant Payments ─────────────────────────────────────
+  consultantPayments: router({
+    list: protectedProcedure.input(z.object({ consultantId: z.number() })).query(({ input }) => db.listConsultantPayments(input.consultantId)),
+    create: adminProcedure.input(z.object({
+      consultantId: z.number(),
+      amount: z.number().min(1),
+      paymentDate: z.date().optional(),
+      notes: z.string().optional(),
+    })).mutation(({ input }) => db.createConsultantPayment(input)),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantPayment(input.id)),
+  }),
+
+  // ── Net Income ──────────────────────────────────────────────
+  netIncome: router({
+    project: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectNetIncome(input.projectId)),
+    studio: protectedProcedure.query(() => db.getStudioNetIncome()),
+  }),
+
   // ── Dashboard ────────────────────────────────────────────────
   dashboard: router({
     stats: protectedProcedure.query(() => db.getDashboardStats()),

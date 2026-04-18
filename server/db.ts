@@ -12,6 +12,8 @@ import {
   emailLog, InsertEmailLogEntry,
   clientShareTokens, InsertClientShareToken,
   invoices, InsertInvoice,
+  consultantContracts, InsertConsultantContract,
+  consultantPayments, InsertConsultantPayment,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -136,6 +138,12 @@ export async function deleteProject(id: number) {
   await db.delete(projectFiles).where(eq(projectFiles.projectId, id));
   await db.delete(invoices).where(eq(invoices.projectId, id));
   await db.delete(clientShareTokens).where(eq(clientShareTokens.projectId, id));
+  // Delete consultant payments for all consultants on this project
+  const projectConsultants = await db.select({ id: consultantContracts.id }).from(consultantContracts).where(eq(consultantContracts.projectId, id));
+  for (const c of projectConsultants) {
+    await db.delete(consultantPayments).where(eq(consultantPayments.consultantId, c.id));
+  }
+  await db.delete(consultantContracts).where(eq(consultantContracts.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
 }
 
@@ -409,27 +417,47 @@ async function recalcProjectInvoiced(projectId: number) {
 // ── Financial Overview ────────────────────────────────────────────
 export async function getFinancialOverview() {
   const db = await getDb();
-  if (!db) return { projects: [], totals: { contracted: 0, invoiced: 0, outstanding: 0, paid: 0 } };
+  if (!db) return { projects: [], totals: { contracted: 0, invoiced: 0, outstanding: 0, paid: 0, consultantPaid: 0, netIncome: 0 } };
   const allProjects = await db.select().from(projects).orderBy(desc(projects.updatedAt));
   const allInvoices = await db.select().from(invoices).orderBy(desc(invoices.invoiceDate));
+  const allContracts = await db.select().from(consultantContracts);
+  const allPayments = await db.select().from(consultantPayments);
   
   let totalContracted = 0;
   let totalInvoiced = 0;
   let totalPaid = 0;
+  let totalConsultantPaid = 0;
   
   const projectFinancials = allProjects.map(p => {
     const projectInvoices = allInvoices.filter(i => i.projectId === p.id);
     const invoicedTotal = projectInvoices.reduce((sum, i) => sum + i.amount, 0);
     const paidTotal = projectInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0);
+    
+    // Calculate consultant costs for this project
+    const projectContracts = allContracts.filter(c => c.projectId === p.id);
+    let projectConsultantPaid = 0;
+    let projectConsultantContracted = 0;
+    for (const c of projectContracts) {
+      projectConsultantContracted += c.contractAmount;
+      const payments = allPayments.filter(pay => pay.consultantId === c.id);
+      projectConsultantPaid += payments.reduce((sum, pay) => sum + pay.amount, 0);
+    }
+    
     totalContracted += p.contractedFee;
     totalInvoiced += invoicedTotal;
     totalPaid += paidTotal;
+    totalConsultantPaid += projectConsultantPaid;
+    
     return {
       ...p,
       invoiceCount: projectInvoices.length,
       totalInvoiced: invoicedTotal,
       totalPaid: paidTotal,
       outstanding: invoicedTotal - paidTotal,
+      consultantContracted: projectConsultantContracted,
+      consultantPaid: projectConsultantPaid,
+      netIncome: paidTotal - projectConsultantPaid,
+      consultantCount: projectContracts.length,
     };
   });
   
@@ -440,6 +468,8 @@ export async function getFinancialOverview() {
       invoiced: totalInvoiced,
       outstanding: totalInvoiced - totalPaid,
       paid: totalPaid,
+      consultantPaid: totalConsultantPaid,
+      netIncome: totalPaid - totalConsultantPaid,
     },
   };
 }
@@ -633,6 +663,135 @@ export async function getPublicProjectData(projectId: number) {
   };
 }
 
+// ── Consultant Contracts ──────────────────────────────────────────
+export async function listConsultantContracts(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId)).orderBy(asc(consultantContracts.discipline));
+}
+
+export async function createConsultantContract(data: InsertConsultantContract) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(consultantContracts).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function updateConsultantContract(id: number, data: Partial<InsertConsultantContract>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(consultantContracts).set(data).where(eq(consultantContracts.id, id));
+}
+
+export async function deleteConsultantContract(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(consultantPayments).where(eq(consultantPayments.consultantId, id));
+  await db.delete(consultantContracts).where(eq(consultantContracts.id, id));
+}
+
+// ── Consultant Payments ──────────────────────────────────────────
+export async function listConsultantPayments(consultantId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(consultantPayments).where(eq(consultantPayments.consultantId, consultantId)).orderBy(desc(consultantPayments.paymentDate));
+}
+
+export async function createConsultantPayment(data: InsertConsultantPayment) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(consultantPayments).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function deleteConsultantPayment(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(consultantPayments).where(eq(consultantPayments.id, id));
+}
+
+// ── Net Income Calculation ──────────────────────────────────────
+export async function getProjectNetIncome(projectId: number) {
+  const db = await getDb();
+  if (!db) return { feesCollected: 0, consultantPaymentsTotal: 0, netIncome: 0, consultants: [] as any[] };
+  
+  // Get paid invoices
+  const paidInvoices = await db.select().from(invoices).where(and(eq(invoices.projectId, projectId), eq(invoices.status, 'paid')));
+  const feesCollected = paidInvoices.reduce((sum, i) => sum + i.amount, 0);
+  
+  // Get all consultants and their payments
+  const contracts = await db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId));
+  let consultantPaymentsTotal = 0;
+  const consultantsWithPayments = [];
+  
+  for (const contract of contracts) {
+    const payments = await db.select().from(consultantPayments).where(eq(consultantPayments.consultantId, contract.id));
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    consultantPaymentsTotal += totalPaid;
+    consultantsWithPayments.push({
+      ...contract,
+      payments,
+      totalPaid,
+      remaining: contract.contractAmount - totalPaid,
+    });
+  }
+  
+  return {
+    feesCollected,
+    consultantPaymentsTotal,
+    netIncome: feesCollected - consultantPaymentsTotal,
+    consultants: consultantsWithPayments,
+  };
+}
+
+export async function getStudioNetIncome() {
+  const db = await getDb();
+  if (!db) return { totalFeesCollected: 0, totalConsultantPayments: 0, totalNetIncome: 0, projectBreakdown: [] as any[] };
+  
+  const allProjects = await db.select().from(projects);
+  const allInvoices = await db.select().from(invoices);
+  const allContracts = await db.select().from(consultantContracts);
+  const allPayments = await db.select().from(consultantPayments);
+  
+  let totalFeesCollected = 0;
+  let totalConsultantPayments = 0;
+  const projectBreakdown = [];
+  
+  for (const p of allProjects) {
+    const paidInvoices = allInvoices.filter(i => i.projectId === p.id && i.status === 'paid');
+    const feesCollected = paidInvoices.reduce((sum, i) => sum + i.amount, 0);
+    
+    const projectContracts = allContracts.filter(c => c.projectId === p.id);
+    let consultantPaid = 0;
+    let totalContractValue = 0;
+    for (const c of projectContracts) {
+      totalContractValue += c.contractAmount;
+      const payments = allPayments.filter(pay => pay.consultantId === c.id);
+      consultantPaid += payments.reduce((sum, pay) => sum + pay.amount, 0);
+    }
+    
+    totalFeesCollected += feesCollected;
+    totalConsultantPayments += consultantPaid;
+    
+    projectBreakdown.push({
+      id: p.id,
+      name: p.name,
+      feesCollected,
+      consultantPaid,
+      totalContractValue,
+      netIncome: feesCollected - consultantPaid,
+      consultantCount: projectContracts.length,
+    });
+  }
+  
+  return {
+    totalFeesCollected,
+    totalConsultantPayments,
+    totalNetIncome: totalFeesCollected - totalConsultantPayments,
+    projectBreakdown,
+  };
+}
+
 export async function seedDemoData() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -734,6 +893,36 @@ export async function seedDemoData() {
     { projectId: allProjects[4]!.id, content: "Historic preservation board approved facade restoration plan with minor conditions. See attached letter.", isClientVisible: true },
   ];
   for (const n of noteData) await db.insert(projectNotes).values(n);
+
+  // Seed consultant contracts
+  const consultantData: InsertConsultantContract[] = [
+    { projectId: allProjects[0]!.id, name: "Thornton Engineering", discipline: "Structural Engineer", contractAmount: 42000000, status: "active", notes: "Full structural design and CA services" },
+    { projectId: allProjects[0]!.id, name: "Arup MEP", discipline: "MEP Engineer", contractAmount: 38000000, status: "active", notes: "Mechanical, electrical, plumbing design" },
+    { projectId: allProjects[0]!.id, name: "Olin Studio", discipline: "Landscape Architect", contractAmount: 18000000, status: "active", notes: "River terrace and site landscape" },
+    { projectId: allProjects[1]!.id, name: "DeSimone Consulting", discipline: "Structural Engineer", contractAmount: 65000000, status: "active", notes: "High-rise structural system" },
+    { projectId: allProjects[1]!.id, name: "WSP Group", discipline: "MEP Engineer", contractAmount: 52000000, status: "active" },
+    { projectId: allProjects[1]!.id, name: "Front Inc", discipline: "Facade Consultant", contractAmount: 28000000, status: "pending", notes: "Crystalline facade engineering" },
+    { projectId: allProjects[2]!.id, name: "Miyamoto International", discipline: "Structural Engineer", contractAmount: 22000000, status: "completed", notes: "Seismic retrofit design" },
+    { projectId: allProjects[4]!.id, name: "Silman Associates", discipline: "Structural Engineer", contractAmount: 15000000, status: "active", notes: "Historic structure assessment" },
+    { projectId: allProjects[5]!.id, name: "BR+A Consulting", discipline: "MEP Engineer", contractAmount: 35000000, status: "active", notes: "Medical-grade HVAC and systems" },
+  ];
+  for (const c of consultantData) await db.insert(consultantContracts).values(c);
+
+  const allConsultants = await db.select().from(consultantContracts);
+
+  // Seed consultant payments
+  const paymentData: InsertConsultantPayment[] = [
+    { consultantId: allConsultants[0]!.id, amount: 10500000, paymentDate: new Date(now.getTime() - 90 * 86400000), notes: "25% milestone - SD completion" },
+    { consultantId: allConsultants[0]!.id, amount: 10500000, paymentDate: new Date(now.getTime() - 45 * 86400000), notes: "50% milestone - DD completion" },
+    { consultantId: allConsultants[1]!.id, amount: 9500000, paymentDate: new Date(now.getTime() - 85 * 86400000), notes: "25% milestone" },
+    { consultantId: allConsultants[1]!.id, amount: 9500000, paymentDate: new Date(now.getTime() - 40 * 86400000), notes: "50% milestone" },
+    { consultantId: allConsultants[2]!.id, amount: 9000000, paymentDate: new Date(now.getTime() - 60 * 86400000), notes: "50% milestone - planting plan" },
+    { consultantId: allConsultants[3]!.id, amount: 16250000, paymentDate: new Date(now.getTime() - 30 * 86400000), notes: "25% milestone - foundation design" },
+    { consultantId: allConsultants[4]!.id, amount: 13000000, paymentDate: new Date(now.getTime() - 25 * 86400000), notes: "25% milestone" },
+    { consultantId: allConsultants[6]!.id, amount: 11000000, paymentDate: new Date(now.getTime() - 120 * 86400000), notes: "50% milestone" },
+    { consultantId: allConsultants[6]!.id, amount: 11000000, paymentDate: new Date(now.getTime() - 60 * 86400000), notes: "100% milestone - final" },
+  ];
+  for (const p of paymentData) await db.insert(consultantPayments).values(p);
 
   return { seeded: true, message: "Demo data seeded successfully" };
 }

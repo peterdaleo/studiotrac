@@ -61,7 +61,7 @@ export default function Financials() {
     );
   }
 
-  const totals = data?.totals ?? { contracted: 0, invoiced: 0, outstanding: 0, paid: 0 };
+  const totals = data?.totals ?? { contracted: 0, invoiced: 0, outstanding: 0, paid: 0, consultantPaid: 0, netIncome: 0 };
   const projectsData = data?.projects ?? [];
   const activeProjects = projectsData.filter(p => p.status !== "completed");
 
@@ -151,9 +151,9 @@ export default function Financials() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Unbilled</p>
-                <p className="text-2xl font-bold">{formatCurrency(Math.max(0, totals.contracted - totals.invoiced))}</p>
-                <p className="text-xs text-muted-foreground mt-1">Remaining to invoice</p>
+                <p className="text-sm text-muted-foreground">Consultant Costs</p>
+                <p className="text-2xl font-bold">{formatCurrency(totals.consultantPaid)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total paid to consultants</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-violet-500/10 flex items-center justify-center">
                 <FileText className="h-5 w-5 text-violet-500" />
@@ -162,6 +162,39 @@ export default function Financials() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Net Income Banner */}
+      <Card className={`border-l-4 ${totals.netIncome >= 0 ? 'border-l-emerald-500 bg-emerald-50/50' : 'border-l-red-500 bg-red-50/50'}`}>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${totals.netIncome >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                <TrendingUp className={`h-6 w-6 ${totals.netIncome >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Studio Net Income</p>
+                <p className={`text-3xl font-bold ${totals.netIncome >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {totals.netIncome >= 0 ? '' : '-'}{formatCurrency(Math.abs(totals.netIncome))}
+                </p>
+              </div>
+            </div>
+            <div className="text-right space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Fees Collected:</span>
+                <span className="font-medium text-emerald-600">{formatCurrency(totals.paid)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Consultant Costs:</span>
+                <span className="font-medium text-red-500">-{formatCurrency(totals.consultantPaid)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Unbilled:</span>
+                <span className="font-medium">{formatCurrency(Math.max(0, totals.contracted - totals.invoiced))}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -247,6 +280,8 @@ export default function Financials() {
                   <th className="pb-3 font-medium text-muted-foreground text-right">Invoiced</th>
                   <th className="pb-3 font-medium text-muted-foreground text-right">Paid</th>
                   <th className="pb-3 font-medium text-muted-foreground text-right">Outstanding</th>
+                  <th className="pb-3 font-medium text-muted-foreground text-right">Consultant Costs</th>
+                  <th className="pb-3 font-medium text-muted-foreground text-right">Net Income</th>
                   <th className="pb-3 font-medium text-muted-foreground">Billing Progress</th>
                   <th className="pb-3 font-medium text-muted-foreground"></th>
                 </tr>
@@ -277,6 +312,18 @@ export default function Financials() {
                       <td className="py-3 text-right font-mono">
                         {p.outstanding > 0 ? (
                           <span className="text-amber-600">{formatCurrency(p.outstanding)}</span>
+                        ) : "—"}
+                      </td>
+                      <td className="py-3 text-right font-mono">
+                        {(p as any).consultantPaid > 0 ? (
+                          <span className="text-violet-600">{formatCurrency((p as any).consultantPaid)}</span>
+                        ) : "—"}
+                      </td>
+                      <td className="py-3 text-right font-mono">
+                        {(p as any).netIncome !== undefined && (p.totalPaid > 0 || (p as any).consultantPaid > 0) ? (
+                          <span className={(p as any).netIncome >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>
+                            {(p as any).netIncome >= 0 ? '' : '-'}{formatCurrency(Math.abs((p as any).netIncome))}
+                          </span>
                         ) : "—"}
                       </td>
                       <td className="py-3 w-36">

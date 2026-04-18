@@ -120,6 +120,9 @@ export default function ProjectDetail() {
   const [editingFee, setEditingFee] = useState(false);
   const [editFeeValue, setEditFeeValue] = useState("");
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [consultantDialogOpen, setConsultantDialogOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState<number | null>(null);
+  const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -130,6 +133,8 @@ export default function ProjectDetail() {
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const { data: shareTokens } = trpc.shareTokens.list.useQuery({ projectId });
   const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId });
+  const { data: consultants } = trpc.consultants.list.useQuery({ projectId });
+  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId });
   const utils = trpc.useUtils();
 
   const updateProject = trpc.projects.update.useMutation({
@@ -183,6 +188,48 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.notes.list.invalidate({ projectId });
       toast.success("Note deleted");
+    },
+  });
+
+  const createConsultant = trpc.consultants.create.useMutation({
+    onSuccess: () => {
+      utils.consultants.list.invalidate({ projectId });
+      utils.netIncome.project.invalidate({ projectId });
+      setConsultantDialogOpen(false);
+      toast.success("Consultant added");
+    },
+  });
+
+  const updateConsultant = trpc.consultants.update.useMutation({
+    onSuccess: () => {
+      utils.consultants.list.invalidate({ projectId });
+      utils.netIncome.project.invalidate({ projectId });
+      toast.success("Consultant updated");
+    },
+  });
+
+  const deleteConsultant = trpc.consultants.delete.useMutation({
+    onSuccess: () => {
+      utils.consultants.list.invalidate({ projectId });
+      utils.netIncome.project.invalidate({ projectId });
+      toast.success("Consultant removed");
+    },
+  });
+
+  const createPayment = trpc.consultantPayments.create.useMutation({
+    onSuccess: () => {
+      utils.consultants.list.invalidate({ projectId });
+      utils.netIncome.project.invalidate({ projectId });
+      setPaymentDialogOpen(null);
+      toast.success("Payment recorded");
+    },
+  });
+
+  const deletePayment = trpc.consultantPayments.delete.useMutation({
+    onSuccess: () => {
+      utils.consultants.list.invalidate({ projectId });
+      utils.netIncome.project.invalidate({ projectId });
+      toast.success("Payment deleted");
     },
   });
 
@@ -1182,6 +1229,101 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
+          {/* Consultant Contracts & Payments */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  Consultants
+                </CardTitle>
+                {isAdmin && (
+                  <Dialog open={consultantDialogOpen} onOpenChange={setConsultantDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-7 text-xs"><Plus className="h-3 w-3 mr-1" /> Add Consultant</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle>Add Consultant</DialogTitle></DialogHeader>
+                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createConsultant.mutate({ projectId, name: fd.get("name") as string, discipline: fd.get("discipline") as string, contractAmount: Math.round(Number(fd.get("contractAmount")) * 100), status: (fd.get("status") as any) || "active", notes: (fd.get("notes") as string) || undefined }); }} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2"><Label>Firm Name</Label><Input name="name" required placeholder="e.g., Thornton Engineering" /></div>
+                          <div className="space-y-2"><Label>Discipline</Label><Input name="discipline" required placeholder="e.g., Structural Engineer" /></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2"><Label>Contract Amount ($)</Label><Input name="contractAmount" type="number" min={0} step={0.01} required placeholder="0.00" /></div>
+                          <div className="space-y-2"><Label>Status</Label><select name="status" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"><option value="active">Active</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="terminated">Terminated</option></select></div>
+                        </div>
+                        <div className="space-y-2"><Label>Notes</Label><Input name="notes" placeholder="Optional notes" /></div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setConsultantDialogOpen(false)}>Cancel</Button>
+                          <Button type="submit" disabled={createConsultant.isPending}>{createConsultant.isPending ? "Adding..." : "Add Consultant"}</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {!consultants || consultants.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-2">No consultants added yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {consultants.map((c: any) => {
+                    const isExpanded = expandedConsultant === c.id;
+                    const statusColor = c.status === "active" ? "bg-emerald-100 text-emerald-700" : c.status === "completed" ? "bg-blue-100 text-blue-700" : c.status === "terminated" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700";
+                    return (
+                      <div key={c.id} className="rounded-lg border border-border/50 overflow-hidden">
+                        <div className="flex items-center gap-2 p-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setExpandedConsultant(isExpanded ? null : c.id)}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{c.name}</span>
+                              <Badge className={`text-[10px] border-0 ${statusColor}`}>{c.status.charAt(0).toUpperCase() + c.status.slice(1)}</Badge>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{c.discipline}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold">${(c.contractAmount / 100).toLocaleString()}</p>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <ConsultantExpanded consultant={c} projectId={projectId} isAdmin={isAdmin} paymentDialogOpen={paymentDialogOpen} setPaymentDialogOpen={setPaymentDialogOpen} createPayment={createPayment} deletePayment={deletePayment} updateConsultant={updateConsultant} deleteConsultant={deleteConsultant} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Net Income Summary */}
+              {netIncomeData && (
+                <>
+                  <Separator />
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Net Income</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Fees Collected</span>
+                      <span className="text-xs font-medium text-emerald-600">${(netIncomeData.feesCollected / 100).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Consultant Payments</span>
+                      <span className="text-xs font-medium text-red-500">-${(netIncomeData.consultantPaymentsTotal / 100).toLocaleString()}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">Net Income</span>
+                      <span className={`text-sm font-bold ${netIncomeData.netIncome >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {netIncomeData.netIncome >= 0 ? '' : '-'}${Math.abs(netIncomeData.netIncome / 100).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Description */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
@@ -1263,6 +1405,120 @@ export default function ProjectDetail() {
           </AlertDialog>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function ConsultantExpanded({ consultant, projectId, isAdmin, paymentDialogOpen, setPaymentDialogOpen, createPayment, deletePayment, updateConsultant, deleteConsultant }: any) {
+  const { data: payments, isLoading } = trpc.consultantPayments.list.useQuery({ consultantId: consultant.id });
+  const totalPaid = payments?.reduce((sum: number, p: any) => sum + p.amount, 0) ?? 0;
+  const remaining = consultant.contractAmount - totalPaid;
+  const pctPaid = consultant.contractAmount > 0 ? (totalPaid / consultant.contractAmount) * 100 : 0;
+
+  return (
+    <div className="border-t border-border/50 bg-muted/20 p-3 space-y-3">
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase">Contract</p>
+          <p className="text-xs font-semibold">${(consultant.contractAmount / 100).toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase">Paid</p>
+          <p className="text-xs font-semibold text-emerald-600">${(totalPaid / 100).toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase">Remaining</p>
+          <p className={`text-xs font-semibold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>${(remaining / 100).toLocaleString()}</p>
+        </div>
+      </div>
+      <Progress value={Math.min(pctPaid, 100)} className="h-1.5" />
+      {consultant.notes && <p className="text-[11px] text-muted-foreground italic">{consultant.notes}</p>}
+
+      {/* Payments list */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Payments</span>
+          {isAdmin && (
+            <Dialog open={paymentDialogOpen === consultant.id} onOpenChange={(open: boolean) => setPaymentDialogOpen(open ? consultant.id : null)}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-6 text-[10px]"><Plus className="h-2.5 w-2.5 mr-0.5" /> Payment</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Record Payment — {consultant.name}</DialogTitle></DialogHeader>
+                <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createPayment.mutate({ consultantId: consultant.id, amount: Math.round(Number(fd.get("amount")) * 100), paymentDate: fd.get("paymentDate") ? new Date(fd.get("paymentDate") as string) : undefined, notes: (fd.get("notes") as string) || undefined }); }} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Amount ($)</Label><Input name="amount" type="number" min={0} step={0.01} required placeholder="0.00" /></div>
+                    <div className="space-y-2"><Label>Date</Label><Input name="paymentDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} /></div>
+                  </div>
+                  <div className="space-y-2"><Label>Notes</Label><Input name="notes" placeholder="e.g., 50% milestone payment" /></div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setPaymentDialogOpen(null)}>Cancel</Button>
+                    <Button type="submit" disabled={createPayment.isPending}>{createPayment.isPending ? "Recording..." : "Record Payment"}</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+        {isLoading ? (
+          <p className="text-[10px] text-muted-foreground text-center py-1">Loading...</p>
+        ) : !payments || payments.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground text-center py-1">No payments recorded</p>
+        ) : (
+          payments.map((p: any) => (
+            <div key={p.id} className="flex items-center gap-2 p-2 rounded bg-background group">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">${(p.amount / 100).toLocaleString()}</span>
+                  <span className="text-[10px] text-muted-foreground">{new Date(p.paymentDate).toLocaleDateString()}</span>
+                </div>
+                {p.notes && <p className="text-[10px] text-muted-foreground truncate">{p.notes}</p>}
+              </div>
+              {isAdmin && (
+                <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deletePayment.mutate({ id: p.id })}>
+                  <Trash2 className="h-2.5 w-2.5 text-muted-foreground" />
+                </Button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Admin actions */}
+      {isAdmin && (
+        <div className="flex items-center gap-2 pt-1 border-t border-border/30">
+          <select
+            className="flex-1 h-7 rounded border border-input bg-background px-2 text-[10px]"
+            value={consultant.status}
+            onChange={(e) => updateConsultant.mutate({ id: consultant.id, status: e.target.value as any })}
+          >
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="terminated">Terminated</option>
+          </select>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50">
+                <Trash2 className="h-3 w-3 mr-1" /> Remove
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Consultant</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Remove "{consultant.name}" and all their payment records from this project? This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => deleteConsultant.mutate({ id: consultant.id })} className="bg-red-500 hover:bg-red-600">Remove</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }

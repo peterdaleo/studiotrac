@@ -36,6 +36,13 @@
       "when": 1775737298028,
       "tag": "0004_loving_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1776474036390,
+      "tag": "0005_furry_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

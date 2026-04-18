@@ -159,3 +159,28 @@
 - [x] Tests passing (60 tests)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 6 Features
+
+### Consultant Contracts per Project
+- [x] Database table: consultant_contracts (projectId, name, discipline, contractAmount, status)
+- [x] Admin-only CRUD tRPC procedures for consultant contracts
+- [x] Consultant section in Project Detail page with add/edit/delete
+- [x] Staff can view but not edit consultant contracts
+
+### Consultant Payments
+- [x] Database table: consultant_payments (consultantId, amount, date, notes)
+- [x] Admin-only CRUD tRPC procedures for payments
+- [x] Payment tracking UI per consultant: total paid vs contract, remaining balance
+- [x] Payment history list with date, amount, notes
+
+### Net Project Income
+- [x] Calculate net income per project: fees collected minus total consultant payments
+- [x] Display net income on Project Detail page
+- [x] Roll up net income into Financial Overview page with Net Income banner
+- [x] Add net income KPI to dashboard financial widget (replaced Budget Health)
+
+### Deployment
+- [x] Tests passing (60 tests)
+- [x] Final checkpoint
+- [x] Redeploy to live URL
