@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +40,7 @@ function formatDate(date: Date): string {
 
 export default function TimeTracking() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = useEffectiveAdmin(user?.role);
 
   const [activeTab, setActiveTab] = useState("timer");
   const [weekOffset, setWeekOffset] = useState(0);

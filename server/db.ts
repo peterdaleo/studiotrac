@@ -99,6 +99,38 @@ export async function deleteTeamMember(id: number) {
   await db.update(teamMembers).set({ isActive: false }).where(eq(teamMembers.id, id));
 }
 
+export async function updateUserRole(userId: number, role: "user" | "admin") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+export async function listUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt }).from(users).orderBy(asc(users.name));
+}
+
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
+}
+
+export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "admin" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Create a team member record as a placeholder for the invited user
+  const result = await db.insert(teamMembers).values({
+    name: data.name,
+    email: data.email,
+    title: data.title ?? null,
+    isActive: true,
+  });
+  return { id: result[0].insertId };
+}
+
 // ── Projects ───────────────────────────────────────────────────────
 export async function listProjects(filters?: { status?: string; phase?: string; managerId?: number }) {
   const db = await getDb();

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,7 @@ export default function ProjectDetail() {
   const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
   const [taskPrioritySort, setTaskPrioritySort] = useState<"none" | "asc" | "desc">("none");
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = useEffectiveAdmin(user?.role);
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });

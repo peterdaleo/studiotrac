@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
 import { storagePut } from "./storage";
@@ -42,6 +43,27 @@ export const appRouter = router({
     }),
     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamMember(input.id)),
     stats: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMemberStats(input.id)),
+    updateRole: adminProcedure.input(z.object({
+      userId: z.number(),
+      role: z.enum(["user", "admin"]),
+    })).mutation(async ({ input, ctx }) => {
+      // Prevent admin from demoting themselves
+      if (input.userId === ctx.user.id && input.role !== "admin") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot change your own role" });
+      }
+      await db.updateUserRole(input.userId, input.role);
+      return { success: true };
+    }),
+    listUsers: adminProcedure.query(() => db.listUsers()),
+    invite: adminProcedure.input(z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      title: z.string().optional(),
+      role: z.enum(["user", "admin"]).optional(),
+    })).mutation(async ({ input }) => {
+      const result = await db.inviteTeamMember(input);
+      return { success: true, teamMemberId: result.id };
+    }),
   }),
 
   // ── Projects ─────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,7 @@ export default function Financials() {
   const { data, isLoading } = trpc.financials.overview.useQuery();
   const exportQuery = trpc.exports.projectsSummary.useQuery(undefined, { enabled: false });
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = useEffectiveAdmin(user?.role);
 
   const handleExportCSV = async () => {
     const result = await exportQuery.refetch();

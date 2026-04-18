@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { getPhaseShortLabel, getStatusLabel } from "@shared/constants";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -45,7 +46,7 @@ function formatCurrency(cents: number) {
 export default function Home() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = useEffectiveAdmin(user?.role);
   const { data: stats, isLoading: statsLoading } = trpc.dashboard.stats.useQuery();
   const { data: projects, isLoading: projectsLoading } = trpc.projects.list.useQuery({});
   const { data: allTasks } = trpc.tasks.list.useQuery({});

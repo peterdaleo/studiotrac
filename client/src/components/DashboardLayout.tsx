@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useStaffPreview, useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -37,6 +38,8 @@ import {
   DollarSign,
   FileSpreadsheet,
   Timer,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -147,12 +150,14 @@ function DashboardLayoutContent({
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const { isStaffPreview, toggleStaffPreview } = useStaffPreview();
 
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
     refetchInterval: 30000,
   });
 
-  const isAdmin = user?.role === "admin";
+  const realAdmin = user?.role === "admin";
+  const isAdmin = useEffectiveAdmin(user?.role);
   const menuItems = baseMenuItems.filter((item) => !("adminOnly" in item && item.adminOnly && !isAdmin));
 
   const activeMenuItem = menuItems.find((item) => {
@@ -192,7 +197,7 @@ function DashboardLayoutContent({
   return (
     <>
       <div className="relative" ref={sidebarRef}>
-        <Sidebar collapsible="icon" className="border-r-0" disableTransition={isResizing}>
+        <Sidebar collapsible="icon" className={`border-r-0 ${isStaffPreview ? "!bg-amber-50/50" : ""}`} disableTransition={isResizing}>
           <SidebarHeader className="h-16 justify-center">
             <div className="flex items-center gap-2.5 px-2 transition-all w-full">
               <button
@@ -201,7 +206,7 @@ function DashboardLayoutContent({
                 aria-label="Toggle navigation"
               >
                 {isCollapsed ? (
-                  <div className="h-7 w-7 rounded-md bg-sidebar-primary flex items-center justify-center">
+                  <div className={`h-7 w-7 rounded-md flex items-center justify-center ${isStaffPreview ? "bg-amber-500" : "bg-sidebar-primary"}`}>
                     <Building2 className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
                   </div>
                 ) : (
@@ -210,13 +215,49 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed && (
                 <span className="font-bold text-base tracking-tight text-sidebar-foreground">
-                  studio<span className="text-sidebar-primary">Trac</span>
+                  studio<span className={isStaffPreview ? "text-amber-500" : "text-sidebar-primary"}>Trac</span>
                 </span>
               )}
             </div>
           </SidebarHeader>
 
           <SidebarContent className="gap-0 px-2 py-2">
+            {/* Staff Preview Toggle — only visible to real admins */}
+            {realAdmin && !isCollapsed && (
+              <div className="mb-3 px-1">
+                <button
+                  onClick={toggleStaffPreview}
+                  className={`w-full flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium transition-all ${
+                    isStaffPreview
+                      ? "bg-amber-100 text-amber-800 border border-amber-300 shadow-sm"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted border border-transparent"
+                  }`}
+                >
+                  {isStaffPreview ? (
+                    <EyeOff className="h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span>{isStaffPreview ? "Exit Staff View" : "Preview as Staff"}</span>
+                </button>
+              </div>
+            )}
+            {realAdmin && isCollapsed && (
+              <div className="mb-3 flex justify-center">
+                <button
+                  onClick={toggleStaffPreview}
+                  className={`h-8 w-8 flex items-center justify-center rounded-lg transition-all ${
+                    isStaffPreview
+                      ? "bg-amber-100 text-amber-800 border border-amber-300"
+                      : "text-muted-foreground hover:bg-muted"
+                  }`}
+                  title={isStaffPreview ? "Exit Staff View" : "Preview as Staff"}
+                >
+                  {isStaffPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            )}
+
             <SidebarMenu>
               {menuItems.map((item) => {
                 const isActive =
@@ -232,7 +273,7 @@ function DashboardLayoutContent({
                       className="h-10 transition-all font-normal"
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-sidebar-primary" : ""}`}
+                        className={`h-4 w-4 ${isActive ? (isStaffPreview ? "text-amber-600" : "text-sidebar-primary") : ""}`}
                       />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -251,7 +292,7 @@ function DashboardLayoutContent({
                     className="h-10 transition-all font-normal"
                   >
                     <div className="relative">
-                      <Bell className={`h-4 w-4 ${location === "/notifications" ? "text-sidebar-primary" : ""}`} />
+                      <Bell className={`h-4 w-4 ${location === "/notifications" ? (isStaffPreview ? "text-amber-600" : "text-sidebar-primary") : ""}`} />
                       {(unreadCount ?? 0) > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center">
                           {unreadCount}
@@ -273,7 +314,7 @@ function DashboardLayoutContent({
                     tooltip="Settings"
                     className="h-10 transition-all font-normal"
                   >
-                    <Settings className={`h-4 w-4 ${location === "/settings" ? "text-sidebar-primary" : ""}`} />
+                    <Settings className={`h-4 w-4 ${location === "/settings" ? (isStaffPreview ? "text-amber-600" : "text-sidebar-primary") : ""}`} />
                     <span>Settings</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -285,15 +326,22 @@ function DashboardLayoutContent({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-sidebar-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-8 w-8 border border-sidebar-border shrink-0">
-                    <AvatarFallback className="text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary">
+                  <Avatar className={`h-8 w-8 border shrink-0 ${isStaffPreview ? "border-amber-300" : "border-sidebar-border"}`}>
+                    <AvatarFallback className={`text-xs font-medium ${isStaffPreview ? "bg-amber-100 text-amber-700" : "bg-sidebar-primary/20 text-sidebar-primary"}`}>
                       {user?.name?.charAt(0).toUpperCase() ?? "U"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none text-sidebar-foreground">
-                      {user?.name || "User"}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium truncate leading-none text-sidebar-foreground">
+                        {user?.name || "User"}
+                      </p>
+                      {isStaffPreview && (
+                        <span className="text-[9px] font-bold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full leading-none">
+                          STAFF VIEW
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-sidebar-foreground/50 truncate mt-1">
                       {user?.email || ""}
                     </p>
@@ -301,6 +349,18 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                {realAdmin && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={toggleStaffPreview}
+                      className="cursor-pointer"
+                    >
+                      {isStaffPreview ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                      <span>{isStaffPreview ? "Exit Staff View" : "Preview as Staff"}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"
@@ -323,6 +383,23 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
+        {/* Staff Preview Banner */}
+        {isStaffPreview && (
+          <div className="bg-amber-100 border-b border-amber-300 px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-amber-700" />
+              <span className="text-sm font-medium text-amber-800">
+                Staff Preview Mode — You're viewing the app as a staff member would see it
+              </span>
+            </div>
+            <button
+              onClick={toggleStaffPreview}
+              className="text-xs font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2"
+            >
+              Exit Preview
+            </button>
+          </div>
+        )}
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">

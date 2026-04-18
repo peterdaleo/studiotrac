@@ -234,3 +234,27 @@
 - [x] Tests passing (69 tests)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 9 Features
+
+### Preview as Staff Toggle
+- [x] Create StaffPreviewContext with toggle state (admin-only)
+- [x] Add toggle button in sidebar (visible only to admins)
+- [x] Visual indicator when in staff preview mode (banner/accent color)
+- [x] Apply staff preview to all role checks across pages (Dashboard, DashboardLayout nav, ProjectDetail, Financials, TimeTracking)
+
+### Role Assignment
+- [x] Admin can change team member role (Admin/Staff) via dropdown in Team view
+- [x] Server-side procedure to update user role (admin-only, self-demotion prevention)
+- [x] Clear visual indicator of current role per team member (badges on cards and detail view)
+- [x] User Roles admin panel in Team view with per-user role selector
+
+### Invite Users
+- [x] "Invite Team Member" button in Team view (admin-only)
+- [x] Invite dialog: name, email, title, role selection (Admin/Staff)
+- [x] Server-side invite procedure (creates placeholder team member record)
+
+### Deployment
+- [x] Tests passing (79 tests)
+- [x] Final checkpoint
+- [x] Redeploy to live URL

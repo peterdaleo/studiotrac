@@ -181,6 +181,15 @@ vi.mock("./db", () => ({
   getTrueProfitability: vi.fn().mockResolvedValue([
     { id: 1, name: "Riverside Cultural Center", contractedFee: 50000000, totalCollected: 25000000, laborCost: 360000, consultantCost: 500000, netProfit: 24140000 },
   ]),
+
+  // Phase 9: Role management & invites
+  updateUserRole: vi.fn().mockResolvedValue(undefined),
+  listUsers: vi.fn().mockResolvedValue([
+    { id: 1, openId: "test-user-123", name: "Test User", email: "test@studio.com", role: "admin", createdAt: new Date() },
+    { id: 2, openId: "user-456", name: "Staff Member", email: "staff@studio.com", role: "user", createdAt: new Date() },
+  ]),
+  getUserById: vi.fn().mockResolvedValue({ id: 2, openId: "user-456", name: "Staff Member", email: "staff@studio.com", role: "user" }),
+  inviteTeamMember: vi.fn().mockResolvedValue({ id: 4 }),
 }));
 
 // Mock storage module
@@ -865,5 +874,92 @@ describe("dashboard", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.dashboard.seed();
     expect(result.seeded).toBe(true);
+  });
+});
+
+// ── Phase 9: Role Management & Invite Tests ─────────────────────────
+describe("teamMembers - role management", () => {
+  it("admin can list registered users", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const users = await caller.teamMembers.listUsers();
+    expect(users).toHaveLength(2);
+    expect(users[0]?.name).toBe("Test User");
+    expect(users[1]?.role).toBe("user");
+  });
+
+  it("non-admin cannot list registered users", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.teamMembers.listUsers()).rejects.toThrow();
+  });
+
+  it("admin can update another user's role", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.teamMembers.updateRole({ userId: 2, role: "admin" });
+    expect(result).toEqual({ success: true });
+  });
+
+  it("non-admin cannot update roles", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.teamMembers.updateRole({ userId: 2, role: "admin" })
+    ).rejects.toThrow();
+  });
+
+  it("admin cannot demote themselves", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.teamMembers.updateRole({ userId: 1, role: "user" })
+    ).rejects.toThrow(/cannot change your own role/i);
+  });
+
+  it("admin can keep their own role as admin (no-op)", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.teamMembers.updateRole({ userId: 1, role: "admin" });
+    expect(result).toEqual({ success: true });
+  });
+});
+
+describe("teamMembers - invite", () => {
+  it("admin can invite a team member", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.teamMembers.invite({
+      name: "New Architect",
+      email: "newarch@studio.com",
+      title: "Junior Architect",
+      role: "user",
+    });
+    expect(result.success).toBe(true);
+    expect(result.teamMemberId).toBe(4);
+  });
+
+  it("non-admin cannot invite a team member", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.teamMembers.invite({ name: "New Architect", email: "newarch@studio.com" })
+    ).rejects.toThrow();
+  });
+
+  it("invite requires valid email", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.teamMembers.invite({ name: "New Architect", email: "not-an-email" })
+    ).rejects.toThrow();
+  });
+
+  it("invite requires a name", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.teamMembers.invite({ name: "", email: "valid@studio.com" })
+    ).rejects.toThrow();
   });
 });

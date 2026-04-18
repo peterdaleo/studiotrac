@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,21 +13,32 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Plus,
   Users,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  FolderKanban,
   ArrowLeft,
+  Shield,
+  UserPlus,
+  Mail,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
-import { getPhaseShortLabel, getStatusLabel } from "@shared/constants";
+import { getPhaseShortLabel } from "@shared/constants";
 import { toast } from "sonner";
 import {
   BarChart,
@@ -48,10 +61,16 @@ export default function Team() {
   const selectedMemberId = params.id ? Number(params.id) : null;
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
+
+  const { user } = useAuth();
+  const isAdmin = useEffectiveAdmin(user?.role);
 
   const { data: teamMembers, isLoading } = trpc.teamMembers.list.useQuery();
   const { data: allTasks } = trpc.tasks.list.useQuery({});
   const { data: projects } = trpc.projects.list.useQuery({});
+  const { data: registeredUsers } = trpc.teamMembers.listUsers.useQuery(undefined, { enabled: isAdmin });
   const utils = trpc.useUtils();
 
   const createMember = trpc.teamMembers.create.useMutation({
@@ -59,6 +78,27 @@ export default function Team() {
       utils.teamMembers.list.invalidate();
       setDialogOpen(false);
       toast.success("Team member added");
+    },
+  });
+
+  const updateRole = trpc.teamMembers.updateRole.useMutation({
+    onSuccess: () => {
+      utils.teamMembers.listUsers.invalidate();
+      toast.success("Role updated successfully");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to update role");
+    },
+  });
+
+  const inviteMember = trpc.teamMembers.invite.useMutation({
+    onSuccess: () => {
+      utils.teamMembers.list.invalidate();
+      setInviteDialogOpen(false);
+      toast.success("Team member invited successfully");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to invite team member");
     },
   });
 
@@ -72,6 +112,10 @@ export default function Team() {
       const total = memberTasks.length;
       const missedRate = total > 0 ? Math.round((overdue / total) * 100) : 0;
       const activeProjectIds = new Set(memberTasks.filter((t) => t.status !== "done").map((t) => t.projectId));
+      // Find matching registered user by email or userId
+      const matchedUser = registeredUsers?.find(
+        (u) => (m.userId && u.id === m.userId) || (m.email && u.email === m.email)
+      );
       return {
         ...m,
         totalTasks: total,
@@ -80,9 +124,10 @@ export default function Team() {
         inProgress,
         missedRate,
         activeProjects: activeProjectIds.size,
+        registeredUser: matchedUser ?? null,
       };
     });
-  }, [teamMembers, allTasks]);
+  }, [teamMembers, allTasks, registeredUsers]);
 
   const selectedMember = selectedMemberId ? memberStats.find((m) => m.id === selectedMemberId) : null;
   const selectedMemberTasks = useMemo(() => {
@@ -115,6 +160,24 @@ export default function Team() {
     });
   };
 
+  const handleInvite = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = fd.get("inviteName") as string;
+    const email = fd.get("inviteEmail") as string;
+    const title = (fd.get("inviteTitle") as string) || undefined;
+    inviteMember.mutate({
+      name,
+      email,
+      title,
+      role: inviteRole,
+    });
+  };
+
+  const handleRoleChange = (userId: number, newRole: "user" | "admin") => {
+    updateRole.mutate({ userId, role: newRole });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -140,9 +203,33 @@ export default function Team() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{selectedMember.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">{selectedMember.name}</h1>
+              {selectedMember.registeredUser && (
+                <Badge variant={selectedMember.registeredUser.role === "admin" ? "default" : "secondary"} className="text-[10px]">
+                  {selectedMember.registeredUser.role === "admin" ? "Admin" : "Staff"}
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{selectedMember.title ?? "Team Member"}</p>
           </div>
+          {isAdmin && selectedMember.registeredUser && selectedMember.registeredUser.id !== user?.id && (
+            <div className="ml-auto">
+              <Select
+                value={selectedMember.registeredUser.role}
+                onValueChange={(val) => handleRoleChange(selectedMember.registeredUser!.id, val as "user" | "admin")}
+              >
+                <SelectTrigger className="w-[130px]" size="sm">
+                  <Shield className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="user">Staff</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -253,39 +340,139 @@ export default function Team() {
             {teamMembers?.length ?? 0} team members
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" /> Add Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Team Member</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input name="name" placeholder="Full name" required />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input name="email" type="email" placeholder="email@studio.com" />
-              </div>
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input name="title" placeholder="e.g., Senior Architect" />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createMember.isPending}>
-                  {createMember.isPending ? "Adding..." : "Add Member"}
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <UserPlus className="h-4 w-4" /> Invite User
                 </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Invite Team Member</DialogTitle>
+                  <DialogDescription>
+                    Send an invitation to join your studio workspace. They will appear in the team list and can be assigned to projects.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleInvite} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input name="inviteName" placeholder="Full name" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input name="inviteEmail" type="email" placeholder="email@studio.com" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Title</Label>
+                    <Input name="inviteTitle" placeholder="e.g., Senior Architect" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as "user" | "admin")}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">Staff</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={inviteMember.isPending} className="gap-2">
+                      <Mail className="h-4 w-4" />
+                      {inviteMember.isPending ? "Inviting..." : "Send Invite"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" /> Add Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Team Member</DialogTitle>
+                <DialogDescription>
+                  Add a new member to your studio team.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input name="name" placeholder="Full name" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input name="email" type="email" placeholder="email@studio.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Title</Label>
+                  <Input name="title" placeholder="e.g., Senior Architect" />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                  <Button type="submit" disabled={createMember.isPending}>
+                    {createMember.isPending ? "Adding..." : "Add Member"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* Registered Users & Roles (Admin Only) */}
+      {isAdmin && registeredUsers && registeredUsers.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              User Roles
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {registeredUsers.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+                      {(u.name ?? u.email ?? "?").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{u.name ?? "Unnamed"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email ?? "No email"}</p>
+                  </div>
+                  {u.id === user?.id ? (
+                    <Badge variant="outline" className="text-[10px]">You</Badge>
+                  ) : (
+                    <Select
+                      value={u.role}
+                      onValueChange={(val) => handleRoleChange(u.id, val as "user" | "admin")}
+                    >
+                      <SelectTrigger className="w-[110px]" size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="user">Staff</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Workload Chart */}
       {workloadChartData.length > 0 && (
@@ -340,7 +527,14 @@ export default function Team() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{member.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{member.name}</p>
+                      {member.registeredUser && (
+                        <Badge variant={member.registeredUser.role === "admin" ? "default" : "outline"} className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                          {member.registeredUser.role === "admin" ? "Admin" : "Staff"}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground truncate">{member.title ?? "Team Member"}</p>
                   </div>
                 </div>
