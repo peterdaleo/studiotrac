@@ -32,6 +32,9 @@ import {
   AlertTriangle,
   CheckSquare,
   Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { TASK_STATUSES } from "@shared/constants";
@@ -59,6 +62,7 @@ export default function Tasks() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [prioritySort, setPrioritySort] = useState<"none" | "asc" | "desc">("none");
 
   const { data: allTasks, isLoading } = trpc.tasks.list.useQuery({});
   const { data: projects } = trpc.projects.list.useQuery({});
@@ -90,7 +94,7 @@ export default function Tasks() {
 
   const filtered = useMemo(() => {
     if (!allTasks) return [];
-    return allTasks.filter((t) => {
+    let result = allTasks.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (projectFilter !== "all" && t.projectId !== Number(projectFilter)) return false;
       if (assigneeFilter !== "all" && t.assigneeId !== Number(assigneeFilter)) return false;
@@ -99,7 +103,21 @@ export default function Tasks() {
       }
       return true;
     });
-  }, [allTasks, statusFilter, projectFilter, assigneeFilter, search]);
+    if (prioritySort === "asc") {
+      result = [...result].sort((a, b) => a.priority - b.priority);
+    } else if (prioritySort === "desc") {
+      result = [...result].sort((a, b) => b.priority - a.priority);
+    }
+    return result;
+  }, [allTasks, statusFilter, projectFilter, assigneeFilter, search, prioritySort]);
+
+  const cyclePrioritySort = () => {
+    setPrioritySort((prev) => {
+      if (prev === "none") return "asc";
+      if (prev === "asc") return "desc";
+      return "none";
+    });
+  };
 
   const getProjectName = (id: number) => projects?.find((p) => p.id === id)?.name ?? "Unknown";
   const getMemberName = (id: number | null) => teamMembers?.find((m) => m.id === id)?.name ?? "Unassigned";
@@ -323,6 +341,20 @@ export default function Tasks() {
             ))}
           </SelectContent>
         </Select>
+        <Button
+          variant={prioritySort !== "none" ? "default" : "outline"}
+          size="sm"
+          onClick={cyclePrioritySort}
+          className={`gap-1.5 h-9 px-3 ${prioritySort !== "none" ? "" : ""}`}
+        >
+          {prioritySort === "asc" ? (
+            <><ArrowUp className="h-3.5 w-3.5" /> Priority: Low → High</>
+          ) : prioritySort === "desc" ? (
+            <><ArrowDown className="h-3.5 w-3.5" /> Priority: High → Low</>
+          ) : (
+            <><ArrowUpDown className="h-3.5 w-3.5" /> Sort by Priority</>
+          )}
+        </Button>
       </div>
 
       {/* Task List */}

@@ -184,3 +184,11 @@
 - [x] Tests passing (60 tests)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 7 Features
+
+### Priority Sorting for Tasks
+- [x] Toggleable sort button on Tasks page (3-state: unsorted → low→high → high→low)
+- [x] Toggleable sort button on ProjectDetail task list
+- [x] Clear visual indicator: button label + icon changes, filled style when active
+- [x] All 60 tests passing, redeployed

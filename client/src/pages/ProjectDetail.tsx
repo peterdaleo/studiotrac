@@ -68,6 +68,9 @@ import {
   Pencil,
   Check,
   RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import {
@@ -123,6 +126,7 @@ export default function ProjectDetail() {
   const [consultantDialogOpen, setConsultantDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState<number | null>(null);
   const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
+  const [taskPrioritySort, setTaskPrioritySort] = useState<"none" | "asc" | "desc">("none");
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -635,6 +639,21 @@ export default function ProjectDetail() {
               <CardTitle className="text-base font-semibold">
                 Tasks ({projectTasks?.length ?? 0})
               </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={taskPrioritySort !== "none" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTaskPrioritySort((prev) => prev === "none" ? "asc" : prev === "asc" ? "desc" : "none")}
+                  className="gap-1.5 h-8 px-2.5 text-xs"
+                >
+                  {taskPrioritySort === "asc" ? (
+                    <><ArrowUp className="h-3 w-3" /> Priority: Low → High</>
+                  ) : taskPrioritySort === "desc" ? (
+                    <><ArrowDown className="h-3 w-3" /> Priority: High → Low</>
+                  ) : (
+                    <><ArrowUpDown className="h-3 w-3" /> Sort by Priority</>
+                  )}
+                </Button>
               <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">
@@ -682,6 +701,7 @@ export default function ProjectDetail() {
                   </form>
                 </DialogContent>
               </Dialog>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {!projectTasks || projectTasks.length === 0 ? (
@@ -690,7 +710,11 @@ export default function ProjectDetail() {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {projectTasks.map((task) => {
+                  {[...(projectTasks || [])].sort((a, b) => {
+                    if (taskPrioritySort === "asc") return a.priority - b.priority;
+                    if (taskPrioritySort === "desc") return b.priority - a.priority;
+                    return 0;
+                  }).map((task) => {
                     const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
                     const isEditing = editingTaskId === task.id;
 
