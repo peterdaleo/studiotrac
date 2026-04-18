@@ -182,6 +182,16 @@ vi.mock("./db", () => ({
     { id: 1, name: "Riverside Cultural Center", contractedFee: 50000000, totalCollected: 25000000, laborCost: 360000, consultantCost: 500000, netProfit: 24140000 },
   ]),
 
+  // Phase 10: Team time report
+  getTeamTimeReport: vi.fn().mockResolvedValue({
+    rows: [
+      { memberId: 1, memberName: "Sarah Chen", title: "Principal Architect", billingRate: 15000, totalHours: 40, billableHours: 32, laborCost: 600000, projectBreakdown: [{ projectId: 1, totalHours: 25, billableHours: 20 }, { projectId: 2, totalHours: 15, billableHours: 12 }] },
+      { memberId: 2, memberName: "Marcus Rivera", title: "Senior Designer", billingRate: 12000, totalHours: 35, billableHours: 28, laborCost: 420000, projectBreakdown: [{ projectId: 1, totalHours: 20, billableHours: 16 }] },
+    ],
+    members: [{ id: 1, name: "Sarah Chen" }, { id: 2, name: "Marcus Rivera" }],
+    projects: [{ id: 1, name: "Riverside Cultural Center" }, { id: 2, name: "Meridian Tower" }],
+  }),
+
   // Phase 9: Role management & invites
   updateUserRole: vi.fn().mockResolvedValue(undefined),
   listUsers: vi.fn().mockResolvedValue([
@@ -961,5 +971,114 @@ describe("teamMembers - invite", () => {
     await expect(
       caller.teamMembers.invite({ name: "", email: "valid@studio.com" })
     ).rejects.toThrow();
+  });
+});
+
+
+// ── Phase 10 Tests ─────────────────────────────────────────────────
+
+describe("timeAnalytics.teamTimeReport", () => {
+  it("admin can fetch team time report", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.timeAnalytics.teamTimeReport();
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0]?.memberName).toBe("Sarah Chen");
+    expect(result.projects).toHaveLength(2);
+    expect(result.rows[0]?.projectBreakdown).toHaveLength(2);
+  });
+
+  it("admin can filter team time report by date range", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.timeAnalytics.teamTimeReport({
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-03-31"),
+    });
+    expect(result).toBeDefined();
+    expect(result.rows).toBeDefined();
+  });
+
+  it("non-admin cannot access team time report", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.timeAnalytics.teamTimeReport()).rejects.toThrow();
+  });
+});
+
+describe("timeEntries.update", () => {
+  it("authenticated user can update a time entry", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await caller.timeEntries.update({
+      id: 1,
+      description: "Updated description",
+      billable: false,
+    });
+    const db = await import("./db");
+    expect(db.updateTimeEntry).toHaveBeenCalledWith(1, {
+      description: "Updated description",
+      billable: false,
+    });
+  });
+
+  it("can update time entry with new project and times", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const newStart = new Date("2026-04-15T09:00:00");
+    const newEnd = new Date("2026-04-15T11:00:00");
+    await caller.timeEntries.update({
+      id: 1,
+      projectId: 2,
+      startTime: newStart,
+      endTime: newEnd,
+      durationMinutes: 120,
+    });
+    const db = await import("./db");
+    expect(db.updateTimeEntry).toHaveBeenCalledWith(1, {
+      projectId: 2,
+      startTime: newStart,
+      endTime: newEnd,
+      durationMinutes: 120,
+    });
+  });
+
+  it("unauthenticated user cannot update time entries", async () => {
+    const ctx = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.timeEntries.update({ id: 1, description: "test" })
+    ).rejects.toThrow();
+  });
+});
+
+describe("teamMembers.delete", () => {
+  it("admin can delete a team member", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    await caller.teamMembers.delete({ id: 2 });
+    const db = await import("./db");
+    expect(db.deleteTeamMember).toHaveBeenCalledWith(2);
+  });
+
+  it("non-admin cannot delete a team member", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.teamMembers.delete({ id: 2 })).rejects.toThrow();
+  });
+});
+
+describe("trueProfitability", () => {
+  it("admin can fetch true profitability data", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.timeAnalytics.trueProfitability();
+    expect(result).toBeDefined();
+  });
+
+  it("non-admin cannot access true profitability", async () => {
+    const { ctx } = createAuthContext("user");
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.timeAnalytics.trueProfitability()).rejects.toThrow();
   });
 });

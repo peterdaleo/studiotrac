@@ -25,10 +25,12 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Plus,
   Search,
-  MapPin,
   Calendar,
   User,
   FolderKanban,
+  LayoutGrid,
+  List,
+  ArrowUpDown,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -60,6 +62,8 @@ export default function Projects() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [phaseFilter, setPhaseFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
+  const [sortBy, setSortBy] = useState<"default" | "alpha" | "deadline">("default");
 
   const { data: projects, isLoading } = trpc.projects.list.useQuery({});
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
@@ -75,7 +79,7 @@ export default function Projects() {
 
   const filtered = useMemo(() => {
     if (!projects) return [];
-    return projects.filter((p) => {
+    let result = projects.filter((p) => {
       if (statusFilter !== "all" && p.status !== statusFilter) return false;
       if (phaseFilter !== "all" && p.phase !== phaseFilter) return false;
       if (search) {
@@ -87,7 +91,20 @@ export default function Projects() {
       }
       return true;
     });
-  }, [projects, statusFilter, phaseFilter, search]);
+
+    if (sortBy === "alpha") {
+      result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "deadline") {
+      result = [...result].sort((a, b) => {
+        if (!a.deadline && !b.deadline) return 0;
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      });
+    }
+
+    return result;
+  }, [projects, statusFilter, phaseFilter, search, sortBy]);
 
   const getMemberName = (id: number | null) =>
     teamMembers?.find((m) => m.id === id)?.name ?? "Unassigned";
@@ -192,8 +209,8 @@ export default function Projects() {
         </Dialog>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Filters + View Controls */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -225,9 +242,44 @@ export default function Projects() {
             ))}
           </SelectContent>
         </Select>
+
+        <div className="flex items-center gap-1 ml-auto">
+          {/* Sort */}
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+            <SelectTrigger className="w-[140px] h-9">
+              <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="alpha">A → Z</SelectItem>
+              <SelectItem value="deadline">Due Date</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* View toggle */}
+          <div className="flex border rounded-md">
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="icon"
+              className="h-9 w-9 rounded-r-none"
+              onClick={() => setViewMode("grid")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "compact" ? "default" : "ghost"}
+              size="icon"
+              className="h-9 w-9 rounded-l-none"
+              onClick={() => setViewMode("compact")}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Project Grid */}
+      {/* Project List */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FolderKanban className="h-12 w-12 text-muted-foreground/40 mb-4" />
@@ -238,7 +290,7 @@ export default function Projects() {
               : "Create your first project to get started"}
           </p>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((project) => {
             const daysUntilDeadline = project.deadline
@@ -305,6 +357,58 @@ export default function Projects() {
             );
           })}
         </div>
+      ) : (
+        /* Compact list view */
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {filtered.map((project) => {
+                const daysUntilDeadline = project.deadline
+                  ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
+                  : null;
+                return (
+                  <div
+                    key={project.id}
+                    className="flex items-center gap-4 px-4 py-3 hover:bg-accent/30 transition-colors cursor-pointer"
+                    onClick={() => setLocation(`/projects/${project.id}`)}
+                  >
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${statusDotMap[project.status] ?? "bg-slate-400"}`} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium truncate block">{project.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:block">
+                      {project.clientName || "—"}
+                    </span>
+                    <span className="text-xs text-muted-foreground w-16 text-center hidden md:block">
+                      {getPhaseShortLabel(project.phase)}
+                    </span>
+                    <div className="w-20 hidden lg:block">
+                      <Progress value={project.completionPercentage} className="h-1.5" />
+                    </div>
+                    <span className="text-xs font-mono w-10 text-right">{project.completionPercentage}%</span>
+                    {daysUntilDeadline !== null ? (
+                      <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}`}>
+                        {daysUntilDeadline < 0
+                          ? `${Math.abs(daysUntilDeadline)}d overdue`
+                          : daysUntilDeadline === 0
+                          ? "Due today"
+                          : `${daysUntilDeadline}d left`}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground w-24 text-right">No deadline</span>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
+                    >
+                      {getStatusLabel(project.status)}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

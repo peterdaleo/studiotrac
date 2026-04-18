@@ -180,12 +180,24 @@ export default function ProjectDetail() {
     },
   });
 
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
+  const [editNoteClientVisible, setEditNoteClientVisible] = useState(false);
+
   const createNote = trpc.notes.create.useMutation({
     onSuccess: () => {
       utils.notes.list.invalidate({ projectId });
       setNoteContent("");
       setNoteClientVisible(false);
       toast.success("Note added");
+    },
+  });
+
+  const updateNote = trpc.notes.update.useMutation({
+    onSuccess: () => {
+      utils.notes.list.invalidate({ projectId });
+      setEditingNoteId(null);
+      toast.success("Note updated");
     },
   });
 
@@ -977,37 +989,101 @@ export default function ProjectDetail() {
               <Separator />
               {!notes || notes.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No notes yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {notes.map((note) => (
-                    <div key={note.id} className="bg-muted/50 rounded-lg p-4 relative group">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm whitespace-pre-wrap">{note.content}</p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          onClick={() => deleteNote.mutate({ id: note.id })}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
+              ) : (() => {
+                const clientNotes = notes.filter((n) => n.isClientVisible);
+                const internalNotes = notes.filter((n) => !n.isClientVisible);
+
+                const renderNote = (note: any) => (
+                  <div key={note.id} className="bg-muted/50 rounded-lg p-4 relative group">
+                    {editingNoteId === note.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editNoteContent}
+                          onChange={(e) => setEditNoteContent(e.target.value)}
+                          rows={3}
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Switch checked={editNoteClientVisible} onCheckedChange={setEditNoteClientVisible} />
+                            <span className="text-xs text-muted-foreground">Visible to client</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingNoteId(null)}>Cancel</Button>
+                            <Button size="sm" className="h-7 text-xs" onClick={() => updateNote.mutate({ id: note.id, content: editNoteContent.trim(), isClientVisible: editNoteClientVisible })} disabled={!editNoteContent.trim() || updateNote.isPending}>Save</Button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                        {note.isClientVisible ? (
-                          <span className="flex items-center gap-1 text-primary">
-                            <Eye className="h-3 w-3" /> Client visible
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <EyeOff className="h-3 w-3" /> Internal only
-                          </span>
-                        )}
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                setEditingNoteId(note.id);
+                                setEditNoteContent(note.content);
+                                setEditNoteClientVisible(note.isClientVisible);
+                              }}
+                            >
+                              <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => deleteNote.mutate({ id: note.id })}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                          <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                          {note.isClientVisible ? (
+                            <span className="flex items-center gap-1 text-primary">
+                              <Eye className="h-3 w-3" /> Client visible
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <EyeOff className="h-3 w-3" /> Internal only
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    {clientNotes.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Eye className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-xs font-semibold uppercase tracking-wider text-primary">Client Visible ({clientNotes.length})</span>
+                        </div>
+                        <div className="space-y-2 border-l-2 border-primary/30 pl-3">
+                          {clientNotes.map(renderNote)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    )}
+                    {internalNotes.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Internal Only ({internalNotes.length})</span>
+                        </div>
+                        <div className="space-y-2">
+                          {internalNotes.map(renderNote)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>
@@ -1123,7 +1199,7 @@ export default function ProjectDetail() {
           </Card>
 
           {/* Billing Milestones */}
-          <Card className="border-0 shadow-sm">
+          {isAdmin && <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -1134,7 +1210,7 @@ export default function ProjectDetail() {
                   variant={project.billingOk ? "default" : "outline"}
                   className={project.billingOk ? "bg-emerald-500 text-white" : "text-amber-600 border-amber-300"}
                 >
-                  {project.billingOk ? "Billing OK" : "Review Needed"}
+                  {project.billingOk ? "Billing OK" : "Payment Due"}
                 </Badge>
               </div>
             </CardHeader>
@@ -1170,9 +1246,10 @@ export default function ProjectDetail() {
                 <Switch checked={project.billingOk} />
               </button>
             </CardContent>
-          </Card>
+          </Card>}
 
-          {/* Budget & Invoices */}
+          {/* Budget & Invoices — admin only */}
+          {isAdmin && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -1252,9 +1329,10 @@ export default function ProjectDetail() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
-          {/* Consultant Contracts & Payments */}
+          {/* Consultant Contracts & Payments — admin only */}
+          {isAdmin && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -1347,7 +1425,7 @@ export default function ProjectDetail() {
                 </>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Description */}
           <Card className="border-0 shadow-sm">

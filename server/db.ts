@@ -1288,3 +1288,52 @@ export async function seedDemoData() {
 
   return { seeded: true, message: "Demo data seeded successfully" };
 }
+
+
+export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
+  const db = await getDb();
+  if (!db) return { rows: [] as any[], members: [] as any[], projects: [] as any[] };
+
+  const members = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true)).orderBy(asc(teamMembers.name));
+  const allProjects = await db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name));
+
+  const conditions = [sql`${timeEntries.endTime} IS NOT NULL`];
+  if (startDate) conditions.push(gte(timeEntries.startTime, startDate));
+  if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
+  const entries = await db.select().from(timeEntries).where(and(...conditions));
+
+  // Build a member -> project -> hours map
+  const rows = members.map(m => {
+    const memberEntries = entries.filter(e => e.userId === m.id);
+    const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
+    const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
+
+    const projectBreakdown: Record<number, { total: number; billable: number }> = {};
+    for (const e of memberEntries) {
+      if (!projectBreakdown[e.projectId]) projectBreakdown[e.projectId] = { total: 0, billable: 0 };
+      projectBreakdown[e.projectId].total += e.durationMinutes;
+      if (e.billable) projectBreakdown[e.projectId].billable += e.durationMinutes;
+    }
+
+    return {
+      memberId: m.id,
+      memberName: m.name,
+      title: m.title,
+      billingRate: m.billingRate,
+      totalHours: Math.round(totalMinutes / 60 * 100) / 100,
+      billableHours: Math.round(billableMinutes / 60 * 100) / 100,
+      laborCost: Math.round((totalMinutes / 60) * m.billingRate),
+      projectBreakdown: Object.entries(projectBreakdown).map(([pid, data]) => ({
+        projectId: parseInt(pid),
+        totalHours: Math.round(data.total / 60 * 100) / 100,
+        billableHours: Math.round(data.billable / 60 * 100) / 100,
+      })),
+    };
+  });
+
+  return {
+    rows,
+    members: members.map(m => ({ id: m.id, name: m.name })),
+    projects: allProjects,
+  };
+}

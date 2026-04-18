@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, FileText, ArrowUpRight, Download, PieChart as PieChartIcon } from "lucide-react";
+import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, FileText, ArrowUpRight, Download, PieChart as PieChartIcon, Flame, Percent } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import { Link } from "wouter";
 import { getStatusLabel } from "@shared/constants";
@@ -27,6 +27,7 @@ export default function Financials() {
   const { user } = useAuth();
   const { data, isLoading } = trpc.financials.overview.useQuery();
   const exportQuery = trpc.exports.projectsSummary.useQuery(undefined, { enabled: false });
+  const { data: profitData } = trpc.timeAnalytics.trueProfitability.useQuery(undefined, { enabled: user?.role === "admin" });
 
   const isAdmin = useEffectiveAdmin(user?.role);
 
@@ -361,6 +362,120 @@ export default function Financials() {
           )}
         </CardContent>
       </Card>
+
+      {/* Studio Profitability — admin only */}
+      {isAdmin && profitData && (
+        <>
+          {/* Studio Profit Banner */}
+          {(() => {
+            const ft = profitData.firmTotal;
+            const totalRevenue = ft.feesCollected;
+            const totalCost = ft.laborCost + ft.consultantCost;
+            const netProfit = ft.netProfit;
+            const profitPct = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+            const isPositive = netProfit >= 0;
+            return (
+              <Card className={`border-l-4 ${isPositive ? 'border-l-emerald-500' : 'border-l-red-500'}`}>
+                <CardContent className="py-5">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`h-14 w-14 rounded-full flex items-center justify-center ${isPositive ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                        <Percent className={`h-7 w-7 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground font-medium">Real-Time Studio Profit</p>
+                        <div className="flex items-baseline gap-3">
+                          <span className={`text-3xl font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {profitPct}%
+                          </span>
+                          <span className={`text-lg font-semibold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {isPositive ? '' : '-'}{formatCurrency(Math.abs(netProfit))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-6 text-sm">
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Revenue</p>
+                        <p className="font-semibold text-emerald-600">{formatCurrency(totalRevenue)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Labor Cost</p>
+                        <p className="font-semibold text-orange-600">{formatCurrency(ft.laborCost)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Consultant Cost</p>
+                        <p className="font-semibold text-violet-600">{formatCurrency(ft.consultantCost)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Per-Project Profitability Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Flame className="h-5 w-5 text-orange-500" />
+                Project Burn Rate & Net Profit
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="pb-3 font-medium text-muted-foreground">Project</th>
+                      <th className="pb-3 font-medium text-muted-foreground text-right">Budget</th>
+                      <th className="pb-3 font-medium text-muted-foreground text-right">Revenue</th>
+                      <th className="pb-3 font-medium text-muted-foreground text-right">Labor Cost</th>
+                      <th className="pb-3 font-medium text-muted-foreground text-right">Consultant Cost</th>
+                      <th className="pb-3 font-medium text-muted-foreground text-right">Net Profit</th>
+                      <th className="pb-3 font-medium text-muted-foreground text-right">Margin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {profitData.projects
+                      .filter(p => p.feesCollected > 0 || p.laborCost > 0 || p.consultantCost > 0)
+                      .sort((a, b) => b.feesCollected - a.feesCollected)
+                      .map(p => (
+                        <tr key={p.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                          <td className="py-3">
+                            <Link href={`/projects/${p.id}`}>
+                              <span className="font-medium hover:text-primary cursor-pointer">{p.name}</span>
+                            </Link>
+                          </td>
+                          <td className="py-3 text-right font-mono">{p.contractedFee > 0 ? formatCurrency(p.contractedFee) : '—'}</td>
+                          <td className="py-3 text-right font-mono text-emerald-600">{p.feesCollected > 0 ? formatCurrency(p.feesCollected) : '—'}</td>
+                          <td className="py-3 text-right font-mono text-orange-600">{p.laborCost > 0 ? formatCurrency(p.laborCost) : '—'}</td>
+                          <td className="py-3 text-right font-mono text-violet-600">{p.consultantCost > 0 ? formatCurrency(p.consultantCost) : '—'}</td>
+                          <td className="py-3 text-right font-mono">
+                            <span className={p.netProfit >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                              {p.netProfit >= 0 ? '' : '-'}{formatCurrency(Math.abs(p.netProfit))}
+                            </span>
+                          </td>
+                          <td className="py-3 text-right">
+                            <Badge variant="outline" className={p.profitMargin >= 20 ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : p.profitMargin >= 0 ? 'text-amber-700 border-amber-200 bg-amber-50' : 'text-red-700 border-red-200 bg-red-50'}>
+                              {p.profitMargin}%
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              {profitData.projects.filter(p => p.feesCollected > 0 || p.laborCost > 0).length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Flame className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                  <p>No time or payment data yet. Start tracking time and recording invoices to see profitability.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {!isAdmin && (
         <Card className="border-amber-200 bg-amber-50/50">

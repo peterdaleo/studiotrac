@@ -258,3 +258,35 @@
 - [x] Tests passing (79 tests)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 10 Features
+
+### General UI Fine-Tuning
+- [x] Collapsible project list with compact single-line mode
+- [x] Sort projects alphabetically or by due date
+- [x] Hide financials in project view for staff
+- [x] Change "Review Needed" to "Payment Due" under billing milestones
+- [x] Make billing status toggle visible only in admin view
+- [x] Fix team workload distribution chart hover text contrast
+- [x] Make project notes editable (inline edit)
+- [x] Group client-visible notes together automatically
+- [x] Delete team members functionality (with confirmation dialog)
+- [x] Send invitation email/notification when users are added (takes them to the site)
+- [ ] Change password functionality for users (deferred — Manus OAuth manages credentials)
+
+### Burn Rate & Profitability
+- [x] Burn rate tied to each user's payroll expense vs project budget
+- [x] Net profit per project: income after consultant expense minus time-tied payroll
+- [x] Track across projects and display real-time studio profit percentage (admin only)
+- [x] Per-project profitability table with budget, revenue, labor cost, consultant cost, margin
+
+### Time Tracking Enhancements
+- [x] Make time log entries editable (inline edit with project, description, date, time, billable)
+- [x] Admin view: time per team member across projects over any period (Team Report tab)
+- [x] Spreadsheet-like display of time data with sticky headers and totals row
+- [x] Export time data to CSV with date range in filename
+
+### Deployment
+- [x] Tests passing (89 tests)
+- [x] Final checkpoint
+- [x] Redeploy to live URL

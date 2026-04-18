@@ -60,8 +60,20 @@ export const appRouter = router({
       email: z.string().email(),
       title: z.string().optional(),
       role: z.enum(["user", "admin"]).optional(),
+      origin: z.string().optional(),
     })).mutation(async ({ input }) => {
       const result = await db.inviteTeamMember(input);
+      // Send notification about the invite
+      try {
+        const { notifyOwner } = await import("./_core/notification");
+        await notifyOwner({
+          title: `New Team Invite: ${input.name}`,
+          content: `${input.name} (${input.email}) has been invited as ${input.role === "admin" ? "Admin" : "Staff"}.${input.origin ? ` They can sign in at: ${input.origin}` : ""}`,
+        });
+      } catch (e) {
+        // Non-blocking: invite still succeeds even if notification fails
+        console.warn("[Invite] Notification failed:", e);
+      }
       return { success: true, teamMemberId: result.id };
     }),
   }),
@@ -470,6 +482,10 @@ export const appRouter = router({
       userId: z.number(),
       weekStart: z.date(),
     })).query(({ input }) => db.getTimesheetData(input.userId, input.weekStart)),
+    teamTimeReport: adminProcedure.input(z.object({
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+    }).optional()).query(({ input }) => db.getTeamTimeReport(input?.startDate, input?.endDate)),
   }),
 
   // ── Dashboard ────────────────────────────────────────────────

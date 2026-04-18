@@ -27,6 +27,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Plus,
   Users,
   CheckCircle2,
@@ -36,6 +47,7 @@ import {
   Shield,
   UserPlus,
   Mail,
+  Trash2,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { getPhaseShortLabel } from "@shared/constants";
@@ -48,6 +60,23 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
+
+// Custom tooltip with guaranteed contrast
+function WorkloadTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-semibold mb-1">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: entry.fill || entry.color }} />
+          <span className="text-muted-foreground">{entry.name}:</span>
+          <span className="font-medium">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const statusDotMap: Record<string, string> = {
   on_track: "bg-emerald-500",
@@ -99,6 +128,17 @@ export default function Team() {
     },
     onError: (err) => {
       toast.error(err.message || "Failed to invite team member");
+    },
+  });
+
+  const deleteMember = trpc.teamMembers.delete.useMutation({
+    onSuccess: () => {
+      utils.teamMembers.list.invalidate();
+      setLocation("/team");
+      toast.success("Team member removed");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to remove team member");
     },
   });
 
@@ -171,6 +211,7 @@ export default function Team() {
       email,
       title,
       role: inviteRole,
+      origin: window.location.origin,
     });
   };
 
@@ -213,21 +254,47 @@ export default function Team() {
             </div>
             <p className="text-sm text-muted-foreground">{selectedMember.title ?? "Team Member"}</p>
           </div>
-          {isAdmin && selectedMember.registeredUser && selectedMember.registeredUser.id !== user?.id && (
-            <div className="ml-auto">
-              <Select
-                value={selectedMember.registeredUser.role}
-                onValueChange={(val) => handleRoleChange(selectedMember.registeredUser!.id, val as "user" | "admin")}
-              >
-                <SelectTrigger className="w-[130px]" size="sm">
-                  <Shield className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="user">Staff</SelectItem>
-                </SelectContent>
-              </Select>
+          {isAdmin && (
+            <div className="ml-auto flex items-center gap-2">
+              {selectedMember.registeredUser && selectedMember.registeredUser.id !== user?.id && (
+                <Select
+                  value={selectedMember.registeredUser.role}
+                  onValueChange={(val) => handleRoleChange(selectedMember.registeredUser!.id, val as "user" | "admin")}
+                >
+                  <SelectTrigger className="w-[130px]" size="sm">
+                    <Shield className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="user">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 gap-1.5">
+                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove Team Member</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to remove <strong>{selectedMember.name}</strong> from the team? This will deactivate their profile. Their existing task assignments and time entries will be preserved.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 hover:bg-red-700"
+                      onClick={() => deleteMember.mutate({ id: selectedMember.id })}
+                    >
+                      Remove Member
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </div>
@@ -486,14 +553,7 @@ export default function Team() {
                 <BarChart data={workloadChartData} margin={{ left: 0, right: 16 }}>
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                  />
+                  <Tooltip content={<WorkloadTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
                   <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} name="Completed" stackId="a" />
                   <Bar dataKey="overdue" fill="#ef4444" radius={[4, 4, 0, 0]} name="Overdue" stackId="a" />
                   <Bar dataKey="tasks" fill="oklch(0.55 0.15 230)" radius={[4, 4, 0, 0]} name="Total" />
