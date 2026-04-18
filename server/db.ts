@@ -14,6 +14,7 @@ import {
   invoices, InsertInvoice,
   consultantContracts, InsertConsultantContract,
   consultantPayments, InsertConsultantPayment,
+  timeEntries, InsertTimeEntry,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -144,6 +145,7 @@ export async function deleteProject(id: number) {
     await db.delete(consultantPayments).where(eq(consultantPayments.consultantId, c.id));
   }
   await db.delete(consultantContracts).where(eq(consultantContracts.projectId, id));
+  await db.delete(timeEntries).where(eq(timeEntries.projectId, id));
   await db.delete(projects).where(eq(projects.id, id));
 }
 
@@ -792,6 +794,285 @@ export async function getStudioNetIncome() {
   };
 }
 
+// ── Time Entries ──────────────────────────────────────────────────
+export async function listTimeEntries(filters?: { userId?: number; projectId?: number; startDate?: Date; endDate?: Date; billable?: boolean }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (filters?.userId) conditions.push(eq(timeEntries.userId, filters.userId));
+  if (filters?.projectId) conditions.push(eq(timeEntries.projectId, filters.projectId));
+  if (filters?.startDate) conditions.push(gte(timeEntries.startTime, filters.startDate));
+  if (filters?.endDate) conditions.push(lte(timeEntries.startTime, filters.endDate));
+  if (filters?.billable !== undefined) conditions.push(eq(timeEntries.billable, filters.billable));
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  return db.select().from(timeEntries).where(where).orderBy(desc(timeEntries.startTime));
+}
+
+export async function createTimeEntry(data: InsertTimeEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(timeEntries).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function updateTimeEntry(id: number, data: Partial<InsertTimeEntry>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(timeEntries).set(data).where(eq(timeEntries.id, id));
+}
+
+export async function deleteTimeEntry(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(timeEntries).where(eq(timeEntries.id, id));
+}
+
+export async function getActiveTimer(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), isNull(timeEntries.endTime))).limit(1);
+  return result[0];
+}
+
+export async function stopTimer(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const entry = await db.select().from(timeEntries).where(eq(timeEntries.id, id)).limit(1);
+  if (!entry[0]) throw new Error("Time entry not found");
+  const endTime = new Date();
+  const durationMinutes = Math.round((endTime.getTime() - entry[0].startTime.getTime()) / 60000);
+  await db.update(timeEntries).set({ endTime, durationMinutes }).where(eq(timeEntries.id, id));
+  return { durationMinutes };
+}
+
+// ── Time Analytics ────────────────────────────────────────────────
+export async function getProjectTimeBreakdown(projectId: number) {
+  const db = await getDb();
+  if (!db) return { totalMinutes: 0, billableMinutes: 0, byMember: [] as any[], byPhase: [] as any[], estimatedHours: 0 };
+  
+  const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
+  const members = await db.select().from(teamMembers);
+  const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  
+  const totalMinutes = entries.reduce((s, e) => s + e.durationMinutes, 0);
+  const billableMinutes = entries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
+  
+  // By member
+  const memberMap = new Map<number, { name: string; minutes: number; billableMinutes: number; billingRate: number }>();
+  for (const e of entries) {
+    const m = members.find(m => m.id === e.userId);
+    if (!memberMap.has(e.userId)) memberMap.set(e.userId, { name: m?.name || 'Unknown', minutes: 0, billableMinutes: 0, billingRate: m?.billingRate || 0 });
+    const rec = memberMap.get(e.userId)!;
+    rec.minutes += e.durationMinutes;
+    if (e.billable) rec.billableMinutes += e.durationMinutes;
+  }
+  
+  // By phase
+  const phaseMap = new Map<string, number>();
+  for (const e of entries) {
+    const phase = e.phase || 'unassigned';
+    phaseMap.set(phase, (phaseMap.get(phase) || 0) + e.durationMinutes);
+  }
+  
+  return {
+    totalMinutes,
+    billableMinutes,
+    estimatedHours: project[0]?.estimatedHours || 0,
+    byMember: Array.from(memberMap.entries()).map(([id, data]) => ({ userId: id, ...data })),
+    byPhase: Array.from(phaseMap.entries()).map(([phase, minutes]) => ({ phase, minutes })),
+  };
+}
+
+export async function getProjectLaborCost(projectId: number) {
+  const db = await getDb();
+  if (!db) return { totalLaborCost: 0, billableLaborCost: 0 };
+  
+  const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
+  const members = await db.select().from(teamMembers);
+  
+  let totalLaborCost = 0;
+  let billableLaborCost = 0;
+  for (const e of entries) {
+    const m = members.find(m => m.id === e.userId);
+    const hourlyRate = m?.billingRate || 0; // cents per hour
+    const cost = Math.round((e.durationMinutes / 60) * hourlyRate);
+    totalLaborCost += cost;
+    if (e.billable) billableLaborCost += cost;
+  }
+  
+  return { totalLaborCost, billableLaborCost };
+}
+
+export async function getProjectBurnRate(projectId: number) {
+  const db = await getDb();
+  if (!db) return { budgetConsumedPercent: 0, timelineElapsedPercent: 0, laborCost: 0, consultantCost: 0, contractedFee: 0 };
+  
+  const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project[0]) return { budgetConsumedPercent: 0, timelineElapsedPercent: 0, laborCost: 0, consultantCost: 0, contractedFee: 0 };
+  
+  const { totalLaborCost } = await getProjectLaborCost(projectId);
+  
+  // Get consultant payments total
+  const contracts = await db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId));
+  let consultantCost = 0;
+  for (const c of contracts) {
+    const payments = await db.select().from(consultantPayments).where(eq(consultantPayments.consultantId, c.id));
+    consultantCost += payments.reduce((s, p) => s + p.amount, 0);
+  }
+  
+  const totalCost = totalLaborCost + consultantCost;
+  const contractedFee = project[0].contractedFee || 1;
+  const budgetConsumedPercent = Math.round((totalCost / contractedFee) * 100);
+  
+  // Timeline elapsed
+  const start = project[0].startDate ? new Date(project[0].startDate).getTime() : Date.now();
+  const end = project[0].deadline ? new Date(project[0].deadline).getTime() : Date.now();
+  const now = Date.now();
+  const totalDuration = end - start || 1;
+  const elapsed = now - start;
+  const timelineElapsedPercent = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
+  
+  return { budgetConsumedPercent, timelineElapsedPercent, laborCost: totalLaborCost, consultantCost, contractedFee: project[0].contractedFee || 0 };
+}
+
+export async function getFirmUtilization(startDate?: Date, endDate?: Date) {
+  const db = await getDb();
+  if (!db) return { members: [] as any[], firmBillableHours: 0, firmTotalHours: 0, firmUtilizationRate: 0 };
+  
+  const members = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true));
+  const conditions = [sql`${timeEntries.endTime} IS NOT NULL`];
+  if (startDate) conditions.push(gte(timeEntries.startTime, startDate));
+  if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
+  const entries = await db.select().from(timeEntries).where(and(...conditions));
+  
+  let firmBillableMinutes = 0;
+  let firmTotalMinutes = 0;
+  
+  const memberStats = members.map(m => {
+    const memberEntries = entries.filter(e => e.userId === m.id);
+    const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
+    const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
+    firmBillableMinutes += billableMinutes;
+    firmTotalMinutes += totalMinutes;
+    
+    return {
+      id: m.id,
+      name: m.name,
+      title: m.title,
+      billingRate: m.billingRate,
+      weeklyCapacity: m.weeklyCapacityHours,
+      totalHours: Math.round(totalMinutes / 60 * 10) / 10,
+      billableHours: Math.round(billableMinutes / 60 * 10) / 10,
+      utilizationRate: totalMinutes > 0 ? Math.round((billableMinutes / totalMinutes) * 100) : 0,
+      laborCost: Math.round((totalMinutes / 60) * m.billingRate),
+    };
+  });
+  
+  return {
+    members: memberStats,
+    firmBillableHours: Math.round(firmBillableMinutes / 60 * 10) / 10,
+    firmTotalHours: Math.round(firmTotalMinutes / 60 * 10) / 10,
+    firmUtilizationRate: firmTotalMinutes > 0 ? Math.round((firmBillableMinutes / firmTotalMinutes) * 100) : 0,
+  };
+}
+
+export async function getTrueProfitability() {
+  const db = await getDb();
+  if (!db) return { projects: [] as any[], firmTotal: { feesCollected: 0, laborCost: 0, consultantCost: 0, netProfit: 0 } };
+  
+  const allProjects = await db.select().from(projects);
+  const allInvoices = await db.select().from(invoices);
+  const allContracts = await db.select().from(consultantContracts);
+  const allPayments = await db.select().from(consultantPayments);
+  const allEntries = await db.select().from(timeEntries).where(sql`${timeEntries.endTime} IS NOT NULL`);
+  const allMembers = await db.select().from(teamMembers);
+  
+  let firmFeesCollected = 0;
+  let firmLaborCost = 0;
+  let firmConsultantCost = 0;
+  
+  const projectProfitability = allProjects.map(p => {
+    const paidInvoices = allInvoices.filter(i => i.projectId === p.id && i.status === 'paid');
+    const feesCollected = paidInvoices.reduce((s, i) => s + i.amount, 0);
+    
+    const projectContracts = allContracts.filter(c => c.projectId === p.id);
+    let consultantCost = 0;
+    for (const c of projectContracts) {
+      const payments = allPayments.filter(pay => pay.consultantId === c.id);
+      consultantCost += payments.reduce((s, pay) => s + pay.amount, 0);
+    }
+    
+    const projectEntries = allEntries.filter(e => e.projectId === p.id);
+    let laborCost = 0;
+    for (const e of projectEntries) {
+      const m = allMembers.find(m => m.id === e.userId);
+      laborCost += Math.round((e.durationMinutes / 60) * (m?.billingRate || 0));
+    }
+    
+    firmFeesCollected += feesCollected;
+    firmLaborCost += laborCost;
+    firmConsultantCost += consultantCost;
+    
+    return {
+      id: p.id,
+      name: p.name,
+      contractedFee: p.contractedFee,
+      feesCollected,
+      laborCost,
+      consultantCost,
+      totalCost: laborCost + consultantCost,
+      netProfit: feesCollected - laborCost - consultantCost,
+      profitMargin: feesCollected > 0 ? Math.round(((feesCollected - laborCost - consultantCost) / feesCollected) * 100) : 0,
+    };
+  });
+  
+  return {
+    projects: projectProfitability,
+    firmTotal: {
+      feesCollected: firmFeesCollected,
+      laborCost: firmLaborCost,
+      consultantCost: firmConsultantCost,
+      netProfit: firmFeesCollected - firmLaborCost - firmConsultantCost,
+    },
+  };
+}
+
+export async function getTimesheetData(userId: number, weekStart: Date) {
+  const db = await getDb();
+  if (!db) return { entries: [] as any[], dailyTotals: {} as Record<string, number>, weekTotal: 0 };
+  
+  const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
+  const entries = await db.select().from(timeEntries).where(and(
+    eq(timeEntries.userId, userId),
+    gte(timeEntries.startTime, weekStart),
+    lte(timeEntries.startTime, weekEnd),
+    sql`${timeEntries.endTime} IS NOT NULL`
+  )).orderBy(asc(timeEntries.startTime));
+  
+  const allProjects = await db.select().from(projects);
+  const allTasks = await db.select().from(tasks);
+  
+  const dailyTotals: Record<string, number> = {};
+  let weekTotal = 0;
+  
+  const enrichedEntries = entries.map(e => {
+    const dayKey = e.startTime.toISOString().split('T')[0];
+    dailyTotals[dayKey] = (dailyTotals[dayKey] || 0) + e.durationMinutes;
+    weekTotal += e.durationMinutes;
+    
+    const project = allProjects.find(p => p.id === e.projectId);
+    const task = e.taskId ? allTasks.find(t => t.id === e.taskId) : undefined;
+    
+    return {
+      ...e,
+      projectName: project?.name || 'Unknown',
+      taskTitle: task?.title || undefined,
+    };
+  });
+  
+  return { entries: enrichedEntries, dailyTotals, weekTotal };
+}
+
 export async function seedDemoData() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -803,12 +1084,12 @@ export async function seedDemoData() {
   // Seed team members
   const memberColors = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444"];
   const memberData: InsertTeamMember[] = [
-    { name: "Sarah Chen", email: "sarah@studio.com", title: "Principal Architect", avatarColor: memberColors[0] },
-    { name: "Marcus Rivera", email: "marcus@studio.com", title: "Senior Designer", avatarColor: memberColors[1] },
-    { name: "Emily Park", email: "emily@studio.com", title: "Project Architect", avatarColor: memberColors[2] },
-    { name: "James Wilson", email: "james@studio.com", title: "Design Lead", avatarColor: memberColors[3] },
-    { name: "Aisha Patel", email: "aisha@studio.com", title: "Junior Architect", avatarColor: memberColors[4] },
-    { name: "David Kim", email: "david@studio.com", title: "Intern Architect", avatarColor: memberColors[5] },
+    { name: "Sarah Chen", email: "sarah@studio.com", title: "Principal Architect", avatarColor: memberColors[0], billingRate: 28500, weeklyCapacityHours: 40 },
+    { name: "Marcus Rivera", email: "marcus@studio.com", title: "Senior Designer", avatarColor: memberColors[1], billingRate: 22000, weeklyCapacityHours: 40 },
+    { name: "Emily Park", email: "emily@studio.com", title: "Project Architect", avatarColor: memberColors[2], billingRate: 19500, weeklyCapacityHours: 40 },
+    { name: "James Wilson", email: "james@studio.com", title: "Design Lead", avatarColor: memberColors[3], billingRate: 24000, weeklyCapacityHours: 40 },
+    { name: "Aisha Patel", email: "aisha@studio.com", title: "Junior Architect", avatarColor: memberColors[4], billingRate: 14000, weeklyCapacityHours: 40 },
+    { name: "David Kim", email: "david@studio.com", title: "Intern Architect", avatarColor: memberColors[5], billingRate: 9500, weeklyCapacityHours: 40 },
   ];
   for (const m of memberData) await db.insert(teamMembers).values(m);
 
@@ -923,6 +1204,55 @@ export async function seedDemoData() {
     { consultantId: allConsultants[6]!.id, amount: 11000000, paymentDate: new Date(now.getTime() - 60 * 86400000), notes: "100% milestone - final" },
   ];
   for (const p of paymentData) await db.insert(consultantPayments).values(p);
+
+  // Update projects with estimated hours
+  const estimatedHoursMap: Record<number, number> = {
+    0: 1200, 1: 2400, 2: 800, 3: 1600, 4: 600, 5: 1000, 6: 1500, 7: 900,
+  };
+  for (let i = 0; i < allProjects.length; i++) {
+    if (estimatedHoursMap[i] !== undefined) {
+      await db.update(projects).set({ estimatedHours: estimatedHoursMap[i] }).where(eq(projects.id, allProjects[i]!.id));
+    }
+  }
+
+  // Seed time entries
+  const timeData: InsertTimeEntry[] = [];
+  const phases = ['schematic_design', 'design_development', 'construction_documents', 'construction_administration', 'pre_design', 'bidding_negotiation'] as const;
+  
+  // Generate realistic time entries for the past 30 days
+  for (let dayOffset = 30; dayOffset >= 0; dayOffset--) {
+    const day = new Date(now.getTime() - dayOffset * 86400000);
+    const dayOfWeek = day.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
+    
+    // Each team member logs 2-4 entries per day
+    for (let mi = 0; mi < Math.min(members.length, 6); mi++) {
+      const member = members[mi]!;
+      const entriesPerDay = 2 + (mi % 3);
+      for (let ei = 0; ei < entriesPerDay; ei++) {
+        const projectIdx = (mi + ei + dayOffset) % allProjects.length;
+        const project = allProjects[projectIdx]!;
+        const startHour = 8 + ei * 2 + Math.floor(Math.random() * 2);
+        const durationMins = 45 + Math.floor(Math.random() * 135); // 45-180 mins
+        const startTime = new Date(day);
+        startTime.setHours(startHour, Math.floor(Math.random() * 60), 0, 0);
+        const endTime = new Date(startTime.getTime() + durationMins * 60000);
+        
+        timeData.push({
+          userId: member.id,
+          projectId: project.id,
+          taskId: undefined,
+          description: `Work on ${project.name}`,
+          startTime,
+          endTime,
+          durationMinutes: durationMins,
+          billable: Math.random() > 0.15, // 85% billable
+          phase: phases[projectIdx % phases.length],
+        });
+      }
+    }
+  }
+  for (const t of timeData) await db.insert(timeEntries).values(t);
 
   return { seeded: true, message: "Demo data seeded successfully" };
 }

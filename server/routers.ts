@@ -375,6 +375,81 @@ export const appRouter = router({
     studio: protectedProcedure.query(() => db.getStudioNetIncome()),
   }),
 
+  // ── Time Tracking ────────────────────────────────────────────
+  timeEntries: router({
+    list: protectedProcedure.input(z.object({
+      userId: z.number().optional(),
+      projectId: z.number().optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+      billable: z.boolean().optional(),
+    }).optional()).query(({ input }) => db.listTimeEntries(input ?? undefined)),
+    create: protectedProcedure.input(z.object({
+      projectId: z.number(),
+      taskId: z.number().optional().nullable(),
+      description: z.string().optional(),
+      startTime: z.date(),
+      endTime: z.date().optional().nullable(),
+      durationMinutes: z.number().min(0).optional(),
+      billable: z.boolean().optional(),
+      phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
+    })).mutation(({ input, ctx }) => db.createTimeEntry({ ...input, userId: ctx.user.id })),
+    update: protectedProcedure.input(z.object({
+      id: z.number(),
+      projectId: z.number().optional(),
+      taskId: z.number().optional().nullable(),
+      description: z.string().optional().nullable(),
+      startTime: z.date().optional(),
+      endTime: z.date().optional().nullable(),
+      durationMinutes: z.number().min(0).optional(),
+      billable: z.boolean().optional(),
+      phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional().nullable(),
+    })).mutation(({ input }) => {
+      const { id, ...data } = input;
+      return db.updateTimeEntry(id, data);
+    }),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTimeEntry(input.id)),
+    activeTimer: protectedProcedure.query(({ ctx }) => db.getActiveTimer(ctx.user.id)),
+    startTimer: protectedProcedure.input(z.object({
+      projectId: z.number(),
+      taskId: z.number().optional().nullable(),
+      description: z.string().optional(),
+      billable: z.boolean().optional(),
+      phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
+    })).mutation(async ({ input, ctx }) => {
+      // Stop any existing active timer first
+      const active = await db.getActiveTimer(ctx.user.id);
+      if (active) await db.stopTimer(active.id);
+      return db.createTimeEntry({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        taskId: input.taskId,
+        description: input.description,
+        startTime: new Date(),
+        durationMinutes: 0,
+        billable: input.billable ?? true,
+        phase: input.phase,
+      });
+    }),
+    stopTimer: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.stopTimer(input.id)),
+  }),
+
+  // ── Time Analytics ──────────────────────────────────────────────
+  timeAnalytics: router({
+    projectBreakdown: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectTimeBreakdown(input.projectId)),
+    projectLaborCost: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectLaborCost(input.projectId)),
+    projectBurnRate: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectBurnRate(input.projectId)),
+    firmUtilization: adminProcedure.input(z.object({
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+    }).optional()).query(({ input }) => db.getFirmUtilization(input?.startDate, input?.endDate)),
+    trueProfitability: adminProcedure.query(() => db.getTrueProfitability()),
+    timesheet: protectedProcedure.input(z.object({
+      userId: z.number(),
+      weekStart: z.date(),
+    })).query(({ input }) => db.getTimesheetData(input.userId, input.weekStart)),
+  }),
+
   // ── Dashboard ────────────────────────────────────────────────
   dashboard: router({
     stats: protectedProcedure.query(() => db.getDashboardStats()),

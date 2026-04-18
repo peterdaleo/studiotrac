@@ -16,6 +16,7 @@ import Timeline from "./pages/Timeline";
 import Settings from "./pages/Settings";
 import Financials from "./pages/Financials";
 import Reports from "./pages/Reports";
+import TimeTracking from "./pages/TimeTracking";
 import ClientPortal from "./pages/ClientPortal";
 
 function DashboardRouter() {
@@ -33,6 +34,7 @@ function DashboardRouter() {
         <Route path="/notifications" component={Notifications} />
         <Route path="/financials" component={Financials} />
         <Route path="/reports" component={Reports} />
+        <Route path="/time" component={TimeTracking} />
         <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

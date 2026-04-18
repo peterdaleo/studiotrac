@@ -18,6 +18,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { getPhaseShortLabel, getStatusLabel } from "@shared/constants";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -43,10 +44,12 @@ function formatCurrency(cents: number) {
 
 export default function Home() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { data: stats, isLoading: statsLoading } = trpc.dashboard.stats.useQuery();
   const { data: projects, isLoading: projectsLoading } = trpc.projects.list.useQuery({});
   const { data: allTasks } = trpc.tasks.list.useQuery({});
-  const { data: financials } = trpc.financials.overview.useQuery();
+  const { data: financials } = trpc.financials.overview.useQuery(undefined, { enabled: isAdmin });
   const seedMutation = trpc.dashboard.seed.useMutation({
     onSuccess: () => window.location.reload(),
   });
@@ -223,8 +226,8 @@ export default function Home() {
         </Card>
       </div>
 
-      {/* Financial KPIs Row */}
-      <div>
+      {/* Financial KPIs Row - Admin Only */}
+      {isAdmin && <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -323,7 +326,29 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div>}
+
+      {/* Burn Rate for Staff */}
+      {!isAdmin && stats && stats.totalProjects > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Studio Burn Rate</h3>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">Overall budget consumed</span>
+                  <span className="font-semibold">{stats.completedTasks > 0 ? Math.round((stats.completedTasks / Math.max(stats.totalTasks, 1)) * 100) : 0}%</span>
+                </div>
+                <Progress value={stats.completedTasks > 0 ? (stats.completedTasks / Math.max(stats.totalTasks, 1)) * 100 : 0} className="h-2" />
+              </div>
+              <p className="text-xs text-muted-foreground">Based on task completion across all active projects</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

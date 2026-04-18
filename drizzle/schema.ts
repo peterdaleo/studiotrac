@@ -25,6 +25,8 @@ export const teamMembers = mysqlTable("team_members", {
   title: varchar("title", { length: 255 }),
   avatarColor: varchar("avatarColor", { length: 20 }).default("#6366f1"),
   isActive: boolean("isActive").default(true).notNull(),
+  billingRate: int("billingRate").default(0).notNull(), // cents per hour
+  weeklyCapacityHours: int("weeklyCapacityHours").default(40).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -58,6 +60,7 @@ export const projects = mysqlTable("projects", {
   billing100: boolean("billing100").default(false).notNull(),
   billingOk: boolean("billingOk").default(false).notNull(),
   description: text("description"),
+  estimatedHours: int("estimatedHours").default(0).notNull(), // total estimated hours for project
   contractedFee: int("contractedFee").default(0).notNull(), // in cents
   invoicedAmount: int("invoicedAmount").default(0).notNull(), // in cents (auto-calculated from invoices)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -224,3 +227,30 @@ export const consultantPayments = mysqlTable("consultant_payments", {
 
 export type ConsultantPayment = typeof consultantPayments.$inferSelect;
 export type InsertConsultantPayment = typeof consultantPayments.$inferInsert;
+
+// ── Time Entries ────────────────────────────────────────────────────
+export const timeEntries = mysqlTable("time_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // team_members.id
+  projectId: int("projectId").notNull(),
+  taskId: int("taskId"), // optional link to a task
+  description: varchar("description", { length: 500 }),
+  startTime: timestamp("startTime").notNull(),
+  endTime: timestamp("endTime"), // null = timer still running
+  durationMinutes: int("durationMinutes").default(0).notNull(),
+  billable: boolean("billable").default(true).notNull(),
+  phase: mysqlEnum("phase", [
+    "pre_design",
+    "schematic_design",
+    "design_development",
+    "construction_documents",
+    "bidding_negotiation",
+    "construction_administration",
+    "post_occupancy",
+  ]),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TimeEntry = typeof timeEntries.$inferSelect;
+export type InsertTimeEntry = typeof timeEntries.$inferInsert;

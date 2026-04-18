@@ -36,6 +36,7 @@ import {
   Settings,
   DollarSign,
   FileSpreadsheet,
+  Timer,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -44,16 +45,17 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { trpc } from "@/lib/trpc";
 
-const menuItems = [
+const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
   { icon: CheckSquare, label: "Tasks", path: "/tasks" },
+  { icon: Timer, label: "Time Tracking", path: "/time" },
   { icon: Users, label: "Team", path: "/team" },
   { icon: CalendarDays, label: "Calendar", path: "/calendar" },
   { icon: GanttChart, label: "Timeline", path: "/timeline" },
-  { icon: DollarSign, label: "Financials", path: "/financials" },
+  { icon: DollarSign, label: "Financials", path: "/financials", adminOnly: true },
   { icon: FileSpreadsheet, label: "Reports", path: "/reports" },
-];
+] as const;
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
@@ -149,6 +151,9 @@ function DashboardLayoutContent({
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
     refetchInterval: 30000,
   });
+
+  const isAdmin = user?.role === "admin";
+  const menuItems = baseMenuItems.filter((item) => !("adminOnly" in item && item.adminOnly && !isAdmin));
 
   const activeMenuItem = menuItems.find((item) => {
     if (item.path === "/") return location === "/";

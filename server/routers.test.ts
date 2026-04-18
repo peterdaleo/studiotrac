@@ -147,6 +147,40 @@ vi.mock("./db", () => ({
     totalTasks: 19, overdueTasks: 2, completedTasks: 7,
   }),
   seedDemoData: vi.fn().mockResolvedValue({ seeded: true, message: "Demo data seeded successfully" }),
+
+  // Time tracking
+  listTimeEntries: vi.fn().mockResolvedValue([
+    { id: 1, userId: 1, projectId: 1, description: "Structural review", startTime: new Date(), endTime: new Date(), durationMinutes: 120, billable: true, phase: "construction_documents", createdAt: new Date() },
+  ]),
+  createTimeEntry: vi.fn().mockResolvedValue({ id: 2 }),
+  updateTimeEntry: vi.fn().mockResolvedValue(undefined),
+  deleteTimeEntry: vi.fn().mockResolvedValue(undefined),
+  getActiveTimer: vi.fn().mockResolvedValue(null),
+  stopTimer: vi.fn().mockResolvedValue(undefined),
+  getProjectTimeBreakdown: vi.fn().mockResolvedValue({
+    totalMinutes: 240, billableMinutes: 180, byMember: [{ memberId: 1, memberName: "Sarah Chen", minutes: 240 }], byPhase: [{ phase: "construction_documents", minutes: 240 }],
+  }),
+  getTimesheetData: vi.fn().mockResolvedValue({
+    entries: [{ id: 1, projectId: 1, projectName: "Riverside Cultural Center", description: "Review", startTime: new Date(), endTime: new Date(), durationMinutes: 120, billable: true }],
+    totalMinutes: 120, billableMinutes: 120,
+  }),
+  getUtilizationData: vi.fn().mockResolvedValue({
+    members: [{ id: 1, name: "Sarah Chen", totalMinutes: 2400, billableMinutes: 1920, billingRate: 15000 }],
+    firmTotals: { totalMinutes: 4800, billableMinutes: 3840, totalLaborCost: 7200000 },
+  }),
+  getProjectLaborCost: vi.fn().mockResolvedValue({
+    totalMinutes: 240, totalCost: 360000, byMember: [{ memberId: 1, memberName: "Sarah Chen", minutes: 240, cost: 360000, billingRate: 15000 }],
+  }),
+  getProjectBurnRate: vi.fn().mockResolvedValue({
+    contractedFee: 50000000, totalCollected: 25000000, laborCost: 360000, consultantCost: 500000, netPosition: 24140000, burnRate: 1.72, timeElapsedPercent: 50, budgetConsumedPercent: 1.72,
+  }),
+  getFirmUtilization: vi.fn().mockResolvedValue({
+    members: [{ id: 1, name: "Sarah Chen", totalMinutes: 2400, billableMinutes: 1920, billingRate: 15000 }],
+    firmTotals: { totalMinutes: 4800, billableMinutes: 3840, totalLaborCost: 7200000 },
+  }),
+  getTrueProfitability: vi.fn().mockResolvedValue([
+    { id: 1, name: "Riverside Cultural Center", contractedFee: 50000000, totalCollected: 25000000, laborCost: 360000, consultantCost: 500000, netProfit: 24140000 },
+  ]),
 }));
 
 // Mock storage module
@@ -742,6 +776,75 @@ describe("RBAC enforcement", () => {
     const { ctx } = createAuthContext("user");
     const caller = appRouter.createCaller(ctx);
     await expect(caller.projects.delete({ id: 1 })).rejects.toThrow();
+  });
+});
+
+describe("time entries", () => {
+  it("lists time entries", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const entries = await caller.timeEntries.list();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.durationMinutes).toBe(120);
+  });
+
+  it("creates a time entry", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.timeEntries.create({ projectId: 1, description: "Working on plans", startTime: new Date(), billable: true });
+    expect(result.id).toBe(2);
+  });
+
+  it("stops an active timer", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await caller.timeEntries.stopTimer({ id: 1 });
+  });
+
+  it("deletes a time entry", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    await caller.timeEntries.delete({ id: 1 });
+  });
+
+  it("checks active timer", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const timer = await caller.timeEntries.activeTimer();
+    expect(timer).toBeNull();
+  });
+});
+
+describe("time analytics", () => {
+  it("gets project time breakdown", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const breakdown = await caller.timeAnalytics.projectBreakdown({ projectId: 1 });
+    expect(breakdown.totalMinutes).toBe(240);
+    expect(breakdown.billableMinutes).toBe(180);
+  });
+
+  it("admin can get firm utilization", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.timeAnalytics.firmUtilization();
+    expect(data.members).toHaveLength(1);
+    expect(data.firmTotals.totalMinutes).toBe(4800);
+  });
+
+  it("admin can get project labor cost", async () => {
+    const { ctx } = createAuthContext("admin");
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.timeAnalytics.projectLaborCost({ projectId: 1 });
+    expect(data.totalCost).toBe(360000);
+  });
+
+  it("gets project burn rate", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const data = await caller.timeAnalytics.projectBurnRate({ projectId: 1 });
+    expect(data.contractedFee).toBe(50000000);
+    expect(data.burnRate).toBe(1.72);
   });
 });
 

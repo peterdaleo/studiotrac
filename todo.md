@@ -192,3 +192,45 @@
 - [x] Toggleable sort button on ProjectDetail task list
 - [x] Clear visual indicator: button label + icon changes, filled style when active
 - [x] All 60 tests passing, redeployed
+
+## Phase 8 Features
+
+### Time Tracking Module — Core
+- [x] Database table: time_entries (userId, projectId, taskId, startTime, endTime, duration, billable, description, phase)
+- [x] Add billingRate column to team_members table
+- [x] Add estimatedHours column to projects table
+- [x] tRPC procedures: start/stop timer, create/update/delete manual time entry
+- [x] Active timer state management (one active timer per user)
+- [x] Billable vs non-billable hour tagging
+
+### Time Tracking — Timesheet View
+- [x] Time Tracking page with Timer tab and Timesheet tab
+- [x] Manual time entry form (project, description, phase, hours, billable)
+- [x] Timer widget: start/stop with project selection, description, phase, billable toggle
+- [x] Today's Time Log showing entries with edit/delete
+
+### Time Tracking — Project-Level Metrics
+- [x] Total hours logged vs estimated hours per project
+- [x] Labor cost calculation (hours x billing rate) — admin only
+- [x] Burn rate: labor cost + consultant payments vs contracted fee vs timeline
+- [x] Hours breakdown by team member per project
+- [x] Hours breakdown by phase per project
+
+### Time Tracking — Firm-Level Metrics (Admin)
+- [x] Firm utilization rates: billable hours vs total available hours
+- [x] True project profitability: fees collected - labor cost - consultant payments
+- [x] Project burn rate analytics
+- [x] Capacity overview via utilization data
+
+### Role-Based Financial Visibility
+- [x] Staff see burn rate indicator on dashboard (percentage only, no dollar amounts)
+- [x] Financial KPIs row hidden from dashboard for staff
+- [x] Financials page hidden from nav for staff
+- [x] Staff can see their own timesheet and logged hours
+- [x] Staff can start/stop timer and log time
+- [x] Admin retains full financial access as-is
+
+### Deployment
+- [x] Tests passing (69 tests)
+- [x] Final checkpoint
+- [x] Redeploy to live URL
