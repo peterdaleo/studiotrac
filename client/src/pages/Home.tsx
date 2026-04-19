@@ -43,6 +43,26 @@ function formatCurrency(cents: number) {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+function PhaseChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+
+  const entry = payload[0];
+
+  return (
+    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+      <p className="mb-1 font-semibold text-popover-foreground">{label}</p>
+      <div className="flex items-center gap-2">
+        <div
+          className="h-2.5 w-2.5 rounded-sm"
+          style={{ backgroundColor: entry.fill || entry.color || "oklch(0.55 0.15 230)" }}
+        />
+        <span className="text-muted-foreground">Projects:</span>
+        <span className="font-medium text-popover-foreground">{entry.value}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -406,14 +426,7 @@ export default function Home() {
                 <BarChart data={phaseData} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="phase" width={36} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                  />
+                  <Tooltip content={<PhaseChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
                   <Bar dataKey="count" fill="oklch(0.55 0.15 230)" radius={[0, 6, 6, 0]} barSize={20} name="Projects" />
                 </BarChart>
               </ResponsiveContainer>
