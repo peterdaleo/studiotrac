@@ -13,7 +13,7 @@ type SendTeamInviteEmailParams = {
   signupUrl: string;
 };
 
-const FROM_EMAIL = "studioTrac <onboarding@resend.dev>";
+const FROM_EMAIL = "studioTrac <invites@studiotrac.app>";
 
 function getRoleLabel(role: InviteRole) {
   return role === "admin" ? "Admin" : "Staff";
@@ -58,7 +58,7 @@ function buildInviteHtml(params: SendTeamInviteEmailParams) {
           <p style="margin: 0; font-size: 14px; line-height: 1.7; word-break: break-word;"><a href="${escapeHtml(params.signupUrl)}" style="color: #2563eb; text-decoration: underline;">${escapeHtml(params.signupUrl)}</a></p>
         </div>
       </div>
-      <p style="margin: 16px 8px 0; font-size: 12px; line-height: 1.6; color: #94a3b8; text-align: center;">This invitation was sent by studioTrac via Resend’s shared sending domain for initial setup.</p>
+      <p style="margin: 16px 8px 0; font-size: 12px; line-height: 1.6; color: #94a3b8; text-align: center;">This invitation was sent by studioTrac from its verified email domain.</p>
     </div>
   </body>
 </html>`;
