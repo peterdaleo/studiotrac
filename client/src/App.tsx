@@ -19,6 +19,8 @@ import Financials from "./pages/Financials";
 import Reports from "./pages/Reports";
 import TimeTracking from "./pages/TimeTracking";
 import ClientPortal from "./pages/ClientPortal";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 
 function DashboardRouter() {
   return (
@@ -53,6 +55,9 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Switch>
+            {/* Auth pages — no dashboard layout */}
+            <Route path="/login" component={Login} />
+            <Route path="/signup" component={Signup} />
             {/* Public client portal — no auth, no dashboard layout */}
             <Route path="/portal/:token" component={ClientPortal} />
             {/* All other routes go through the dashboard */}

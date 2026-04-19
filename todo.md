@@ -290,3 +290,34 @@
 - [x] Tests passing (89 tests)
 - [x] Final checkpoint
 - [x] Redeploy to live URL
+
+## Phase 11 — Standalone Deployment (Remove Manus Dependencies)
+
+### Auth Refactor
+- [ ] Replace Manus OAuth with email/password auth (bcrypt + JWT)
+- [ ] Signup endpoint (email, password, name)
+- [ ] Login endpoint (email, password)
+- [ ] Keep existing JWT session token logic
+- [ ] Hash passwords with bcrypt
+- [ ] Add password field to users table
+
+### Storage Refactor
+- [ ] Replace Forge file storage with local file serving
+- [ ] Serve uploaded files from /uploads directory on the server
+- [ ] Files stored on Railway volume or local disk
+
+### Environment Cleanup
+- [ ] Remove OAUTH_SERVER_URL, VITE_OAUTH_PORTAL_URL dependencies
+- [ ] Remove BUILT_IN_FORGE_API_URL, BUILT_IN_FORGE_API_KEY dependencies
+- [ ] Remove OWNER_OPEN_ID dependency
+- [ ] Only required env vars: DATABASE_URL, JWT_SECRET, VITE_APP_ID, PORT
+
+### Frontend Updates
+- [ ] Create login/signup pages with email/password forms
+- [ ] Remove OAuth redirect logic
+- [ ] Update useAuth to work with new auth system
+
+### Deployment
+- [ ] Zero TypeScript errors, clean build
+- [ ] Railway deployment README with clear instructions
+- [ ] Push to GitHub peterdaleo/studiotrac
