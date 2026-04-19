@@ -171,7 +171,7 @@ export const appRouter = router({
         createdById: ctx.user.id,
       })
     ),
-    update: protectedProcedure.input(teamAbsenceSchema.extend({ id: z.number() })).mutation(({ input }) => {
+    update: protectedProcedure.input(teamAbsenceSchema.safeExtend({ id: z.number() })).mutation(({ input }) => {
       const { id, ...data } = input;
       return db.updateTeamAbsence(id, {
         ...data,
