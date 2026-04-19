@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,12 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const inviteToken = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("invite");
+  }, []);
+  const isInviteSignup = !!inviteToken;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +35,7 @@ export default function Signup() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, inviteToken }),
         credentials: "include",
       });
 
@@ -40,7 +46,6 @@ export default function Signup() {
         return;
       }
 
-      // Redirect to dashboard
       window.location.href = "/";
     } catch {
       setError("Network error. Please try again.");
@@ -56,14 +61,23 @@ export default function Signup() {
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
             <Building2 className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>Join studioTrac to manage your studio</CardDescription>
+          <CardTitle className="text-2xl font-bold">{isInviteSignup ? "Accept Invitation" : "Create Account"}</CardTitle>
+          <CardDescription>
+            {isInviteSignup
+              ? "Finish setting up your studioTrac account using the email address that received your invitation."
+              : "Join studioTrac to manage your studio"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
                 {error}
+              </div>
+            )}
+            {isInviteSignup && (
+              <div className="p-3 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg">
+                You were invited to join studioTrac. Use the same email address that received the invitation so your workspace access and role are assigned correctly.
               </div>
             )}
             <div className="space-y-2">
@@ -114,7 +128,7 @@ export default function Signup() {
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Create Account
+              {isInviteSignup ? "Create Account and Join Workspace" : "Create Account"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm text-muted-foreground">

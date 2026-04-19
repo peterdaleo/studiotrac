@@ -121,10 +121,14 @@ export default function Team() {
   });
 
   const inviteMember = trpc.teamMembers.invite.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.teamMembers.list.invalidate();
       setInviteDialogOpen(false);
-      toast.success("Team member invited successfully");
+      if (data.emailSent) {
+        toast.success("Team member invited and email sent successfully");
+      } else {
+        toast.success("Team member invited, but the email was not sent. Add RESEND_API_KEY in Railway to enable delivery.");
+      }
     },
     onError: (err) => {
       toast.error(err.message || "Failed to invite team member");

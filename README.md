@@ -35,6 +35,7 @@ A full-featured architecture studio management platform built with React, Expres
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | MySQL connection string (e.g., `mysql://user:pass@host:port/dbname?ssl={"rejectUnauthorized":true}`) |
 | `JWT_SECRET` | Yes | Secret key for signing JWT session tokens (use a random 32+ character string) |
+| `RESEND_API_KEY` | No | Resend API key used to deliver invitation emails from `onboarding@resend.dev` |
 | `PORT` | No | Server port (defaults to `3000`) |
 | `UPLOAD_DIR` | No | Directory for file uploads (defaults to `./uploads`) |
 | `NODE_ENV` | No | Set to `production` for production builds |
@@ -48,7 +49,8 @@ pnpm install
 # Create a .env file
 cat > .env << EOF
 DATABASE_URL=mysql://root:password@localhost:3306/studiotrac
-JWT_SECRET=your-secret-key-change-me-in-production
+JWT_SECRET=change-me
+RESEND_API_KEY=re_placeholder
 PORT=3000
 EOF
 

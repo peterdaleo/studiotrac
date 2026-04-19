@@ -8,6 +8,8 @@ import * as db from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { notifyOwner } from "./_core/notification";
+import { sendTeamInviteEmail } from "./_core/email";
+import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 
 export const appRouter = router({
   system: systemRouter,
@@ -61,20 +63,50 @@ export const appRouter = router({
       title: z.string().optional(),
       role: z.enum(["user", "admin"]).optional(),
       origin: z.string().optional(),
-    })).mutation(async ({ input }) => {
-      const result = await db.inviteTeamMember(input);
-      // Send notification about the invite
+    })).mutation(async ({ input, ctx }) => {
+      const normalizedEmail = input.email.trim().toLowerCase();
+      const role = input.role ?? "user";
+      const result = await db.inviteTeamMember({
+        ...input,
+        email: normalizedEmail,
+        role,
+      });
+
+      const inviteToken = await createInviteToken({
+        email: normalizedEmail,
+        role,
+        teamMemberId: result.id,
+        name: input.name.trim(),
+        title: input.title?.trim() || null,
+      });
+      const signupUrl = createInviteSignupUrl(input.origin, inviteToken);
+
+      let emailSent = false;
       try {
-        const { notifyOwner } = await import("./_core/notification");
+        const emailResult = await sendTeamInviteEmail({
+          to: normalizedEmail,
+          inviteeName: input.name,
+          invitedByName: ctx.user.name,
+          role,
+          title: input.title,
+          signupUrl,
+        });
+        emailSent = emailResult.sent;
+      } catch (e) {
+        console.warn("[Invite] Email delivery failed:", e);
+      }
+
+      try {
         await notifyOwner({
           title: `New Team Invite: ${input.name}`,
-          content: `${input.name} (${input.email}) has been invited as ${input.role === "admin" ? "Admin" : "Staff"}.${input.origin ? ` They can sign in at: ${input.origin}` : ""}`,
+          content: `${input.name} (${normalizedEmail}) has been invited as ${role === "admin" ? "Admin" : "Staff"}.${emailSent ? " Invitation email sent successfully." : " Invitation was created, but email delivery was skipped or failed."}`,
         });
       } catch (e) {
         // Non-blocking: invite still succeeds even if notification fails
         console.warn("[Invite] Notification failed:", e);
       }
-      return { success: true, teamMemberId: result.id };
+
+      return { success: true, teamMemberId: result.id, emailSent };
     }),
   }),
 

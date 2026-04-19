@@ -127,14 +127,39 @@ export async function getUserById(id: number) {
 export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "admin" }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const normalizedEmail = data.email.trim().toLowerCase();
   // Create a team member record as a placeholder for the invited user
   const result = await db.insert(teamMembers).values({
     name: data.name,
-    email: data.email,
+    email: normalizedEmail,
     title: data.title ?? null,
     isActive: true,
   });
   return { id: result[0].insertId };
+}
+
+export async function linkUserToInvitedTeamMember(data: { teamMemberId: number; userId: number; email: string; name?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const result = await db.select().from(teamMembers).where(eq(teamMembers.id, data.teamMemberId)).limit(1);
+  const member = result[0];
+
+  if (!member) return false;
+  if ((member.email ?? "").trim().toLowerCase() !== normalizedEmail) return false;
+
+  const update: Partial<InsertTeamMember> = {
+    userId: data.userId,
+    email: normalizedEmail,
+  };
+
+  if (data.name?.trim()) {
+    update.name = data.name.trim();
+  }
+
+  await db.update(teamMembers).set(update).where(eq(teamMembers.id, data.teamMemberId));
+  return true;
 }
 
 // ── Projects ───────────────────────────────────────────────────────

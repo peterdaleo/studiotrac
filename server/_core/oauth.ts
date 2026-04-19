@@ -4,12 +4,13 @@ import bcrypt from "bcryptjs";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { verifyInviteToken } from "./invite";
 
 export function registerOAuthRoutes(app: Express) {
   // ── Sign Up ────────────────────────────────────────────────────
   app.post("/api/auth/signup", async (req: Request, res: Response) => {
     try {
-      const { email, password, name } = req.body;
+      const { email, password, name, inviteToken } = req.body;
 
       if (!email || !password) {
         res.status(400).json({ error: "Email and password are required" });
@@ -21,8 +22,29 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
+      const normalizedEmail = String(email).trim().toLowerCase();
+      let invite = null;
+
+      if (inviteToken) {
+        if (typeof inviteToken !== "string") {
+          res.status(400).json({ error: "Invalid invitation token" });
+          return;
+        }
+
+        invite = await verifyInviteToken(inviteToken);
+        if (!invite) {
+          res.status(400).json({ error: "This invitation link is invalid or has expired" });
+          return;
+        }
+
+        if (invite.email !== normalizedEmail) {
+          res.status(400).json({ error: "Please sign up using the email address that received the invitation" });
+          return;
+        }
+      }
+
       // Check if user already exists
-      const existing = await db.getUserByEmail(email);
+      const existing = await db.getUserByEmail(normalizedEmail);
       if (existing) {
         res.status(409).json({ error: "An account with this email already exists" });
         return;
@@ -30,18 +52,34 @@ export function registerOAuthRoutes(app: Express) {
 
       const passwordHash = await bcrypt.hash(password, 12);
       const openId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const displayName = String(name || invite?.name || normalizedEmail.split("@")[0]).trim();
 
       await db.upsertUser({
         openId,
-        name: name || email.split("@")[0],
-        email,
+        name: displayName,
+        email: normalizedEmail,
         passwordHash,
         loginMethod: "email",
         lastSignedIn: new Date(),
+        role: invite?.role,
       });
 
+      const createdUser = await db.getUserByEmail(normalizedEmail);
+      if (invite && createdUser) {
+        try {
+          await db.linkUserToInvitedTeamMember({
+            teamMemberId: invite.teamMemberId,
+            userId: createdUser.id,
+            email: normalizedEmail,
+            name: displayName,
+          });
+        } catch (linkError) {
+          console.warn("[Auth] Failed to link invited team member", linkError);
+        }
+      }
+
       const sessionToken = await sdk.createSessionToken(openId, {
-        name: name || email.split("@")[0],
+        name: displayName,
         expiresInMs: ONE_YEAR_MS,
       });
 
@@ -64,7 +102,8 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      const user = await db.getUserByEmail(email);
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const user = await db.getUserByEmail(normalizedEmail);
       if (!user || !user.passwordHash) {
         res.status(401).json({ error: "Invalid email or password" });
         return;
@@ -82,7 +121,7 @@ export function registerOAuthRoutes(app: Express) {
       });
 
       const sessionToken = await sdk.createSessionToken(user.openId, {
-        name: user.name || email.split("@")[0],
+        name: user.name || normalizedEmail.split("@")[0],
         expiresInMs: ONE_YEAR_MS,
       });
 
