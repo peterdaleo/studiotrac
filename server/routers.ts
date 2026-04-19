@@ -83,6 +83,7 @@ export const appRouter = router({
       title: z.string().optional().nullable(),
       avatarColor: z.string().optional(),
       isActive: z.boolean().optional(),
+      billingRate: z.number().min(0).optional(),
     })).mutation(({ input }) => {
       const { id, ...data } = input;
       return db.updateTeamMember(id, data);

@@ -50,6 +50,7 @@ function toDateString(date: Date): string {
 export default function TimeTracking() {
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
+  const utils = trpc.useUtils();
 
   const [activeTab, setActiveTab] = useState("timer");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -75,6 +76,8 @@ export default function TimeTracking() {
   // Team report date range (admin)
   const [reportStartDate, setReportStartDate] = useState<string>("");
   const [reportEndDate, setReportEndDate] = useState<string>("");
+  const [editingBillingRateMemberId, setEditingBillingRateMemberId] = useState<number | null>(null);
+  const [billingRateInput, setBillingRateInput] = useState<string>("");
 
   // Edit entry state
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
@@ -147,6 +150,19 @@ export default function TimeTracking() {
     onSuccess: () => {
       toast.success("Entry deleted");
       timesheet.refetch();
+    },
+  });
+
+  const updateBillingRate = trpc.teamMembers.update.useMutation({
+    onSuccess: async () => {
+      toast.success("Billing rate updated");
+      setEditingBillingRateMemberId(null);
+      setBillingRateInput("");
+      await utils.timeAnalytics.teamTimeReport.invalidate();
+      await utils.teamMembers.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to update billing rate");
     },
   });
 
@@ -239,6 +255,25 @@ export default function TimeTracking() {
       durationMinutes,
       billable: editData.billable,
     });
+  };
+
+  const startBillingRateEdit = (memberId: number, billingRate: number) => {
+    setEditingBillingRateMemberId(memberId);
+    setBillingRateInput((billingRate / 100).toFixed(2));
+  };
+
+  const cancelBillingRateEdit = () => {
+    setEditingBillingRateMemberId(null);
+    setBillingRateInput("");
+  };
+
+  const saveBillingRateEdit = (memberId: number) => {
+    const parsedRate = Number.parseFloat(billingRateInput);
+    if (Number.isNaN(parsedRate) || parsedRate < 0) {
+      toast.error("Please enter a valid hourly billing rate");
+      return;
+    }
+    updateBillingRate.mutate({ id: memberId, billingRate: Math.round(parsedRate * 100) });
   };
 
   // Week days
@@ -680,7 +715,54 @@ export default function TimeTracking() {
                                 {r.title && <span className="text-muted-foreground ml-1">({r.title})</span>}
                               </div>
                             </td>
-                            <td className="p-3 text-right font-mono">${(r.billingRate / 100).toFixed(0)}/hr</td>
+                            <td className="p-3 text-right font-mono">
+                              {editingBillingRateMemberId === r.memberId ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <div className="flex items-center gap-1 rounded-md border bg-background px-2 py-1">
+                                    <span className="text-muted-foreground">$</span>
+                                    <Input
+                                      value={billingRateInput}
+                                      onChange={(e) => setBillingRateInput(e.target.value)}
+                                      className="h-7 w-20 border-0 bg-transparent p-0 text-right font-mono shadow-none focus-visible:ring-0"
+                                      inputMode="decimal"
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") saveBillingRateEdit(r.memberId);
+                                        if (e.key === "Escape") cancelBillingRateEdit();
+                                      }}
+                                      autoFocus
+                                    />
+                                    <span className="text-muted-foreground">/hr</span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => saveBillingRateEdit(r.memberId)}
+                                    disabled={updateBillingRate.isPending}
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={cancelBillingRateEdit}
+                                    disabled={updateBillingRate.isPending}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center justify-end gap-1 rounded px-1 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
+                                  onClick={() => startBillingRateEdit(r.memberId, r.billingRate)}
+                                >
+                                  <span>${(r.billingRate / 100).toFixed(0)}/hr</span>
+                                  <Pencil className="h-3 w-3 text-muted-foreground" />
+                                </button>
+                              )}
+                            </td>
                             <td className="p-3 text-right font-mono font-semibold">{r.totalHours.toFixed(1)}</td>
                             <td className="p-3 text-right font-mono text-emerald-600">{r.billableHours.toFixed(1)}</td>
                             <td className="p-3 text-right font-mono font-semibold">${(r.laborCost / 100).toLocaleString()}</td>
