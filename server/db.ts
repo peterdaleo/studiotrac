@@ -15,9 +15,16 @@ import {
   consultantContracts, InsertConsultantContract,
   consultantPayments, InsertConsultantPayment,
   timeEntries, InsertTimeEntry,
+  teamAbsences, InsertTeamAbsence,
 } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+
+function isMissingTableError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const maybeError = error as { code?: string; message?: string };
+  return maybeError.code === "ER_NO_SUCH_TABLE" || maybeError.message?.includes("doesn't exist") === true;
+}
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -160,6 +167,128 @@ export async function linkUserToInvitedTeamMember(data: { teamMemberId: number; 
 
   await db.update(teamMembers).set(update).where(eq(teamMembers.id, data.teamMemberId));
   return true;
+}
+
+// ── Team Absences ──────────────────────────────────────────────────
+export async function listTeamAbsences(filters?: { teamMemberId?: number; startDate?: Date; endDate?: Date }) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [];
+  if (filters?.teamMemberId) conditions.push(eq(teamAbsences.teamMemberId, filters.teamMemberId));
+  if (filters?.startDate) conditions.push(gte(teamAbsences.endDate, filters.startDate));
+  if (filters?.endDate) conditions.push(lte(teamAbsences.startDate, filters.endDate));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  try {
+    return await db
+      .select({
+        id: teamAbsences.id,
+        teamMemberId: teamAbsences.teamMemberId,
+        absenceType: teamAbsences.absenceType,
+        startDate: teamAbsences.startDate,
+        endDate: teamAbsences.endDate,
+        startTimeMinutes: teamAbsences.startTimeMinutes,
+        endTimeMinutes: teamAbsences.endTimeMinutes,
+        notes: teamAbsences.notes,
+        createdById: teamAbsences.createdById,
+        createdAt: teamAbsences.createdAt,
+        updatedAt: teamAbsences.updatedAt,
+        teamMemberName: teamMembers.name,
+        teamMemberTitle: teamMembers.title,
+        teamMemberAvatarColor: teamMembers.avatarColor,
+        teamMemberIsActive: teamMembers.isActive,
+      })
+      .from(teamAbsences)
+      .innerJoin(teamMembers, eq(teamAbsences.teamMemberId, teamMembers.id))
+      .where(where)
+      .orderBy(asc(teamAbsences.startDate), asc(teamMembers.name));
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] team_absences table not found yet; returning empty absence list");
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function getTeamAbsence(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  try {
+    const result = await db
+      .select({
+        id: teamAbsences.id,
+        teamMemberId: teamAbsences.teamMemberId,
+        absenceType: teamAbsences.absenceType,
+        startDate: teamAbsences.startDate,
+        endDate: teamAbsences.endDate,
+        startTimeMinutes: teamAbsences.startTimeMinutes,
+        endTimeMinutes: teamAbsences.endTimeMinutes,
+        notes: teamAbsences.notes,
+        createdById: teamAbsences.createdById,
+        createdAt: teamAbsences.createdAt,
+        updatedAt: teamAbsences.updatedAt,
+        teamMemberName: teamMembers.name,
+        teamMemberTitle: teamMembers.title,
+        teamMemberAvatarColor: teamMembers.avatarColor,
+        teamMemberIsActive: teamMembers.isActive,
+      })
+      .from(teamAbsences)
+      .innerJoin(teamMembers, eq(teamAbsences.teamMemberId, teamMembers.id))
+      .where(eq(teamAbsences.id, id))
+      .limit(1);
+
+    return result[0];
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] team_absences table not found yet; returning no absence record");
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+export async function createTeamAbsence(data: InsertTeamAbsence) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    const result = await db.insert(teamAbsences).values(data);
+    return { id: result[0].insertId };
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      throw new Error("The team absences table has not been created yet. Please run the provided SQL in Railway first.");
+    }
+    throw error;
+  }
+}
+
+export async function updateTeamAbsence(id: number, data: Partial<InsertTeamAbsence>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    await db.update(teamAbsences).set(data).where(eq(teamAbsences.id, id));
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      throw new Error("The team absences table has not been created yet. Please run the provided SQL in Railway first.");
+    }
+    throw error;
+  }
+}
+
+export async function deleteTeamAbsence(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    await db.delete(teamAbsences).where(eq(teamAbsences.id, id));
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      throw new Error("The team absences table has not been created yet. Please run the provided SQL in Railway first.");
+    }
+    throw error;
+  }
 }
 
 // ── Projects ───────────────────────────────────────────────────────

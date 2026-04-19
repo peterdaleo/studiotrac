@@ -11,6 +11,50 @@ import { notifyOwner } from "./_core/notification";
 import { sendTeamInviteEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 
+const absenceTypeSchema = z.enum(["full_day", "partial_day", "work_from_home"]);
+
+const teamAbsenceSchema = z.object({
+  teamMemberId: z.number(),
+  absenceType: absenceTypeSchema,
+  startDate: z.date(),
+  endDate: z.date(),
+  startTimeMinutes: z.number().min(0).max(1439).optional().nullable(),
+  endTimeMinutes: z.number().min(0).max(1439).optional().nullable(),
+  notes: z.string().optional(),
+}).superRefine((value, ctx) => {
+  if (value.endDate < value.startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endDate"],
+      message: "End date must be on or after the start date",
+    });
+  }
+
+  if (value.absenceType === "partial_day") {
+    if (value.startTimeMinutes == null || value.endTimeMinutes == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["startTimeMinutes"],
+        message: "Partial day absences require a start and end time",
+      });
+    } else if (value.endTimeMinutes <= value.startTimeMinutes) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endTimeMinutes"],
+        message: "End time must be after the start time",
+      });
+    }
+
+    if (value.startDate.toDateString() !== value.endDate.toDateString()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endDate"],
+        message: "Partial day absences must start and end on the same day",
+      });
+    }
+  }
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -108,6 +152,35 @@ export const appRouter = router({
 
       return { success: true, teamMemberId: result.id, emailSent };
     }),
+  }),
+
+  // ── Team Absences ───────────────────────────────────────────
+  teamAbsences: router({
+    list: protectedProcedure.input(z.object({
+      teamMemberId: z.number().optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+    }).optional()).query(({ input }) => db.listTeamAbsences(input ?? undefined)),
+    get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamAbsence(input.id)),
+    create: protectedProcedure.input(teamAbsenceSchema).mutation(({ input, ctx }) =>
+      db.createTeamAbsence({
+        ...input,
+        notes: input.notes ?? null,
+        startTimeMinutes: input.startTimeMinutes ?? null,
+        endTimeMinutes: input.endTimeMinutes ?? null,
+        createdById: ctx.user.id,
+      })
+    ),
+    update: protectedProcedure.input(teamAbsenceSchema.extend({ id: z.number() })).mutation(({ input }) => {
+      const { id, ...data } = input;
+      return db.updateTeamAbsence(id, {
+        ...data,
+        notes: data.notes ?? null,
+        startTimeMinutes: data.startTimeMinutes ?? null,
+        endTimeMinutes: data.endTimeMinutes ?? null,
+      });
+    }),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamAbsence(input.id)),
   }),
 
   // ── Projects ─────────────────────────────────────────────────

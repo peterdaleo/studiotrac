@@ -35,6 +35,24 @@ export const teamMembers = mysqlTable("team_members", {
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type InsertTeamMember = typeof teamMembers.$inferInsert;
 
+// ── Team Absences ──────────────────────────────────────────────────
+export const teamAbsences = mysqlTable("team_absences", {
+  id: int("id").autoincrement().primaryKey(),
+  teamMemberId: int("teamMemberId").notNull(),
+  absenceType: mysqlEnum("absenceType", ["full_day", "partial_day", "work_from_home"]).notNull(),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  startTimeMinutes: int("startTimeMinutes"),
+  endTimeMinutes: int("endTimeMinutes"),
+  notes: text("notes"),
+  createdById: int("createdById"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TeamAbsence = typeof teamAbsences.$inferSelect;
+export type InsertTeamAbsence = typeof teamAbsences.$inferInsert;
+
 // ── Projects ───────────────────────────────────────────────────────
 export const projects = mysqlTable("projects", {
   id: int("id").autoincrement().primaryKey(),
