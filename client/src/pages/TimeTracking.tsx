@@ -62,6 +62,7 @@ export default function TimeTracking() {
   const [timerDescription, setTimerDescription] = useState("");
   const [timerBillable, setTimerBillable] = useState(true);
   const [timerPhase, setTimerPhase] = useState<ProjectPhase | "">("");
+  const [forceTimerStopped, setForceTimerStopped] = useState(false);
 
   // Manual entry state
   const [manualOpen, setManualOpen] = useState(false);
@@ -115,18 +116,32 @@ export default function TimeTracking() {
     { enabled: timesheetUserId > 0 }
   );
 
+  const resetTimerForm = () => {
+    setTimerElapsed(0);
+    setTimerProjectId("");
+    setTimerDescription("");
+    setTimerBillable(true);
+    setTimerPhase("");
+  };
+
   const startTimer = trpc.timeEntries.startTimer.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      setForceTimerStopped(false);
       toast.success("Timer started");
-      activeTimer.refetch();
+      await utils.timeEntries.activeTimer.invalidate();
     },
   });
 
   const stopTimer = trpc.timeEntries.stopTimer.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      setForceTimerStopped(true);
+      resetTimerForm();
+      utils.timeEntries.activeTimer.setData(undefined, () => undefined);
       toast.success("Timer stopped");
-      activeTimer.refetch();
-      timesheet.refetch();
+      await Promise.all([
+        utils.timeEntries.activeTimer.invalidate(),
+        utils.timeAnalytics.timesheet.invalidate({ userId: timesheetUserId, weekStart }),
+      ]);
     },
   });
 
@@ -166,17 +181,25 @@ export default function TimeTracking() {
     },
   });
 
+  const displayedActiveTimer = forceTimerStopped ? null : activeTimer.data;
+
   // Timer tick
   useEffect(() => {
-    if (!activeTimer.data) {
+    if (!displayedActiveTimer) {
       setTimerElapsed(0);
       return;
     }
     const interval = setInterval(() => {
-      const start = new Date(activeTimer.data!.startTime).getTime();
+      const start = new Date(displayedActiveTimer.startTime).getTime();
       setTimerElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
     return () => clearInterval(interval);
+  }, [displayedActiveTimer]);
+
+  useEffect(() => {
+    if (!activeTimer.data) {
+      setForceTimerStopped(false);
+    }
   }, [activeTimer.data]);
 
   const timerHours = Math.floor(timerElapsed / 3600);
@@ -449,7 +472,7 @@ export default function TimeTracking() {
 
         <TabsContent value="timer" className="space-y-6">
           {/* Active Timer */}
-          <Card className={activeTimer.data ? "border-primary/50 bg-primary/5" : ""}>
+          <Card className={displayedActiveTimer ? "border-primary/50 bg-primary/5" : ""}>
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row items-center gap-6">
                 {/* Timer display */}
@@ -457,17 +480,17 @@ export default function TimeTracking() {
                   <div className="font-mono text-5xl font-bold tracking-wider tabular-nums">
                     {String(timerHours).padStart(2, "0")}:{String(timerMinutes).padStart(2, "0")}:{String(timerSeconds).padStart(2, "0")}
                   </div>
-                  {activeTimer.data && (
+                  {displayedActiveTimer && (
                     <p className="text-sm text-muted-foreground mt-1">
-                      {projects.data?.find((p: any) => p.id === activeTimer.data?.projectId)?.name ?? "Unknown project"}
-                      {activeTimer.data.description && ` — ${activeTimer.data.description}`}
+                      {projects.data?.find((p: any) => p.id === displayedActiveTimer?.projectId)?.name ?? "Unknown project"}
+                      {displayedActiveTimer.description && ` — ${displayedActiveTimer.description}`}
                     </p>
                   )}
                 </div>
 
                 {/* Timer controls */}
                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto">
-                  {!activeTimer.data && (
+                  {!displayedActiveTimer && (
                     <>
                       <Select value={timerProjectId} onValueChange={setTimerProjectId}>
                         <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
@@ -494,7 +517,7 @@ export default function TimeTracking() {
                   )}
                 </div>
 
-                {activeTimer.data ? (
+                {displayedActiveTimer ? (
                   <Button size="lg" variant="destructive" onClick={handleStopTimer} disabled={stopTimer.isPending}>
                     <Square className="h-5 w-5 mr-2" /> Stop
                   </Button>
