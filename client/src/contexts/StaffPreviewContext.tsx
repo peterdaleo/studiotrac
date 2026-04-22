@@ -28,12 +28,20 @@ export function useStaffPreview() {
   return useContext(StaffPreviewContext);
 }
 
+export function useEffectiveRole(realRole?: string) {
+  const { isStaffPreview } = useStaffPreview();
+
+  if (realRole === "admin" && isStaffPreview) {
+    return "user";
+  }
+
+  return realRole;
+}
+
 /**
  * Helper hook: returns the effective admin status.
  * If the real user is admin but staff preview is on, returns false.
  */
 export function useEffectiveAdmin(realRole?: string) {
-  const { isStaffPreview } = useStaffPreview();
-  const reallyAdmin = realRole === "admin";
-  return reallyAdmin && !isStaffPreview;
+  return useEffectiveRole(realRole) === "admin";
 }

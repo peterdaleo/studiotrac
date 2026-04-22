@@ -101,7 +101,7 @@ export default function TimeTracking() {
     if (reportEndDate) input.endDate = new Date(reportEndDate + "T23:59:59");
     return Object.keys(input).length > 0 ? input : undefined;
   }, [reportStartDate, reportEndDate]);
-  const teamTimeReport = trpc.timeAnalytics.teamTimeReport.useQuery(teamTimeReportInput, { enabled: user?.role === "admin" });
+  const teamTimeReport = trpc.timeAnalytics.teamTimeReport.useQuery(teamTimeReportInput, { enabled: isAdmin });
 
   const weekStart = useMemo(() => {
     const ws = getWeekStart(new Date());
@@ -197,9 +197,7 @@ export default function TimeTracking() {
   };
 
   const handleStopTimer = () => {
-    if (activeTimer.data) {
-      stopTimer.mutate({ id: activeTimer.data.id });
-    }
+    stopTimer.mutate(activeTimer.data ? { id: activeTimer.data.id } : undefined);
   };
 
   const handleManualEntry = () => {

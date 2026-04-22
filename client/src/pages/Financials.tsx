@@ -25,11 +25,10 @@ function formatCurrencyShort(cents: number) {
 
 export default function Financials() {
   const { user } = useAuth();
-  const { data, isLoading } = trpc.financials.overview.useQuery();
-  const exportQuery = trpc.exports.projectsSummary.useQuery(undefined, { enabled: false });
-  const { data: profitData } = trpc.timeAnalytics.trueProfitability.useQuery(undefined, { enabled: user?.role === "admin" });
-
   const isAdmin = useEffectiveAdmin(user?.role);
+  const { data, isLoading } = trpc.financials.overview.useQuery(undefined, { enabled: isAdmin });
+  const exportQuery = trpc.exports.projectsSummary.useQuery(undefined, { enabled: false });
+  const { data: profitData } = trpc.timeAnalytics.trueProfitability.useQuery(undefined, { enabled: isAdmin });
 
   const handleExportCSV = async () => {
     const result = await exportQuery.refetch();
@@ -46,6 +45,24 @@ export default function Financials() {
     URL.revokeObjectURL(url);
     toast.success("Financial report exported");
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-medium text-amber-900">Admin access required</p>
+                <p className="text-sm text-amber-800/90">Project managers can review project-level financial health on each project detail page, but the studio-wide Financials section remains restricted to admins.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

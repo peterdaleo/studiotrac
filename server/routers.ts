@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, adminOrPmProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
@@ -92,7 +92,7 @@ export const appRouter = router({
     stats: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMemberStats(input.id)),
     updateRole: adminProcedure.input(z.object({
       userId: z.number(),
-      role: z.enum(["user", "admin"]),
+      role: z.enum(["user", "pm", "admin"]),
     })).mutation(async ({ input, ctx }) => {
       // Prevent admin from demoting themselves
       if (input.userId === ctx.user.id && input.role !== "admin") {
@@ -106,7 +106,7 @@ export const appRouter = router({
       name: z.string().min(1),
       email: z.string().email(),
       title: z.string().optional(),
-      role: z.enum(["user", "admin"]).optional(),
+      role: z.enum(["user", "pm", "admin"]).optional(),
       origin: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const normalizedEmail = input.email.trim().toLowerCase();
@@ -144,7 +144,7 @@ export const appRouter = router({
       try {
         await notifyOwner({
           title: `New Team Invite: ${input.name}`,
-          content: `${input.name} (${normalizedEmail}) has been invited as ${role === "admin" ? "Admin" : "Staff"}.${emailSent ? " Invitation email sent successfully." : " Invitation was created, but email delivery was skipped or failed."}`,
+          content: `${input.name} (${normalizedEmail}) has been invited as ${role === "admin" ? "Admin" : role === "pm" ? "Project Manager" : "Staff"}.${emailSent ? " Invitation email sent successfully." : " Invitation was created, but email delivery was skipped or failed."}`,
         });
       } catch (e) {
         // Non-blocking: invite still succeeds even if notification fails
@@ -192,6 +192,23 @@ export const appRouter = router({
       managerId: z.number().optional(),
     }).optional()).query(({ input }) => db.listProjects(input ?? undefined)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getProject(input.id)),
+    financialSummary: adminOrPmProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+      const project = await db.getProject(input.id);
+      if (!project) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+      }
+      return {
+        id: project.id,
+        contractedFee: project.contractedFee,
+        invoicedAmount: project.invoicedAmount,
+        completionPercentage: project.completionPercentage,
+        billingOk: project.billingOk,
+        billing25: project.billing25,
+        billing50: project.billing50,
+        billing75: project.billing75,
+        billing100: project.billing100,
+      };
+    }),
     create: adminProcedure.input(z.object({
       name: z.string().min(1),
       clientName: z.string().optional(),
@@ -339,7 +356,7 @@ export const appRouter = router({
 
   // ── Invoices ────────────────────────────────────────────────
   invoices: router({
-    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listInvoices(input.projectId)),
+    list: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listInvoices(input.projectId)),
     create: adminProcedure.input(z.object({
       projectId: z.number(),
       amount: z.number().min(0),
@@ -368,7 +385,7 @@ export const appRouter = router({
 
   // ── Financial Overview ──────────────────────────────────────
   financials: router({
-    overview: protectedProcedure.query(() => db.getFinancialOverview()),
+    overview: adminProcedure.query(() => db.getFinancialOverview()),
   }),
 
   // ── Exports ─────────────────────────────────────────────────
@@ -474,7 +491,7 @@ export const appRouter = router({
 
   // ── Consultant Contracts ─────────────────────────────────────
   consultants: router({
-    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listConsultantContracts(input.projectId)),
+    list: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listConsultantContracts(input.projectId)),
     create: adminProcedure.input(z.object({
       projectId: z.number(),
       name: z.string().min(1),
@@ -499,7 +516,7 @@ export const appRouter = router({
 
   // ── Consultant Payments ─────────────────────────────────────
   consultantPayments: router({
-    list: protectedProcedure.input(z.object({ consultantId: z.number() })).query(({ input }) => db.listConsultantPayments(input.consultantId)),
+    list: adminProcedure.input(z.object({ consultantId: z.number() })).query(({ input }) => db.listConsultantPayments(input.consultantId)),
     create: adminProcedure.input(z.object({
       consultantId: z.number(),
       amount: z.number().min(1),
@@ -511,8 +528,8 @@ export const appRouter = router({
 
   // ── Net Income ──────────────────────────────────────────────
   netIncome: router({
-    project: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectNetIncome(input.projectId)),
-    studio: protectedProcedure.query(() => db.getStudioNetIncome()),
+    project: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectNetIncome(input.projectId)),
+    studio: adminProcedure.query(() => db.getStudioNetIncome()),
   }),
 
   // ── Time Tracking ────────────────────────────────────────────
@@ -557,9 +574,7 @@ export const appRouter = router({
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
     })).mutation(async ({ input, ctx }) => {
-      // Stop any existing active timer first
-      const active = await db.getActiveTimer(ctx.user.id);
-      if (active) await db.stopTimer(active.id);
+      await db.stopActiveTimer(ctx.user.id);
       return db.createTimeEntry({
         userId: ctx.user.id,
         projectId: input.projectId,
@@ -571,7 +586,9 @@ export const appRouter = router({
         phase: input.phase,
       });
     }),
-    stopTimer: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.stopTimer(input.id)),
+    stopTimer: protectedProcedure
+      .input(z.object({ id: z.number() }).optional())
+      .mutation(({ input, ctx }) => db.stopActiveTimer(ctx.user.id, input?.id)),
   }),
 
   // ── Time Analytics ──────────────────────────────────────────────

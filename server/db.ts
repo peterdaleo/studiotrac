@@ -112,7 +112,7 @@ export async function deleteTeamMember(id: number) {
   await db.update(teamMembers).set({ isActive: false }).where(eq(teamMembers.id, id));
 }
 
-export async function updateUserRole(userId: number, role: "user" | "admin") {
+export async function updateUserRole(userId: number, role: "user" | "pm" | "admin") {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(users).set({ role }).where(eq(users.id, userId));
@@ -131,7 +131,7 @@ export async function getUserById(id: number) {
   return result[0];
 }
 
-export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "admin" }) {
+export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "pm" | "admin" }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const normalizedEmail = data.email.trim().toLowerCase();
@@ -1022,19 +1022,45 @@ export async function deleteTimeEntry(id: number) {
 export async function getActiveTimer(userId: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), isNull(timeEntries.endTime))).limit(1);
+  const result = await db
+    .select()
+    .from(timeEntries)
+    .where(and(eq(timeEntries.userId, userId), isNull(timeEntries.endTime)))
+    .orderBy(desc(timeEntries.startTime), desc(timeEntries.id))
+    .limit(1);
   return result[0];
 }
 
-export async function stopTimer(id: number) {
+export async function stopActiveTimer(userId: number, timerId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const entry = await db.select().from(timeEntries).where(eq(timeEntries.id, id)).limit(1);
-  if (!entry[0]) throw new Error("Time entry not found");
+
+  const conditions = [eq(timeEntries.userId, userId), isNull(timeEntries.endTime)];
+  if (timerId !== undefined) conditions.push(eq(timeEntries.id, timerId));
+
+  const activeEntries = await db
+    .select()
+    .from(timeEntries)
+    .where(and(...conditions))
+    .orderBy(desc(timeEntries.startTime), desc(timeEntries.id));
+
+  if (!activeEntries.length) return null;
+
   const endTime = new Date();
-  const durationMinutes = Math.round((endTime.getTime() - entry[0].startTime.getTime()) / 60000);
-  await db.update(timeEntries).set({ endTime, durationMinutes }).where(eq(timeEntries.id, id));
-  return { durationMinutes };
+
+  for (const entry of activeEntries) {
+    const durationMinutes = Math.max(0, Math.round((endTime.getTime() - entry.startTime.getTime()) / 60000));
+    await db.update(timeEntries).set({ endTime, durationMinutes }).where(eq(timeEntries.id, entry.id));
+  }
+
+  const latestEntry = activeEntries[0];
+  const latestDurationMinutes = Math.max(0, Math.round((endTime.getTime() - latestEntry.startTime.getTime()) / 60000));
+
+  return {
+    id: latestEntry.id,
+    durationMinutes: latestDurationMinutes,
+    stoppedCount: activeEntries.length,
+  };
 }
 
 // ── Time Analytics ────────────────────────────────────────────────

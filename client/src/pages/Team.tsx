@@ -85,13 +85,25 @@ const statusDotMap: Record<string, string> = {
   completed: "bg-slate-400",
 };
 
+function getRoleLabel(role?: string | null) {
+  if (role === "admin") return "Admin";
+  if (role === "pm") return "PM";
+  return "Staff";
+}
+
+function getRoleBadgeVariant(role?: string | null): "default" | "secondary" | "outline" {
+  if (role === "admin") return "default";
+  if (role === "pm") return "secondary";
+  return "outline";
+}
+
 export default function Team() {
   const params = useParams<{ id?: string }>();
   const selectedMemberId = params.id ? Number(params.id) : null;
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
+  const [inviteRole, setInviteRole] = useState<"user" | "pm" | "admin">("user");
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -219,7 +231,7 @@ export default function Team() {
     });
   };
 
-  const handleRoleChange = (userId: number, newRole: "user" | "admin") => {
+  const handleRoleChange = (userId: number, newRole: "user" | "pm" | "admin") => {
     updateRole.mutate({ userId, role: newRole });
   };
 
@@ -251,8 +263,8 @@ export default function Team() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{selectedMember.name}</h1>
               {selectedMember.registeredUser && (
-                <Badge variant={selectedMember.registeredUser.role === "admin" ? "default" : "secondary"} className="text-[10px]">
-                  {selectedMember.registeredUser.role === "admin" ? "Admin" : "Staff"}
+                <Badge variant={getRoleBadgeVariant(selectedMember.registeredUser.role)} className="text-[10px]">
+                  {getRoleLabel(selectedMember.registeredUser.role)}
                 </Badge>
               )}
             </div>
@@ -263,7 +275,7 @@ export default function Team() {
               {selectedMember.registeredUser && selectedMember.registeredUser.id !== user?.id && (
                 <Select
                   value={selectedMember.registeredUser.role}
-                  onValueChange={(val) => handleRoleChange(selectedMember.registeredUser!.id, val as "user" | "admin")}
+                  onValueChange={(val) => handleRoleChange(selectedMember.registeredUser!.id, val as "user" | "pm" | "admin")}
                 >
                   <SelectTrigger className="w-[130px]" size="sm">
                     <Shield className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
@@ -271,6 +283,7 @@ export default function Team() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="pm">Project Manager</SelectItem>
                     <SelectItem value="user">Staff</SelectItem>
                   </SelectContent>
                 </Select>
@@ -441,12 +454,13 @@ export default function Team() {
                   </div>
                   <div className="space-y-2">
                     <Label>Role</Label>
-                    <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as "user" | "admin")}>
+                    <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as "user" | "pm" | "admin")}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="user">Staff</SelectItem>
+                        <SelectItem value="pm">Project Manager</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
@@ -527,13 +541,14 @@ export default function Team() {
                   ) : (
                     <Select
                       value={u.role}
-                      onValueChange={(val) => handleRoleChange(u.id, val as "user" | "admin")}
+                      onValueChange={(val) => handleRoleChange(u.id, val as "user" | "pm" | "admin")}
                     >
                       <SelectTrigger className="w-[110px]" size="sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="pm">Project Manager</SelectItem>
                         <SelectItem value="user">Staff</SelectItem>
                       </SelectContent>
                     </Select>
@@ -594,8 +609,8 @@ export default function Team() {
                     <div className="flex items-center gap-1.5">
                       <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{member.name}</p>
                       {member.registeredUser && (
-                        <Badge variant={member.registeredUser.role === "admin" ? "default" : "outline"} className="text-[9px] px-1.5 py-0 h-4 shrink-0">
-                          {member.registeredUser.role === "admin" ? "Admin" : "Staff"}
+                        <Badge variant={getRoleBadgeVariant(member.registeredUser.role)} className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                          {getRoleLabel(member.registeredUser.role)}
                         </Badge>
                       )}
                     </div>

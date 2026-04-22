@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +40,8 @@ function escapeCSV(val: unknown): string {
 
 export default function Reports() {
   const [loadingReport, setLoadingReport] = useState<string | null>(null);
+  const { user } = useAuth();
+  const isAdmin = useEffectiveAdmin(user?.role);
 
   const projectsQuery = trpc.exports.projectsSummary.useQuery(undefined, { enabled: false });
   const tasksQuery = trpc.exports.tasksList.useQuery(undefined, { enabled: false });
@@ -217,25 +221,27 @@ export default function Reports() {
       </div>
 
       {/* Financial Summary Card */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-purple-500/10">
-              <DollarSign className="h-5 w-5 text-purple-500" />
+      {isAdmin && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-purple-500/10">
+                <DollarSign className="h-5 w-5 text-purple-500" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold">Financial Reports</CardTitle>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  For detailed financial data including invoices, visit the{" "}
+                  <a href="/financials" className="text-primary hover:underline font-medium">
+                    Financials page
+                  </a>
+                  .
+                </p>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base font-semibold">Financial Reports</CardTitle>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                For detailed financial data including invoices, visit the{" "}
-                <a href="/financials" className="text-primary hover:underline font-medium">
-                  Financials page
-                </a>
-                .
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="text-xs text-muted-foreground text-center py-4">
         <FileSpreadsheet className="h-4 w-4 inline mr-1.5" />

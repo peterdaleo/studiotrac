@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,9 @@ export default function ProjectDetail() {
   const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
   const [taskPrioritySort, setTaskPrioritySort] = useState<"none" | "asc" | "desc">("none");
   const { user } = useAuth();
+  const effectiveRole = useEffectiveRole(user?.role);
   const isAdmin = useEffectiveAdmin(user?.role);
+  const canViewProjectFinancials = effectiveRole === "admin" || effectiveRole === "pm";
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
@@ -137,9 +139,13 @@ export default function ProjectDetail() {
   const { data: projectFiles } = trpc.files.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const { data: shareTokens } = trpc.shareTokens.list.useQuery({ projectId });
-  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId });
-  const { data: consultants } = trpc.consultants.list.useQuery({ projectId });
-  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId });
+  const { data: projectFinancialSummary } = trpc.projects.financialSummary.useQuery(
+    { id: projectId },
+    { enabled: canViewProjectFinancials },
+  );
+  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: isAdmin });
+  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: isAdmin });
+  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: isAdmin });
   const utils = trpc.useUtils();
 
   const updateProject = trpc.projects.update.useMutation({
@@ -1197,6 +1203,84 @@ export default function ProjectDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Project Financial Summary — admin and PM */}
+          {!isAdmin && canViewProjectFinancials && projectFinancialSummary && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    Project Financial Summary
+                  </CardTitle>
+                  <Badge
+                    variant={projectFinancialSummary.billingOk ? "default" : "outline"}
+                    className={projectFinancialSummary.billingOk ? "bg-emerald-500 text-white" : "text-amber-600 border-amber-300"}
+                  >
+                    {projectFinancialSummary.billingOk ? "Billing OK" : "Review Needed"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contracted Fee</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {projectFinancialSummary.contractedFee > 0 ? `$${(projectFinancialSummary.contractedFee / 100).toLocaleString()}` : "Not set"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoiced Amount</p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-600">
+                      ${((projectFinancialSummary.invoicedAmount ?? 0) / 100).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Completion</p>
+                    <p className="mt-1 text-lg font-semibold">{projectFinancialSummary.completionPercentage}%</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Fee collected</span>
+                    <span className="font-medium">
+                      {projectFinancialSummary.contractedFee > 0
+                        ? `${Math.min(Math.round((projectFinancialSummary.invoicedAmount / projectFinancialSummary.contractedFee) * 100), 100)}%`
+                        : "0%"}
+                    </span>
+                  </div>
+                  <Progress
+                    value={projectFinancialSummary.contractedFee > 0 ? Math.min((projectFinancialSummary.invoicedAmount / projectFinancialSummary.contractedFee) * 100, 100) : 0}
+                    className="h-2"
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Billing Milestones</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      { label: "25%", reached: projectFinancialSummary.billing25 },
+                      { label: "50%", reached: projectFinancialSummary.billing50 },
+                      { label: "75%", reached: projectFinancialSummary.billing75 },
+                      { label: "100%", reached: projectFinancialSummary.billing100 },
+                    ].map((milestone) => (
+                      <div key={milestone.label} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                        {milestone.reached ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                        )}
+                        <span className={milestone.reached ? "font-medium" : "text-muted-foreground"}>{milestone.label} milestone</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Billing Milestones */}
           {isAdmin && <Card className="border-0 shadow-sm">

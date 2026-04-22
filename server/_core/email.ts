@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import * as db from "../db";
 import { ENV } from "./env";
 
-type InviteRole = "user" | "admin";
+type InviteRole = "user" | "pm" | "admin";
 
 type SendTeamInviteEmailParams = {
   to: string;
@@ -16,7 +16,9 @@ type SendTeamInviteEmailParams = {
 const FROM_EMAIL = "studioTrac <invites@studiotrac.app>";
 
 function getRoleLabel(role: InviteRole) {
-  return role === "admin" ? "Admin" : "Staff";
+  if (role === "admin") return "Admin";
+  if (role === "pm") return "Project Manager";
+  return "Staff";
 }
 
 function escapeHtml(value: string) {

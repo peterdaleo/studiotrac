@@ -4,7 +4,7 @@ import { ENV } from "./env";
 const DEFAULT_APP_ORIGIN = "https://studiotrac-production.up.railway.app";
 const INVITE_EXPIRATION = "7d";
 
-type InviteRole = "user" | "admin";
+type InviteRole = "user" | "pm" | "admin";
 
 export type InviteTokenPayload = {
   email: string;
@@ -44,7 +44,7 @@ export async function verifyInviteToken(token: string): Promise<InviteTokenPaylo
     const title = payload.title;
 
     if (typeof email !== "string" || !email) return null;
-    if (role !== "user" && role !== "admin") return null;
+    if (role !== "user" && role !== "pm" && role !== "admin") return null;
     if (typeof teamMemberId !== "number" || !Number.isInteger(teamMemberId)) return null;
     if (typeof name !== "string" || !name) return null;
     if (title !== undefined && title !== null && typeof title !== "string") return null;
