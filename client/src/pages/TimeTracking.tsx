@@ -76,6 +76,7 @@ export default function TimeTracking() {
   // Team report date range (admin)
   const [reportStartDate, setReportStartDate] = useState<string>("");
   const [reportEndDate, setReportEndDate] = useState<string>("");
+  const [reportProjectFilter, setReportProjectFilter] = useState<string>(""); // "" = all projects
   const [editingBillingRateMemberId, setEditingBillingRateMemberId] = useState<number | null>(null);
   const [billingRateInput, setBillingRateInput] = useState<string>("");
 
@@ -646,39 +647,82 @@ export default function TimeTracking() {
 
         {/* Admin Team Time Report Tab */}
         {isAdmin && (
-          <TabsContent value="teamreport" className="space-y-6">
-            {/* Date range filter */}
+          <TabsContent value="teamreport" className="space-y-4">
+            {/* Filter bar */}
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4 flex-wrap">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">Team Time Report</span>
                   </div>
+
+                  {/* Date range */}
                   <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground">From</Label>
-                    <Input type="date" className="w-[160px] h-8 text-xs" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} />
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                    <Input type="date" className="w-[150px] h-8 text-xs" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} />
                   </div>
                   <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground">To</Label>
-                    <Input type="date" className="w-[160px] h-8 text-xs" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} />
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+                    <Input type="date" className="w-[150px] h-8 text-xs" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} />
                   </div>
-                  {(reportStartDate || reportEndDate) && (
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setReportStartDate(""); setReportEndDate(""); }}>Clear</Button>
+
+                  {/* Project filter */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Project</Label>
+                    <Select
+                      value={reportProjectFilter}
+                      onValueChange={setReportProjectFilter}
+                    >
+                      <SelectTrigger className="w-[200px] h-8 text-xs">
+                        <SelectValue placeholder="All projects" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All projects</SelectItem>
+                        {teamTimeReport.data?.projects.map((p: any) => (
+                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                        ))}
+                        {/* Also show projects from the projects list that may not yet have data */}
+                        {!teamTimeReport.data && projects.data?.map((p: any) => (
+                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Clear filters */}
+                  {(reportStartDate || reportEndDate || reportProjectFilter) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-8"
+                      onClick={() => { setReportStartDate(""); setReportEndDate(""); setReportProjectFilter(""); }}
+                    >
+                      Clear filters
+                    </Button>
                   )}
+
+                  {/* Export CSV */}
                   <div className="ml-auto">
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                    <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => {
                       if (!teamTimeReport.data) return;
-                      const { rows, projects: prjs } = teamTimeReport.data;
+                      const filteredPrjs = reportProjectFilter
+                        ? teamTimeReport.data.projects.filter((p: any) => String(p.id) === reportProjectFilter)
+                        : teamTimeReport.data.projects;
+                      const filteredRows = reportProjectFilter
+                        ? teamTimeReport.data.rows.filter((r: any) =>
+                            r.projectBreakdown.some((b: any) => String(b.projectId) === reportProjectFilter && b.totalHours > 0)
+                          )
+                        : teamTimeReport.data.rows;
                       const escapeCSV = (v: any) => {
                         const s = String(v ?? "");
                         return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
                       };
                       const headers = ["Team Member", "Title", "Rate ($/hr)", "Total Hours", "Billable Hours", "Labor Cost"];
-                      prjs.forEach(p => headers.push(escapeCSV(p.name) + " (hrs)"));
-                      const csvRows = rows.map(r => {
+                      filteredPrjs.forEach((p: any) => headers.push(escapeCSV(p.name) + " (hrs)"));
+                      const csvRows = filteredRows.map((r: any) => {
                         const row = [escapeCSV(r.memberName), escapeCSV(r.title || ""), (r.billingRate / 100).toFixed(2), r.totalHours.toFixed(2), r.billableHours.toFixed(2), (r.laborCost / 100).toFixed(2)];
-                        prjs.forEach(p => {
+                        filteredPrjs.forEach((p: any) => {
                           const pb = r.projectBreakdown.find((b: any) => b.projectId === p.id);
                           row.push(pb ? pb.totalHours.toFixed(2) : "0.00");
                         });
@@ -690,7 +734,10 @@ export default function TimeTracking() {
                       const a = document.createElement("a");
                       a.href = url;
                       const dateRange = reportStartDate && reportEndDate ? `${reportStartDate}_to_${reportEndDate}` : "all-time";
-                      a.download = `team-time-report-${dateRange}.csv`;
+                      const projectSuffix = reportProjectFilter
+                        ? `-${filteredPrjs[0]?.name?.replace(/[^a-z0-9]/gi, "-").toLowerCase() ?? "project"}`
+                        : "";
+                      a.download = `team-time-report-${dateRange}${projectSuffix}.csv`;
                       a.click();
                       URL.revokeObjectURL(url);
                       toast.success("Team time report exported");
@@ -702,8 +749,8 @@ export default function TimeTracking() {
               </CardContent>
             </Card>
 
-            {/* Spreadsheet table */}
-            <Card>
+            {/* Spreadsheet table — fixed height with independent scroll */}
+            <Card className="overflow-hidden">
               <CardContent className="p-0">
                 {teamTimeReport.isLoading ? (
                   <div className="p-8 text-center text-muted-foreground">Loading team time data...</div>
@@ -712,123 +759,165 @@ export default function TimeTracking() {
                     <Users className="h-10 w-10 mx-auto mb-2 opacity-40" />
                     <p>No time data found for the selected period.</p>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted/50">
-                        <tr className="border-b">
-                          <th className="text-left p-3 font-medium text-muted-foreground sticky left-0 bg-muted/50 min-w-[160px]">Team Member</th>
-                          <th className="text-right p-3 font-medium text-muted-foreground min-w-[80px]">Rate</th>
-                          <th className="text-right p-3 font-medium text-muted-foreground min-w-[80px]">Total Hrs</th>
-                          <th className="text-right p-3 font-medium text-muted-foreground min-w-[80px]">Billable Hrs</th>
-                          <th className="text-right p-3 font-medium text-muted-foreground min-w-[90px]">Labor Cost</th>
-                          {teamTimeReport.data.projects.map((p: any) => (
-                            <th key={p.id} className="text-right p-3 font-medium text-muted-foreground min-w-[90px]">{p.name}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teamTimeReport.data.rows.map((r: any) => (
-                          <tr key={r.memberId} className="border-b last:border-0 hover:bg-accent/30 transition-colors">
-                            <td className="p-3 sticky left-0 bg-background">
-                              <div>
-                                <span className="font-medium">{r.memberName}</span>
-                                {r.title && <span className="text-muted-foreground ml-1">({r.title})</span>}
-                              </div>
-                            </td>
-                            <td className="p-3 text-right font-mono">
-                              {editingBillingRateMemberId === r.memberId ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  <div className="flex items-center gap-1 rounded-md border bg-background px-2 py-1">
-                                    <span className="text-muted-foreground">$</span>
-                                    <Input
-                                      value={billingRateInput}
-                                      onChange={(e) => setBillingRateInput(e.target.value)}
-                                      className="h-7 w-20 border-0 bg-transparent p-0 text-right font-mono shadow-none focus-visible:ring-0"
-                                      inputMode="decimal"
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") saveBillingRateEdit(r.memberId);
-                                        if (e.key === "Escape") cancelBillingRateEdit();
-                                      }}
-                                      autoFocus
-                                    />
-                                    <span className="text-muted-foreground">/hr</span>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => saveBillingRateEdit(r.memberId)}
-                                    disabled={updateBillingRate.isPending}
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={cancelBillingRateEdit}
-                                    disabled={updateBillingRate.isPending}
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </Button>
+                ) : (() => {
+                  // Apply project filter to rows and columns
+                  const filteredProjects = reportProjectFilter
+                    ? teamTimeReport.data.projects.filter((p: any) => String(p.id) === reportProjectFilter)
+                    : teamTimeReport.data.projects;
+                  const filteredRows = reportProjectFilter
+                    ? teamTimeReport.data.rows.filter((r: any) =>
+                        r.projectBreakdown.some((b: any) => String(b.projectId) === reportProjectFilter && b.totalHours > 0)
+                      )
+                    : teamTimeReport.data.rows;
+
+                  if (filteredRows.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <Users className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                        <p>No time data for the selected project{reportStartDate || reportEndDate ? " in this date range" : ""}.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    // max-h gives a fixed viewport; overflow-auto enables both axes of scroll
+                    <div className="overflow-auto max-h-[60vh]">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            {/* Sticky first column + sticky header row */}
+                            <th className="text-left p-3 font-medium text-muted-foreground sticky left-0 top-0 z-20 bg-muted/50 min-w-[180px] shadow-[1px_0_0_0_hsl(var(--border))]">
+                              Team Member
+                            </th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[90px]">Rate</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[85px]">Total Hrs</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[90px]">Billable Hrs</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[95px]">Labor Cost</th>
+                            {filteredProjects.map((p: any) => (
+                              <th key={p.id} className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[110px] max-w-[160px]">
+                                <span className="block truncate" title={p.name}>{p.name}</span>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRows.map((r: any) => (
+                            <tr key={r.memberId} className="border-b last:border-0 hover:bg-accent/30 transition-colors">
+                              <td className="p-3 sticky left-0 z-10 bg-background shadow-[1px_0_0_0_hsl(var(--border))]">
+                                <div>
+                                  <span className="font-medium">{r.memberName}</span>
+                                  {r.title && <span className="text-muted-foreground ml-1">({r.title})</span>}
                                 </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center justify-end gap-1 rounded px-1 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
-                                  onClick={() => startBillingRateEdit(r.memberId, r.billingRate)}
-                                >
-                                  <span>${(r.billingRate / 100).toFixed(0)}/hr</span>
-                                  <Pencil className="h-3 w-3 text-muted-foreground" />
-                                </button>
-                              )}
-                            </td>
-                            <td className="p-3 text-right font-mono font-semibold">{r.totalHours.toFixed(1)}</td>
-                            <td className="p-3 text-right font-mono text-emerald-600">{r.billableHours.toFixed(1)}</td>
-                            <td className="p-3 text-right font-mono font-semibold">${(r.laborCost / 100).toLocaleString()}</td>
-                            {teamTimeReport.data!.projects.map((p: any) => {
-                              const pb = r.projectBreakdown.find((b: any) => b.projectId === p.id);
+                              </td>
+                              <td className="p-3 text-right font-mono">
+                                {editingBillingRateMemberId === r.memberId ? (
+                                  <div className="flex items-center justify-end gap-1">
+                                    <div className="flex items-center gap-1 rounded-md border bg-background px-2 py-1">
+                                      <span className="text-muted-foreground">$</span>
+                                      <Input
+                                        value={billingRateInput}
+                                        onChange={(e) => setBillingRateInput(e.target.value)}
+                                        className="h-7 w-20 border-0 bg-transparent p-0 text-right font-mono shadow-none focus-visible:ring-0"
+                                        inputMode="decimal"
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") saveBillingRateEdit(r.memberId);
+                                          if (e.key === "Escape") cancelBillingRateEdit();
+                                        }}
+                                        autoFocus
+                                      />
+                                      <span className="text-muted-foreground">/hr</span>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => saveBillingRateEdit(r.memberId)}
+                                      disabled={updateBillingRate.isPending}
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={cancelBillingRateEdit}
+                                      disabled={updateBillingRate.isPending}
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center justify-end gap-1 rounded px-1 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
+                                    onClick={() => startBillingRateEdit(r.memberId, r.billingRate)}
+                                  >
+                                    <span>${(r.billingRate / 100).toFixed(0)}/hr</span>
+                                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                                  </button>
+                                )}
+                              </td>
+                              <td className="p-3 text-right font-mono font-semibold">{r.totalHours.toFixed(1)}</td>
+                              <td className="p-3 text-right font-mono text-emerald-600">{r.billableHours.toFixed(1)}</td>
+                              <td className="p-3 text-right font-mono font-semibold">${(r.laborCost / 100).toLocaleString()}</td>
+                              {filteredProjects.map((p: any) => {
+                                const pb = r.projectBreakdown.find((b: any) => b.projectId === p.id);
+                                return (
+                                  <td key={p.id} className={`p-3 text-right font-mono ${pb && pb.totalHours > 0 ? "text-foreground" : "text-muted-foreground/40"}`}>
+                                    {pb && pb.totalHours > 0 ? pb.totalHours.toFixed(1) : "—"}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                          {/* Totals row — sticky at bottom of tbody */}
+                          <tr className="bg-muted/30 font-semibold border-t-2 sticky bottom-0 z-10">
+                            <td className="p-3 sticky left-0 z-20 bg-muted/30 shadow-[1px_0_0_0_hsl(var(--border))]">Totals</td>
+                            <td className="p-3 bg-muted/30"></td>
+                            <td className="p-3 text-right font-mono bg-muted/30">{filteredRows.reduce((s: number, r: any) => s + r.totalHours, 0).toFixed(1)}</td>
+                            <td className="p-3 text-right font-mono text-emerald-600 bg-muted/30">{filteredRows.reduce((s: number, r: any) => s + r.billableHours, 0).toFixed(1)}</td>
+                            <td className="p-3 text-right font-mono bg-muted/30">${(filteredRows.reduce((s: number, r: any) => s + r.laborCost, 0) / 100).toLocaleString()}</td>
+                            {filteredProjects.map((p: any) => {
+                              const total = filteredRows.reduce((s: number, r: any) => {
+                                const pb = r.projectBreakdown.find((b: any) => b.projectId === p.id);
+                                return s + (pb ? pb.totalHours : 0);
+                              }, 0);
                               return (
-                                <td key={p.id} className={`p-3 text-right font-mono ${pb && pb.totalHours > 0 ? "text-foreground" : "text-muted-foreground/40"}`}>
-                                  {pb && pb.totalHours > 0 ? pb.totalHours.toFixed(1) : "—"}
+                                <td key={p.id} className={`p-3 text-right font-mono bg-muted/30 ${total > 0 ? "" : "text-muted-foreground/40"}`}>
+                                  {total > 0 ? total.toFixed(1) : "—"}
                                 </td>
                               );
                             })}
                           </tr>
-                        ))}
-                        {/* Totals row */}
-                        <tr className="bg-muted/30 font-semibold border-t-2">
-                          <td className="p-3 sticky left-0 bg-muted/30">Totals</td>
-                          <td className="p-3"></td>
-                          <td className="p-3 text-right font-mono">{teamTimeReport.data.rows.reduce((s: number, r: any) => s + r.totalHours, 0).toFixed(1)}</td>
-                          <td className="p-3 text-right font-mono text-emerald-600">{teamTimeReport.data.rows.reduce((s: number, r: any) => s + r.billableHours, 0).toFixed(1)}</td>
-                          <td className="p-3 text-right font-mono">${(teamTimeReport.data.rows.reduce((s: number, r: any) => s + r.laborCost, 0) / 100).toLocaleString()}</td>
-                          {teamTimeReport.data.projects.map((p: any) => {
-                            const total = teamTimeReport.data!.rows.reduce((s: number, r: any) => {
-                              const pb = r.projectBreakdown.find((b: any) => b.projectId === p.id);
-                              return s + (pb ? pb.totalHours : 0);
-                            }, 0);
-                            return <td key={p.id} className={`p-3 text-right font-mono ${total > 0 ? "" : "text-muted-foreground/40"}`}>{total > 0 ? total.toFixed(1) : "—"}</td>;
-                          })}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 
             {/* Summary info */}
-            {teamTimeReport.data && teamTimeReport.data.rows.length > 0 && (
-              <div className="text-xs text-muted-foreground text-center">
-                Showing {teamTimeReport.data.rows.length} team members across {teamTimeReport.data.projects.length} projects
-                {reportStartDate && reportEndDate && ` from ${reportStartDate} to ${reportEndDate}`}
-                {reportStartDate && !reportEndDate && ` from ${reportStartDate}`}
-                {!reportStartDate && reportEndDate && ` through ${reportEndDate}`}
-                {!reportStartDate && !reportEndDate && " (all time)"}
-              </div>
-            )}
+            {teamTimeReport.data && teamTimeReport.data.rows.length > 0 && (() => {
+              const filteredProjects = reportProjectFilter
+                ? teamTimeReport.data.projects.filter((p: any) => String(p.id) === reportProjectFilter)
+                : teamTimeReport.data.projects;
+              const filteredRows = reportProjectFilter
+                ? teamTimeReport.data.rows.filter((r: any) =>
+                    r.projectBreakdown.some((b: any) => String(b.projectId) === reportProjectFilter && b.totalHours > 0)
+                  )
+                : teamTimeReport.data.rows;
+              return (
+                <div className="text-xs text-muted-foreground text-center">
+                  Showing {filteredRows.length} team member{filteredRows.length !== 1 ? "s" : ""} across {filteredProjects.length} project{filteredProjects.length !== 1 ? "s" : ""}
+                  {reportProjectFilter && ` — filtered to: ${filteredProjects[0]?.name ?? ""}`}
+                  {reportStartDate && reportEndDate && ` · ${reportStartDate} to ${reportEndDate}`}
+                  {reportStartDate && !reportEndDate && ` · from ${reportStartDate}`}
+                  {!reportStartDate && reportEndDate && ` · through ${reportEndDate}`}
+                  {!reportStartDate && !reportEndDate && " · all time"}
+                </div>
+              );
+            })()}
           </TabsContent>
         )}
       </Tabs>
