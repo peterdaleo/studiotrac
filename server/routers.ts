@@ -8,7 +8,7 @@ import * as db from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { notifyOwner } from "./_core/notification";
-import { sendTeamInviteEmail } from "./_core/email";
+import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 
 const absenceTypeSchema = z.enum(["full_day", "partial_day", "work_from_home"]);
@@ -245,8 +245,53 @@ export const appRouter = router({
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
-    })).mutation(({ input }) => {
+    })).mutation(async ({ input }) => {
       const { id, ...data } = input;
+
+      // If completionPercentage is being updated, check for milestone triggers
+      if (data.completionPercentage !== undefined) {
+        const currentProject = await db.getProject(id);
+        if (currentProject) {
+          const pct = data.completionPercentage;
+          const milestonesToTrigger: Array<{ field: 'billing25' | 'billing50' | 'billing75' | 'billing100'; threshold: number }> = [];
+
+          if (pct >= 25 && !currentProject.billing25 && !data.billing25) {
+            data.billing25 = true;
+            milestonesToTrigger.push({ field: 'billing25', threshold: 25 });
+          }
+          if (pct >= 50 && !currentProject.billing50 && !data.billing50) {
+            data.billing50 = true;
+            milestonesToTrigger.push({ field: 'billing50', threshold: 50 });
+          }
+          if (pct >= 75 && !currentProject.billing75 && !data.billing75) {
+            data.billing75 = true;
+            milestonesToTrigger.push({ field: 'billing75', threshold: 75 });
+          }
+          if (pct >= 100 && !currentProject.billing100 && !data.billing100) {
+            data.billing100 = true;
+            milestonesToTrigger.push({ field: 'billing100', threshold: 100 });
+          }
+
+          // Send email notifications for newly triggered milestones
+          if (milestonesToTrigger.length > 0) {
+            const billingEmails = await db.listBillingDepartmentEmails();
+            const recipients = billingEmails.map(e => e.emailAddress);
+            if (recipients.length > 0) {
+              for (const milestone of milestonesToTrigger) {
+                await sendBillingMilestoneEmail({
+                  to: recipients,
+                  projectName: currentProject.name,
+                  clientName: currentProject.clientName || undefined,
+                  milestonePercentage: milestone.threshold,
+                  completionPercentage: pct,
+                  projectId: id,
+                }).catch(err => console.error('[BillingMilestone] Email send failed:', err));
+              }
+            }
+          }
+        }
+      }
+
       return db.updateProject(id, data);
     }),
     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
@@ -401,6 +446,17 @@ export const appRouter = router({
     unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id)),
     markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.markNotificationRead(input.id)),
     markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id)),
+  }),
+
+  // ── Billing Department Emails ────────────────────────────────
+  billingEmails: router({
+    list: adminProcedure.query(() => db.listBillingDepartmentEmails()),
+    add: adminProcedure.input(z.object({
+      emailAddress: z.string().email(),
+    })).mutation(({ input }) => db.addBillingDepartmentEmail(input.emailAddress)),
+    remove: adminProcedure.input(z.object({
+      id: z.number(),
+    })).mutation(({ input }) => db.removeBillingDepartmentEmail(input.id)),
   }),
 
   // ── Email Preferences ───────────────────────────────────────
