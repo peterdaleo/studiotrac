@@ -652,6 +652,7 @@ export const appRouter = router({
     projectBreakdown: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectTimeBreakdown(input.projectId)),
     projectLaborCost: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectLaborCost(input.projectId)),
     projectBurnRate: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectBurnRate(input.projectId)),
+    allProjectsBudgetSummary: protectedProcedure.query(() => db.getAllProjectsBudgetSummary()),
     firmUtilization: adminProcedure.input(z.object({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
