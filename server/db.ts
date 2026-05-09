@@ -1559,3 +1559,69 @@ export async function removeBillingDepartmentEmail(id: number) {
   if (!db) throw new Error("Database not available");
   await db.delete(billingDepartmentEmails).where(eq(billingDepartmentEmails.id, id));
 }
+
+// ── Budget Summary (batch, all projects) ─────────────────────────
+/**
+ * Returns a lightweight budget summary for every project in one pass.
+ * Used by the Projects list page to render BudgetBar without N+1 queries.
+ */
+export async function getAllProjectsBudgetSummary(): Promise<
+  Array<{ projectId: number; contractedFee: number; totalCost: number }>
+> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 1. All projects (id + contractedFee)
+  const allProjects = await db
+    .select({ id: projects.id, contractedFee: projects.contractedFee })
+    .from(projects);
+
+  if (allProjects.length === 0) return [];
+
+  // 2. Labor cost per project: sum(durationMinutes / 60 * billingRate) for completed entries
+  const laborRows = await db
+    .select({
+      projectId: timeEntries.projectId,
+      durationMinutes: timeEntries.durationMinutes,
+      billingRate: teamMembers.billingRate,
+    })
+    .from(timeEntries)
+    .leftJoin(teamMembers, eq(timeEntries.userId, teamMembers.id))
+    .where(sql`${timeEntries.endTime} IS NOT NULL`);
+
+  const laborByProject = new Map<number, number>();
+  for (const row of laborRows) {
+    const cost = Math.round(((row.durationMinutes ?? 0) / 60) * (row.billingRate ?? 0));
+    laborByProject.set(row.projectId, (laborByProject.get(row.projectId) ?? 0) + cost);
+  }
+
+  // 3. Consultant payments per project (via consultant_contracts -> consultant_payments)
+  const contractRows = await db
+    .select({ id: consultantContracts.id, projectId: consultantContracts.projectId })
+    .from(consultantContracts);
+
+  const consultantByProject = new Map<number, number>();
+  if (contractRows.length > 0) {
+    const contractIds = contractRows.map((c) => c.id);
+    const paymentRows = await db
+      .select({ consultantId: consultantPayments.consultantId, amount: consultantPayments.amount })
+      .from(consultantPayments)
+      .where(sql`${consultantPayments.consultantId} IN (${sql.join(contractIds.map((id) => sql`${id}`), sql`, `)})`);
+
+    for (const pmt of paymentRows) {
+      const contract = contractRows.find((c) => c.id === pmt.consultantId);
+      if (contract) {
+        consultantByProject.set(
+          contract.projectId,
+          (consultantByProject.get(contract.projectId) ?? 0) + pmt.amount,
+        );
+      }
+    }
+  }
+
+  return allProjects.map((p) => ({
+    projectId: p.id,
+    contractedFee: p.contractedFee ?? 0,
+    totalCost: (laborByProject.get(p.id) ?? 0) + (consultantByProject.get(p.id) ?? 0),
+  }));
+}
