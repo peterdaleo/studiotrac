@@ -273,3 +273,12 @@ export const timeEntries = mysqlTable("time_entries", {
 
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
+
+// ── Billing Department Emails ──────────────────────────────────────
+export const billingDepartmentEmails = mysqlTable("billing_department_emails", {
+  id: int("id").autoincrement().primaryKey(),
+  emailAddress: varchar("emailAddress", { length: 320 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BillingDepartmentEmail = typeof billingDepartmentEmails.$inferSelect;
+export type InsertBillingDepartmentEmail = typeof billingDepartmentEmails.$inferInsert;
