@@ -26,6 +26,9 @@ import {
   Settings as SettingsIcon,
   Shield,
   Loader2,
+  DollarSign,
+  Plus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +38,7 @@ export default function Settings() {
 
   const { data: emailPrefs, isLoading: prefsLoading } = trpc.emailPreferences.get.useQuery();
   const { data: emailLog } = trpc.emailNotifications.log.useQuery();
+  const { data: billingEmails, isLoading: billingEmailsLoading } = trpc.billingEmails.list.useQuery();
 
   const upsertPrefs = trpc.emailPreferences.upsert.useMutation({
     onSuccess: () => {
@@ -58,11 +62,29 @@ export default function Settings() {
     onError: (err) => toast.error(err.message),
   });
 
+  const addBillingEmail = trpc.billingEmails.add.useMutation({
+    onSuccess: () => {
+      utils.billingEmails.list.invalidate();
+      setNewBillingEmail("");
+      toast.success("Billing email added");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const removeBillingEmail = trpc.billingEmails.remove.useMutation({
+    onSuccess: () => {
+      utils.billingEmails.list.invalidate();
+      toast.success("Billing email removed");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const [emailAddress, setEmailAddress] = useState("");
   const [deadlineAlerts, setDeadlineAlerts] = useState(true);
   const [overdueAlerts, setOverdueAlerts] = useState(true);
   const [statusChangeAlerts, setStatusChangeAlerts] = useState(true);
   const [alertDaysBefore, setAlertDaysBefore] = useState("3");
+  const [newBillingEmail, setNewBillingEmail] = useState("");
 
   useEffect(() => {
     if (emailPrefs) {
@@ -88,6 +110,20 @@ export default function Settings() {
     });
   };
 
+  const handleAddBillingEmail = () => {
+    const trimmed = newBillingEmail.trim();
+    if (!trimmed) {
+      toast.error("Please enter an email address");
+      return;
+    }
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    addBillingEmail.mutate({ emailAddress: trimmed });
+  };
+
   if (prefsLoading) {
     return (
       <div className="space-y-6 p-6">
@@ -108,6 +144,89 @@ export default function Settings() {
         </h1>
         <p className="text-muted-foreground mt-1">Manage notification preferences and alert configuration</p>
       </div>
+
+      {/* Billing Department Emails */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Billing Department Emails
+          </CardTitle>
+          <CardDescription>
+            Configure email addresses for the billing department. When a project reaches a billing
+            milestone (25%, 50%, 75%, 100%), notifications will be sent automatically to these addresses.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Current billing emails */}
+          {billingEmailsLoading ? (
+            <Skeleton className="h-10 w-full" />
+          ) : billingEmails && billingEmails.length > 0 ? (
+            <div className="space-y-2">
+              {billingEmails.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border"
+                >
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{entry.emailAddress}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeBillingEmail.mutate({ id: entry.id })}
+                    disabled={removeBillingEmail.isPending}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No billing department emails configured. Add one below to receive milestone notifications.
+            </p>
+          )}
+
+          <Separator />
+
+          {/* Add new billing email */}
+          <div className="space-y-2">
+            <Label htmlFor="billingEmail">Add Email Address</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="billingEmail"
+                type="email"
+                placeholder="billing@yourfirm.com"
+                value={newBillingEmail}
+                onChange={(e) => setNewBillingEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddBillingEmail();
+                  }
+                }}
+              />
+              <Button
+                onClick={handleAddBillingEmail}
+                disabled={addBillingEmail.isPending}
+                size="sm"
+              >
+                {addBillingEmail.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              All listed addresses will receive billing milestone notifications when projects reach 25%, 50%, 75%, or 100% completion.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Email Notification Preferences */}
       <Card>
