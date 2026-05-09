@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { BudgetBar } from "@/components/BudgetBar";
 import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -146,6 +147,8 @@ export default function ProjectDetail() {
   const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: isAdmin });
   const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: isAdmin });
   const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: isAdmin });
+  // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
+  const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
   const utils = trpc.useUtils();
 
   const updateProject = trpc.projects.update.useMutation({
@@ -1201,6 +1204,18 @@ export default function ProjectDetail() {
                   )}
                 </div>
               </div>
+
+              {/* Budget bar — visible to all; dollar amounts shown only to admins */}
+              {burnRate && (
+                <>
+                  <Separator />
+                  <BudgetBar
+                    contractedFee={burnRate.contractedFee}
+                    totalCost={burnRate.laborCost + burnRate.consultantCost}
+                    isAdmin={isAdmin}
+                  />
+                </>
+              )}
             </CardContent>
           </Card>
 
