@@ -76,7 +76,7 @@ export default function TimeTracking() {
   // Team report date range (admin)
   const [reportStartDate, setReportStartDate] = useState<string>("");
   const [reportEndDate, setReportEndDate] = useState<string>("");
-  const [reportProjectFilter, setReportProjectFilter] = useState<string>(""); // "" = all projects
+  const [reportProjectFilter, setReportProjectFilter] = useState<string>("all"); // "all" = all projects
   const [editingBillingRateMemberId, setEditingBillingRateMemberId] = useState<number | null>(null);
   const [billingRateInput, setBillingRateInput] = useState<string>("");
 
@@ -678,7 +678,7 @@ export default function TimeTracking() {
                         <SelectValue placeholder="All projects" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All projects</SelectItem>
+                        <SelectItem value="all">All projects</SelectItem>
                         {teamTimeReport.data?.projects.map((p: any) => (
                           <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                         ))}
@@ -691,12 +691,12 @@ export default function TimeTracking() {
                   </div>
 
                   {/* Clear filters */}
-                  {(reportStartDate || reportEndDate || reportProjectFilter) && (
+                  {(reportStartDate || reportEndDate || (reportProjectFilter && reportProjectFilter !== "all")) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-xs h-8"
-                      onClick={() => { setReportStartDate(""); setReportEndDate(""); setReportProjectFilter(""); }}
+                      onClick={() => { setReportStartDate(""); setReportEndDate(""); setReportProjectFilter("all"); }}
                     >
                       Clear filters
                     </Button>
@@ -706,10 +706,10 @@ export default function TimeTracking() {
                   <div className="ml-auto">
                     <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => {
                       if (!teamTimeReport.data) return;
-                      const filteredPrjs = reportProjectFilter
+                      const filteredPrjs = (reportProjectFilter && reportProjectFilter !== "all")
                         ? teamTimeReport.data.projects.filter((p: any) => String(p.id) === reportProjectFilter)
                         : teamTimeReport.data.projects;
-                      const filteredRows = reportProjectFilter
+                      const filteredRows = (reportProjectFilter && reportProjectFilter !== "all")
                         ? teamTimeReport.data.rows.filter((r: any) =>
                             r.projectBreakdown.some((b: any) => String(b.projectId) === reportProjectFilter && b.totalHours > 0)
                           )
@@ -734,7 +734,7 @@ export default function TimeTracking() {
                       const a = document.createElement("a");
                       a.href = url;
                       const dateRange = reportStartDate && reportEndDate ? `${reportStartDate}_to_${reportEndDate}` : "all-time";
-                      const projectSuffix = reportProjectFilter
+                      const projectSuffix = (reportProjectFilter && reportProjectFilter !== "all")
                         ? `-${filteredPrjs[0]?.name?.replace(/[^a-z0-9]/gi, "-").toLowerCase() ?? "project"}`
                         : "";
                       a.download = `team-time-report-${dateRange}${projectSuffix}.csv`;
@@ -761,10 +761,10 @@ export default function TimeTracking() {
                   </div>
                 ) : (() => {
                   // Apply project filter to rows and columns
-                  const filteredProjects = reportProjectFilter
+                  const filteredProjects = (reportProjectFilter && reportProjectFilter !== "all")
                     ? teamTimeReport.data.projects.filter((p: any) => String(p.id) === reportProjectFilter)
                     : teamTimeReport.data.projects;
-                  const filteredRows = reportProjectFilter
+                  const filteredRows = (reportProjectFilter && reportProjectFilter !== "all")
                     ? teamTimeReport.data.rows.filter((r: any) =>
                         r.projectBreakdown.some((b: any) => String(b.projectId) === reportProjectFilter && b.totalHours > 0)
                       )
