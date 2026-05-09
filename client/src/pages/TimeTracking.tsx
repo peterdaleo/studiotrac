@@ -62,7 +62,6 @@ export default function TimeTracking() {
   const [timerDescription, setTimerDescription] = useState("");
   const [timerBillable, setTimerBillable] = useState(true);
   const [timerPhase, setTimerPhase] = useState<ProjectPhase | "">("");
-  const [forceTimerStopped, setForceTimerStopped] = useState(false);
 
   // Manual entry state
   const [manualOpen, setManualOpen] = useState(false);
@@ -93,7 +92,14 @@ export default function TimeTracking() {
 
   const projects = trpc.projects.list.useQuery();
   const teamMembers = trpc.teamMembers.list.useQuery();
-  const activeTimer = trpc.timeEntries.activeTimer.useQuery(undefined, { refetchInterval: 1000 });
+  const activeTimer = trpc.timeEntries.activeTimer.useQuery(undefined, {
+    refetchInterval: 1000,
+    // Always fetch fresh data from the server on mount — never use stale cache.
+    // This ensures that if the timer was stopped on another page/session,
+    // the component reflects the true server state immediately on mount.
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
 
   // Admin team time report query
   const teamTimeReportInput = useMemo(() => {
@@ -126,7 +132,6 @@ export default function TimeTracking() {
 
   const startTimer = trpc.timeEntries.startTimer.useMutation({
     onSuccess: async () => {
-      setForceTimerStopped(false);
       toast.success("Timer started");
       await utils.timeEntries.activeTimer.invalidate();
     },
@@ -134,8 +139,9 @@ export default function TimeTracking() {
 
   const stopTimer = trpc.timeEntries.stopTimer.useMutation({
     onSuccess: async () => {
-      setForceTimerStopped(true);
       resetTimerForm();
+      // Immediately clear the cached timer so the UI shows stopped before
+      // the invalidation re-fetch completes.
       utils.timeEntries.activeTimer.setData(undefined, () => undefined);
       toast.success("Timer stopped");
       await Promise.all([
@@ -181,7 +187,7 @@ export default function TimeTracking() {
     },
   });
 
-  const displayedActiveTimer = forceTimerStopped ? null : activeTimer.data;
+  const displayedActiveTimer = activeTimer.data;
 
   // Timer tick
   useEffect(() => {
@@ -195,12 +201,6 @@ export default function TimeTracking() {
     }, 1000);
     return () => clearInterval(interval);
   }, [displayedActiveTimer]);
-
-  useEffect(() => {
-    if (!activeTimer.data) {
-      setForceTimerStopped(false);
-    }
-  }, [activeTimer.data]);
 
   const timerHours = Math.floor(timerElapsed / 3600);
   const timerMinutes = Math.floor((timerElapsed % 3600) / 60);
