@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { BudgetBar } from "@/components/BudgetBar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,8 +68,19 @@ export default function Projects() {
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [sortBy, setSortBy] = useState<"default" | "alpha" | "deadline">("default");
 
+  const { user } = useAuth();
+  const isAdmin = useEffectiveAdmin(user?.role);
+
   const { data: projects, isLoading } = trpc.projects.list.useQuery({});
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
+  const { data: budgetSummary } = trpc.timeAnalytics.allProjectsBudgetSummary.useQuery();
+
+  // Build a quick lookup map: projectId -> { contractedFee, totalCost }
+  const budgetMap = useMemo(() => {
+    const m = new Map<number, { contractedFee: number; totalCost: number }>();
+    budgetSummary?.forEach((b) => m.set(b.projectId, { contractedFee: b.contractedFee, totalCost: b.totalCost }));
+    return m;
+  }, [budgetSummary]);
   const utils = trpc.useUtils();
 
   const createProject = trpc.projects.create.useMutation({
@@ -339,6 +353,24 @@ export default function Projects() {
                       <Progress value={project.completionPercentage} className="h-1.5" />
                     </div>
 
+                    {(() => {
+                      const b = budgetMap.get(project.id);
+                      if (!b) return null;
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1.5">
+                            <span className="text-muted-foreground">Budget</span>
+                          </div>
+                          <BudgetBar
+                            contractedFee={b.contractedFee}
+                            totalCost={b.totalCost}
+                            isAdmin={isAdmin}
+                            compact
+                          />
+                        </div>
+                      );
+                    })()}
+
                     {daysUntilDeadline !== null && (
                       <div className="flex items-center gap-1.5 text-xs">
                         <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -386,6 +418,20 @@ export default function Projects() {
                       <Progress value={project.completionPercentage} className="h-1.5" />
                     </div>
                     <span className="text-xs font-mono w-10 text-right">{project.completionPercentage}%</span>
+                    {(() => {
+                      const b = budgetMap.get(project.id);
+                      if (!b) return <div className="w-24 hidden xl:block" />;
+                      return (
+                        <div className="w-24 hidden xl:block">
+                          <BudgetBar
+                            contractedFee={b.contractedFee}
+                            totalCost={b.totalCost}
+                            isAdmin={isAdmin}
+                            compact
+                          />
+                        </div>
+                      );
+                    })()}
                     {daysUntilDeadline !== null ? (
                       <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}`}>
                         {daysUntilDeadline < 0
