@@ -120,3 +120,112 @@ export async function sendTeamInviteEmail(params: SendTeamInviteEmailParams) {
     id: data?.id ?? null,
   };
 }
+
+// ── Billing Milestone Email ────────────────────────────────────────
+
+type SendBillingMilestoneEmailParams = {
+  to: string[];
+  projectName: string;
+  clientName?: string;
+  milestonePercentage: number;
+  completionPercentage: number;
+  projectId: number;
+};
+
+function buildBillingMilestoneHtml(params: SendBillingMilestoneEmailParams) {
+  const projectName = escapeHtml(params.projectName);
+  const clientLine = params.clientName
+    ? `<p style="margin: 0 0 8px; font-size: 14px; color: #475569;"><strong>Client:</strong> ${escapeHtml(params.clientName)}</p>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: Inter, Arial, sans-serif; color: #0f172a;">
+    <div style="max-width: 640px; margin: 0 auto; padding: 32px 16px;">
+      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);">
+        <div style="padding: 32px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff;">
+          <div style="display: inline-block; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">billing milestone</div>
+          <h1 style="margin: 16px 0 0; font-size: 30px; line-height: 1.2;">${params.milestonePercentage}% Billing Milestone Reached</h1>
+          <p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: rgba(255, 255, 255, 0.84);">A project has reached a billing milestone and may require invoicing action.</p>
+        </div>
+        <div style="padding: 32px;">
+          <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7;">Hello Billing Team,</p>
+          <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.7; color: #334155;">The following project has reached the <strong>${params.milestonePercentage}%</strong> completion milestone and is now eligible for billing at this stage.</p>
+          <div style="margin: 0 0 24px; padding: 20px; border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 8px; font-size: 14px; color: #475569;"><strong>Project:</strong> ${projectName}</p>
+            ${clientLine}
+            <p style="margin: 0 0 8px; font-size: 14px; color: #475569;"><strong>Milestone:</strong> ${params.milestonePercentage}%</p>
+            <p style="margin: 0; font-size: 14px; color: #475569;"><strong>Current Completion:</strong> ${params.completionPercentage}%</p>
+          </div>
+          <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #64748b;">Please review and process the billing for this milestone at your earliest convenience.</p>
+        </div>
+      </div>
+      <p style="margin: 16px 8px 0; font-size: 12px; line-height: 1.6; color: #94a3b8; text-align: center;">This notification was sent automatically by studioTrac when a billing milestone was reached.</p>
+    </div>
+  </body>
+</html>`;
+}
+
+function buildBillingMilestoneText(params: SendBillingMilestoneEmailParams) {
+  const clientLine = params.clientName ? `Client: ${params.clientName}\n` : "";
+  return [
+    "Hello Billing Team,",
+    "",
+    `The following project has reached the ${params.milestonePercentage}% completion milestone and is now eligible for billing at this stage.`,
+    "",
+    `Project: ${params.projectName}`,
+    clientLine.trimEnd(),
+    `Milestone: ${params.milestonePercentage}%`,
+    `Current Completion: ${params.completionPercentage}%`,
+    "",
+    "Please review and process the billing for this milestone at your earliest convenience.",
+    "",
+    "— studioTrac",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function sendBillingMilestoneEmail(params: SendBillingMilestoneEmailParams) {
+  if (!ENV.resendApiKey) {
+    console.warn("[BillingMilestone] RESEND_API_KEY is not set; skipping billing milestone email delivery.");
+    return { sent: false as const, reason: "missing_api_key" as const };
+  }
+
+  if (params.to.length === 0) {
+    console.warn("[BillingMilestone] No recipients configured; skipping email.");
+    return { sent: false as const, reason: "no_recipients" as const };
+  }
+
+  const resend = new Resend(ENV.resendApiKey);
+  const subject = `Billing Milestone: ${params.projectName} has reached ${params.milestonePercentage}% completion`;
+  const text = buildBillingMilestoneText(params);
+  const html = buildBillingMilestoneHtml(params);
+
+  const { data, error } = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: params.to,
+    subject,
+    html,
+    text,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to send billing milestone email via Resend");
+  }
+
+  // Log the email for each recipient
+  for (const recipient of params.to) {
+    await db.logEmail({
+      recipientEmail: recipient,
+      subject,
+      body: text,
+      relatedProjectId: params.projectId,
+    });
+  }
+
+  return {
+    sent: true as const,
+    id: data?.id ?? null,
+  };
+}
