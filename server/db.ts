@@ -16,6 +16,7 @@ import {
   consultantPayments, InsertConsultantPayment,
   timeEntries, InsertTimeEntry,
   teamAbsences, InsertTeamAbsence,
+  billingDepartmentEmails, InsertBillingDepartmentEmail,
 } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1522,4 +1523,39 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
     members: members.map(m => ({ id: m.id, name: m.name })),
     projects: allProjects,
   };
+}
+
+// ── Billing Department Emails ─────────────────────────────────────
+export async function listBillingDepartmentEmails() {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return await db.select().from(billingDepartmentEmails).orderBy(asc(billingDepartmentEmails.id));
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] billing_department_emails table not found yet; returning empty list");
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function addBillingDepartmentEmail(emailAddress: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    const result = await db.insert(billingDepartmentEmails).values({ emailAddress });
+    return { id: result[0].insertId };
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      throw new Error("The billing_department_emails table has not been created yet. Please run the provided SQL in Railway first.");
+    }
+    throw error;
+  }
+}
+
+export async function removeBillingDepartmentEmail(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(billingDepartmentEmails).where(eq(billingDepartmentEmails.id, id));
 }
