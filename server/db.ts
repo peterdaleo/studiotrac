@@ -1109,10 +1109,27 @@ export async function getProjectLaborCost(projectId: number) {
   const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
   const members = await db.select().from(teamMembers);
   
+  // Build lookup: users.id -> teamMember (via userId link, email fallback, or name fallback)
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const userIdToMember = new Map<number, typeof members[0]>();
+  for (const m of members) {
+    if (m.userId) {
+      userIdToMember.set(m.userId, m);
+    }
+  }
+  // Fallback: match by email or name for members with no userId
+  for (const u of allUsers) {
+    if (userIdToMember.has(u.id)) continue;
+    const byEmail = u.email ? members.find(m => !m.userId && m.email && m.email.toLowerCase() === u.email!.toLowerCase()) : undefined;
+    if (byEmail) { userIdToMember.set(u.id, byEmail); continue; }
+    const byName = u.name ? members.find(m => !m.userId && !m.email && m.name.toLowerCase() === u.name!.toLowerCase()) : undefined;
+    if (byName) { userIdToMember.set(u.id, byName); }
+  }
+
   let totalLaborCost = 0;
   let billableLaborCost = 0;
   for (const e of entries) {
-    const m = members.find(m => m.id === e.userId);
+    const m = userIdToMember.get(e.userId);
     const hourlyRate = m?.billingRate || 0; // cents per hour
     const cost = Math.round((e.durationMinutes / 60) * hourlyRate);
     totalLaborCost += cost;
@@ -1161,20 +1178,23 @@ export async function getFirmUtilization(startDate?: Date, endDate?: Date) {
   if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
   const entries = await db.select().from(timeEntries).where(and(...conditions));
 
-  // Build email -> users.id map as fallback for team members whose userId is NULL
-  // (e.g. the account owner who was migrated without going through the invite flow)
-  const allUsers = await db.select({ id: users.id, email: users.email }).from(users);
+  // Build email -> users.id and name -> users.id maps as fallback for team members whose userId is NULL
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
   const emailToUserId = new Map<string, number>();
+  const nameToUserId = new Map<string, number>();
   for (const u of allUsers) {
     if (u.email) emailToUserId.set(u.email.toLowerCase(), u.id);
+    if (u.name) nameToUserId.set(u.name.toLowerCase(), u.id);
   }
   
   let firmBillableMinutes = 0;
   let firmTotalMinutes = 0;
   
   const memberStats = members.map(m => {
-    // Match by userId first; fall back to email lookup for members with userId = NULL
-    const memberUserId = m.userId ?? (m.email ? emailToUserId.get(m.email.toLowerCase()) : undefined);
+    // Match by userId first; fall back to email lookup; then name lookup as last resort
+    const memberUserId = m.userId
+      ?? (m.email ? emailToUserId.get(m.email.toLowerCase()) : undefined)
+      ?? nameToUserId.get(m.name.toLowerCase());
     const memberEntries = entries.filter(e => memberUserId !== undefined && e.userId === memberUserId);
     const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
     const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
@@ -1496,18 +1516,21 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
   if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
   const entries = await db.select().from(timeEntries).where(and(...conditions));
 
-  // Build email -> users.id map as fallback for team members whose userId is NULL
+  // Build email -> users.id and name -> users.id maps as fallback for team members whose userId is NULL
   // (e.g. the account owner who was migrated without going through the invite flow)
-  const allUsers = await db.select({ id: users.id, email: users.email }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
   const emailToUserId = new Map<string, number>();
+  const nameToUserId = new Map<string, number>();
   for (const u of allUsers) {
     if (u.email) emailToUserId.set(u.email.toLowerCase(), u.id);
+    if (u.name) nameToUserId.set(u.name.toLowerCase(), u.id);
   }
-
   // Build a member -> project -> hours map
   const rows = members.map(m => {
-    // Match by userId first; fall back to email lookup for members with userId = NULL
-    const memberUserId = m.userId ?? (m.email ? emailToUserId.get(m.email.toLowerCase()) : undefined);
+    // Match by userId first; fall back to email lookup; then name lookup as last resort
+    const memberUserId = m.userId
+      ?? (m.email ? emailToUserId.get(m.email.toLowerCase()) : undefined)
+      ?? nameToUserId.get(m.name.toLowerCase());
     const memberEntries = entries.filter(e => memberUserId !== undefined && e.userId === memberUserId);
     const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
     const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
@@ -1596,19 +1619,32 @@ export async function getAllProjectsBudgetSummary(): Promise<
   if (allProjects.length === 0) return [];
 
   // 2. Labor cost per project: sum(durationMinutes / 60 * billingRate) for completed entries
-  const laborRows = await db
+  // Build userId -> billingRate map (handles members with NULL userId via email/name fallback)
+  const allMembers = await db.select().from(teamMembers);
+  const budgetAllUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const userIdToBillingRate = new Map<number, number>();
+  for (const m of allMembers) {
+    if (m.userId) userIdToBillingRate.set(m.userId, m.billingRate);
+  }
+  for (const u of budgetAllUsers) {
+    if (userIdToBillingRate.has(u.id)) continue;
+    const byEmail = u.email ? allMembers.find(m => !m.userId && m.email && m.email.toLowerCase() === u.email!.toLowerCase()) : undefined;
+    if (byEmail) { userIdToBillingRate.set(u.id, byEmail.billingRate); continue; }
+    const byName = u.name ? allMembers.find(m => !m.userId && !m.email && m.name.toLowerCase() === u.name!.toLowerCase()) : undefined;
+    if (byName) { userIdToBillingRate.set(u.id, byName.billingRate); }
+  }
+  const laborEntries = await db
     .select({
       projectId: timeEntries.projectId,
+      userId: timeEntries.userId,
       durationMinutes: timeEntries.durationMinutes,
-      billingRate: teamMembers.billingRate,
     })
     .from(timeEntries)
-    .leftJoin(teamMembers, eq(timeEntries.userId, teamMembers.id))
     .where(sql`${timeEntries.endTime} IS NOT NULL`);
-
   const laborByProject = new Map<number, number>();
-  for (const row of laborRows) {
-    const cost = Math.round(((row.durationMinutes ?? 0) / 60) * (row.billingRate ?? 0));
+  for (const row of laborEntries) {
+    const billingRate = userIdToBillingRate.get(row.userId) ?? 0;
+    const cost = Math.round(((row.durationMinutes ?? 0) / 60) * billingRate);
     laborByProject.set(row.projectId, (laborByProject.get(row.projectId) ?? 0) + cost);
   }
 
