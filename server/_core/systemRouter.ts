@@ -19,7 +19,7 @@ export const systemRouter = router({
     try {
       const tables = await db.execute(sql`SHOW TABLES`);
       const invoicesCols = await db.execute(sql`SHOW COLUMNS FROM invoices`).catch(() => "table not found");
-      const teamMembersCols = await db.execute(sql`SELECT id, name, isActive FROM team_members LIMIT 20`).catch((e: any) => e?.message);
+      const teamMembersCols = await db.execute(sql`SELECT id, name, isActive FROM team_members ORDER BY id`).catch((e: any) => e?.message);
       return { tables, invoicesCols, teamMembersCols };
     } catch (e: any) {
       return { error: e?.message };
