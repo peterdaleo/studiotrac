@@ -837,7 +837,7 @@ export default function ProjectDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {isAdmin ? (
+              {(isAdmin || effectiveRole === "pm") ? (
                 <div className="space-y-3">
                   {editingDriveUrl ? (
                     <div className="space-y-2">
