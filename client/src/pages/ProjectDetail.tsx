@@ -157,6 +157,9 @@ export default function ProjectDetail() {
       utils.projects.list.invalidate();
       toast.success("Project updated");
     },
+    onError: (err) => {
+      toast.error(`Failed to update: ${err.message}`);
+    },
   });
 
   const deleteProject = trpc.projects.delete.useMutation({

@@ -198,12 +198,21 @@ export default function Team() {
   }, [selectedMemberId, allTasks, projects]);
 
   const workloadChartData = useMemo(() => {
-    return memberStats.map((m) => ({
-      name: m.name.split(" ")[0],
-      tasks: m.totalTasks,
-      completed: m.completed,
-      overdue: m.overdue,
-    }));
+    // Use first name + last initial to disambiguate members with the same first name
+    const firstNames = memberStats.map(m => m.name.split(" ")[0]);
+    return memberStats.map((m) => {
+      const firstName = m.name.split(" ")[0];
+      const isDuplicate = firstNames.filter(n => n === firstName).length > 1;
+      const displayName = isDuplicate && m.name.split(" ").length > 1
+        ? `${firstName} ${m.name.split(" ")[1][0]}.`
+        : firstName;
+      return {
+        name: displayName,
+        tasks: m.totalTasks,
+        completed: m.completed,
+        overdue: m.overdue,
+      };
+    });
   }, [memberStats]);
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
