@@ -1165,7 +1165,8 @@ export async function getFirmUtilization(startDate?: Date, endDate?: Date) {
   let firmTotalMinutes = 0;
   
   const memberStats = members.map(m => {
-    const memberEntries = entries.filter(e => e.userId === m.id);
+    // time_entries.userId references users.id; teamMembers.userId is the link to users.id
+    const memberEntries = entries.filter(e => e.userId === m.userId);
     const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
     const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
     firmBillableMinutes += billableMinutes;
@@ -1488,7 +1489,8 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
 
   // Build a member -> project -> hours map
   const rows = members.map(m => {
-    const memberEntries = entries.filter(e => e.userId === m.id);
+    // time_entries.userId references users.id; teamMembers.userId is the link to users.id
+    const memberEntries = entries.filter(e => e.userId === m.userId);
     const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
     const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
 
