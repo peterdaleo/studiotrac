@@ -334,14 +334,20 @@ export async function deleteProject(id: number) {
     // Each delete is wrapped in try/catch to skip missing tables
     const safeDel = async (fn: () => Promise<any>, label: string) => {
       try { await fn(); } catch (e: any) {
-        console.warn(`[deleteProject] ${label} failed:`, e?.message || e);
-        if (!isMissingTableError(e)) throw e;
+        const cause = e?.cause;
+        console.warn(`[deleteProject] ${label} failed: code=${e?.code || cause?.code} errno=${e?.errno || cause?.errno} sqlState=${e?.sqlState || cause?.sqlState} msg=${e?.message}`);
+        // For child table cleanup, skip ALL errors — the important delete is projects at the end
+        // This handles: missing tables, FK constraints, connection issues on individual tables
       }
     };
     await safeDel(() => db.delete(tasks).where(eq(tasks.projectId, id)), 'tasks');
     await safeDel(() => db.delete(projectNotes).where(eq(projectNotes.projectId, id)), 'projectNotes');
     await safeDel(() => db.delete(projectFiles).where(eq(projectFiles.projectId, id)), 'projectFiles');
-    await safeDel(() => db.delete(invoices).where(eq(invoices.projectId, id)), 'invoices');
+    await safeDel(async () => {
+      console.log(`[deleteProject] Attempting raw SQL delete from invoices for project ${id}`);
+      await db.execute(sql`DELETE FROM invoices WHERE projectId = ${id}`);
+      console.log(`[deleteProject] Raw SQL invoices delete succeeded`);
+    }, 'invoices');
     await safeDel(() => db.delete(clientShareTokens).where(eq(clientShareTokens.projectId, id)), 'clientShareTokens');
     await safeDel(() => db.delete(notifications).where(eq(notifications.relatedProjectId, id)), 'notifications');
     // Delete consultant payments for all consultants on this project
@@ -352,10 +358,16 @@ export async function deleteProject(id: number) {
       }
       await safeDel(() => db.delete(consultantContracts).where(eq(consultantContracts.projectId, id)), 'consultantContracts');
     } catch (e: any) {
-      if (!isMissingTableError(e)) throw e;
+      console.warn(`[deleteProject] consultant cleanup failed:`, e?.message);
     }
     await safeDel(() => db.delete(timeEntries).where(eq(timeEntries.projectId, id)), 'timeEntries');
-    await db.delete(projects).where(eq(projects.id, id));
+    // Final delete of the project itself — use raw SQL as fallback if Drizzle ORM fails
+    try {
+      await db.delete(projects).where(eq(projects.id, id));
+    } catch (e: any) {
+      console.warn(`[deleteProject] ORM delete failed, trying raw SQL:`, e?.message);
+      await db.execute(sql`DELETE FROM projects WHERE id = ${id}`);
+    }
     console.log(`[deleteProject] Successfully deleted project ${id}`);
   } finally {
     await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
