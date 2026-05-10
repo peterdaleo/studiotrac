@@ -82,6 +82,7 @@ export const projects = mysqlTable("projects", {
   estimatedHours: int("estimatedHours").default(0).notNull(), // total estimated hours for project
   contractedFee: int("contractedFee").default(0).notNull(), // in cents
   invoicedAmount: int("invoicedAmount").default(0).notNull(), // in cents (auto-calculated from invoices)
+  driveFolderUrl: varchar("driveFolderUrl", { length: 2048 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

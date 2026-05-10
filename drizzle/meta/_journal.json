@@ -50,6 +50,13 @@
       "when": 1776520893094,
       "tag": "0006_special_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1747526400000,
+      "tag": "0007_add_drive_folder_url",
+      "breakpoints": true
     }
   ]
 }

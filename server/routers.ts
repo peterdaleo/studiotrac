@@ -226,6 +226,7 @@ export const appRouter = router({
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
+      driveFolderUrl: z.string().optional().nullable(),
     })).mutation(({ input }) => db.createProject(input)),
     update: adminProcedure.input(z.object({
       id: z.number(),
@@ -245,6 +246,7 @@ export const appRouter = router({
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
+      driveFolderUrl: z.string().optional().nullable(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
 

@@ -1,4 +1,3 @@
-import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +11,9 @@ import {
   CheckCircle2,
   Circle,
   DollarSign,
-  FileText,
-  File,
-  Image as ImageIcon,
-  Download,
   Eye,
-  Paperclip,
+  FolderOpen,
+  ExternalLink,
   MessageSquare,
   Building2,
   Clock,
@@ -49,20 +45,6 @@ export default function ClientPortal() {
     { enabled: !!token, retry: false }
   );
 
-  const getFileIcon = (mimeType?: string | null) => {
-    if (!mimeType) return <File className="h-4 w-4" />;
-    if (mimeType.startsWith("image/")) return <ImageIcon className="h-4 w-4" />;
-    if (mimeType.includes("pdf")) return <FileText className="h-4 w-4 text-red-500" />;
-    return <File className="h-4 w-4" />;
-  };
-
-  const formatFileSize = (bytes?: number | null) => {
-    if (!bytes) return "";
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -92,7 +74,7 @@ export default function ClientPortal() {
     );
   }
 
-  const { project, notes, files } = data.data;
+  const { project, notes } = data.data;
   const currentPhaseIndex = PROJECT_PHASES.findIndex((p) => p.value === project.phase);
 
   const billingMilestones = [
@@ -185,36 +167,22 @@ export default function ClientPortal() {
               </CardContent>
             </Card>
 
-            {/* Files & Documents */}
-            {files && files.length > 0 && (
+            {/* Project Folder */}
+            {project.driveFolderUrl && (
               <Card className="border shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Paperclip className="h-4 w-4 text-slate-400" />
-                    Shared Documents ({files.length})
+                    <FolderOpen className="h-4 w-4 text-slate-400" />
+                    Project Folder
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {files.map((file: any) => (
-                      <div key={file.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-                        {getFileIcon(file.mimeType)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{file.fileName}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{file.category}</Badge>
-                            <span>{formatFileSize(file.fileSize)}</span>
-                            <span>{new Date(file.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={file.url} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-3.5 w-3.5 mr-1" /> Download
-                          </a>
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                  <Button asChild className="w-full h-9">
+                    <a href={project.driveFolderUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                      Open Project Folder
+                    </a>
+                  </Button>
                 </CardContent>
               </Card>
             )}

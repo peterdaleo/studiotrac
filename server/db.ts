@@ -896,6 +896,7 @@ export async function getPublicProjectData(projectId: number) {
       billing100: project[0].billing100,
       billingOk: project[0].billingOk,
       description: project[0].description,
+      driveFolderUrl: project[0].driveFolderUrl,
       managerName,
     },
     notes: visibleNotes,
