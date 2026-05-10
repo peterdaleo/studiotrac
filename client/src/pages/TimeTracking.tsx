@@ -784,17 +784,17 @@ export default function TimeTracking() {
                     <div className="overflow-auto max-h-[60vh]">
                       <table className="w-full text-xs border-collapse">
                         <thead>
-                          <tr className="border-b bg-muted/50">
+                          <tr className="border-b bg-muted">
                             {/* Sticky first column + sticky header row */}
-                            <th className="text-left p-3 font-medium text-muted-foreground sticky left-0 top-0 z-20 bg-muted/50 min-w-[180px] shadow-[1px_0_0_0_hsl(var(--border))]">
+                            <th className="text-left p-3 font-medium text-muted-foreground sticky left-0 top-0 z-20 bg-muted min-w-[180px] shadow-[1px_0_0_0_hsl(var(--border))]">
                               Team Member
                             </th>
-                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[90px]">Rate</th>
-                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[85px]">Total Hrs</th>
-                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[90px]">Billable Hrs</th>
-                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[95px]">Labor Cost</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted min-w-[90px]">Rate</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted min-w-[85px]">Total Hrs</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted min-w-[90px]">Billable Hrs</th>
+                            <th className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted min-w-[95px]">Labor Cost</th>
                             {filteredProjects.map((p: any) => (
-                              <th key={p.id} className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted/50 min-w-[110px] max-w-[160px]">
+                              <th key={p.id} className="text-right p-3 font-medium text-muted-foreground sticky top-0 z-10 bg-muted min-w-[110px] max-w-[160px]">
                                 <span className="block truncate" title={p.name}>{p.name}</span>
                               </th>
                             ))}
@@ -871,19 +871,19 @@ export default function TimeTracking() {
                             </tr>
                           ))}
                           {/* Totals row — sticky at bottom of tbody */}
-                          <tr className="bg-muted/30 font-semibold border-t-2 sticky bottom-0 z-10">
-                            <td className="p-3 sticky left-0 z-20 bg-muted/30 shadow-[1px_0_0_0_hsl(var(--border))]">Totals</td>
-                            <td className="p-3 bg-muted/30"></td>
-                            <td className="p-3 text-right font-mono bg-muted/30">{filteredRows.reduce((s: number, r: any) => s + r.totalHours, 0).toFixed(1)}</td>
-                            <td className="p-3 text-right font-mono text-emerald-600 bg-muted/30">{filteredRows.reduce((s: number, r: any) => s + r.billableHours, 0).toFixed(1)}</td>
-                            <td className="p-3 text-right font-mono bg-muted/30">${(filteredRows.reduce((s: number, r: any) => s + r.laborCost, 0) / 100).toLocaleString()}</td>
+                          <tr className="bg-muted font-semibold border-t-2 sticky bottom-0 z-10">
+                            <td className="p-3 sticky left-0 z-20 bg-muted shadow-[1px_0_0_0_hsl(var(--border))]">Totals</td>
+                            <td className="p-3 bg-muted"></td>
+                            <td className="p-3 text-right font-mono bg-muted">{filteredRows.reduce((s: number, r: any) => s + r.totalHours, 0).toFixed(1)}</td>
+                            <td className="p-3 text-right font-mono text-emerald-600 bg-muted">{filteredRows.reduce((s: number, r: any) => s + r.billableHours, 0).toFixed(1)}</td>
+                            <td className="p-3 text-right font-mono bg-muted">${(filteredRows.reduce((s: number, r: any) => s + r.laborCost, 0) / 100).toLocaleString()}</td>
                             {filteredProjects.map((p: any) => {
                               const total = filteredRows.reduce((s: number, r: any) => {
                                 const pb = r.projectBreakdown.find((b: any) => b.projectId === p.id);
                                 return s + (pb ? pb.totalHours : 0);
                               }, 0);
                               return (
-                                <td key={p.id} className={`p-3 text-right font-mono bg-muted/30 ${total > 0 ? "" : "text-muted-foreground/40"}`}>
+                                <td key={p.id} className={`p-3 text-right font-mono bg-muted ${total > 0 ? "" : "text-muted-foreground/40"}`}>
                                   {total > 0 ? total.toFixed(1) : "—"}
                                 </td>
                               );
