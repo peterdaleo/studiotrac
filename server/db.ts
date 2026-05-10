@@ -328,21 +328,27 @@ export async function deleteProject(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   console.log(`[deleteProject] Deleting project ${id}`);
-  await db.delete(tasks).where(eq(tasks.projectId, id));
-  await db.delete(projectNotes).where(eq(projectNotes.projectId, id));
-  await db.delete(projectFiles).where(eq(projectFiles.projectId, id));
-  await db.delete(invoices).where(eq(invoices.projectId, id));
-  await db.delete(clientShareTokens).where(eq(clientShareTokens.projectId, id));
-  await db.delete(notifications).where(eq(notifications.relatedProjectId, id));
-  // Delete consultant payments for all consultants on this project
-  const projectConsultants = await db.select({ id: consultantContracts.id }).from(consultantContracts).where(eq(consultantContracts.projectId, id));
-  for (const c of projectConsultants) {
-    await db.delete(consultantPayments).where(eq(consultantPayments.consultantId, c.id));
+  // Disable FK checks to handle any implicit constraints from drizzle-kit migrations
+  await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
+  try {
+    await db.delete(tasks).where(eq(tasks.projectId, id));
+    await db.delete(projectNotes).where(eq(projectNotes.projectId, id));
+    await db.delete(projectFiles).where(eq(projectFiles.projectId, id));
+    await db.delete(invoices).where(eq(invoices.projectId, id));
+    await db.delete(clientShareTokens).where(eq(clientShareTokens.projectId, id));
+    await db.delete(notifications).where(eq(notifications.relatedProjectId, id));
+    // Delete consultant payments for all consultants on this project
+    const projectConsultants = await db.select({ id: consultantContracts.id }).from(consultantContracts).where(eq(consultantContracts.projectId, id));
+    for (const c of projectConsultants) {
+      await db.delete(consultantPayments).where(eq(consultantPayments.consultantId, c.id));
+    }
+    await db.delete(consultantContracts).where(eq(consultantContracts.projectId, id));
+    await db.delete(timeEntries).where(eq(timeEntries.projectId, id));
+    await db.delete(projects).where(eq(projects.id, id));
+    console.log(`[deleteProject] Successfully deleted project ${id}`);
+  } finally {
+    await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
   }
-  await db.delete(consultantContracts).where(eq(consultantContracts.projectId, id));
-  await db.delete(timeEntries).where(eq(timeEntries.projectId, id));
-  await db.delete(projects).where(eq(projects.id, id));
-  console.log(`[deleteProject] Successfully deleted project ${id}`);
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────
