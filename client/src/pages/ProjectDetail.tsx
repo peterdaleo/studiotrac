@@ -161,8 +161,12 @@ export default function ProjectDetail() {
 
   const deleteProject = trpc.projects.delete.useMutation({
     onSuccess: () => {
+      utils.projects.list.invalidate();
       toast.success("Project deleted");
       setLocation("/projects");
+    },
+    onError: (err) => {
+      toast.error("Failed to delete project: " + err.message);
     },
   });
 
