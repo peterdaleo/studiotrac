@@ -1160,13 +1160,22 @@ export async function getFirmUtilization(startDate?: Date, endDate?: Date) {
   if (startDate) conditions.push(gte(timeEntries.startTime, startDate));
   if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
   const entries = await db.select().from(timeEntries).where(and(...conditions));
+
+  // Build email -> users.id map as fallback for team members whose userId is NULL
+  // (e.g. the account owner who was migrated without going through the invite flow)
+  const allUsers = await db.select({ id: users.id, email: users.email }).from(users);
+  const emailToUserId = new Map<string, number>();
+  for (const u of allUsers) {
+    if (u.email) emailToUserId.set(u.email.toLowerCase(), u.id);
+  }
   
   let firmBillableMinutes = 0;
   let firmTotalMinutes = 0;
   
   const memberStats = members.map(m => {
-    // time_entries.userId references users.id; teamMembers.userId is the link to users.id
-    const memberEntries = entries.filter(e => e.userId === m.userId);
+    // Match by userId first; fall back to email lookup for members with userId = NULL
+    const memberUserId = m.userId ?? (m.email ? emailToUserId.get(m.email.toLowerCase()) : undefined);
+    const memberEntries = entries.filter(e => memberUserId !== undefined && e.userId === memberUserId);
     const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
     const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
     firmBillableMinutes += billableMinutes;
@@ -1487,10 +1496,19 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
   if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
   const entries = await db.select().from(timeEntries).where(and(...conditions));
 
+  // Build email -> users.id map as fallback for team members whose userId is NULL
+  // (e.g. the account owner who was migrated without going through the invite flow)
+  const allUsers = await db.select({ id: users.id, email: users.email }).from(users);
+  const emailToUserId = new Map<string, number>();
+  for (const u of allUsers) {
+    if (u.email) emailToUserId.set(u.email.toLowerCase(), u.id);
+  }
+
   // Build a member -> project -> hours map
   const rows = members.map(m => {
-    // time_entries.userId references users.id; teamMembers.userId is the link to users.id
-    const memberEntries = entries.filter(e => e.userId === m.userId);
+    // Match by userId first; fall back to email lookup for members with userId = NULL
+    const memberUserId = m.userId ?? (m.email ? emailToUserId.get(m.email.toLowerCase()) : undefined);
+    const memberEntries = entries.filter(e => memberUserId !== undefined && e.userId === memberUserId);
     const totalMinutes = memberEntries.reduce((s, e) => s + e.durationMinutes, 0);
     const billableMinutes = memberEntries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
 
