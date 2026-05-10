@@ -1381,7 +1381,7 @@ export default function ProjectDetail() {
                 )}
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Collected</span>
+                <span className="text-sm text-muted-foreground">Invoiced</span>
                 <span className="text-sm font-medium text-emerald-600">${(project.invoicedAmount / 100).toLocaleString()}</span>
               </div>
               {project.contractedFee > 0 && <Progress value={Math.min((project.invoicedAmount / project.contractedFee) * 100, 100)} className="h-2" />}

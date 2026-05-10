@@ -505,6 +505,18 @@ export async function deleteProjectFile(id: number) {
   if (!db) throw new Error("Database not available");
   const file = await db.select().from(projectFiles).where(eq(projectFiles.id, id)).limit(1);
   await db.delete(projectFiles).where(eq(projectFiles.id, id));
+  // Clean up the actual file from disk
+  if (file[0]?.fileKey) {
+    const fs = await import("fs");
+    const path = await import("path");
+    const uploadDir = process.env.UPLOAD_DIR || path.default.resolve(process.cwd(), "uploads");
+    const filePath = path.default.join(uploadDir, file[0].fileKey);
+    try {
+      await fs.promises.unlink(filePath);
+    } catch (e) {
+      // File may already be missing (e.g., after redeploy); ignore
+    }
+  }
   return file[0];
 }
 
@@ -634,11 +646,12 @@ export async function deleteInvoice(id: number) {
 async function recalcProjectInvoiced(projectId: number) {
   const db = await getDb();
   if (!db) return;
+  // invoicedAmount = total of all non-draft invoices (sent + paid + overdue)
   const result = await db.select({
-    total: sql<number>`COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0)`,
+    total: sql<number>`COALESCE(SUM(CASE WHEN status != 'draft' THEN amount ELSE 0 END), 0)`,
   }).from(invoices).where(eq(invoices.projectId, projectId));
-  const totalPaid = Number(result[0]?.total ?? 0);
-  await db.update(projects).set({ invoicedAmount: totalPaid }).where(eq(projects.id, projectId));
+  const totalInvoiced = Number(result[0]?.total ?? 0);
+  await db.update(projects).set({ invoicedAmount: totalInvoiced }).where(eq(projects.id, projectId));
 }
 
 // ── Financial Overview ────────────────────────────────────────────
@@ -1105,13 +1118,30 @@ export async function getProjectTimeBreakdown(projectId: number) {
   const members = await db.select().from(teamMembers);
   const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   
+  // Build userId (users.id) -> teamMember lookup for correct member resolution
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const userIdToMember = new Map<number, typeof members[0]>();
+  for (const m of members) {
+    if (m.userId) {
+      userIdToMember.set(m.userId, m);
+    }
+  }
+  // Fallback: match by email or name for members with no userId
+  for (const u of allUsers) {
+    if (userIdToMember.has(u.id)) continue;
+    const byEmail = u.email ? members.find(m => !m.userId && m.email && m.email.toLowerCase() === u.email!.toLowerCase()) : undefined;
+    if (byEmail) { userIdToMember.set(u.id, byEmail); continue; }
+    const byName = u.name ? members.find(m => !m.userId && !m.email && m.name.toLowerCase() === u.name!.toLowerCase()) : undefined;
+    if (byName) { userIdToMember.set(u.id, byName); }
+  }
+
   const totalMinutes = entries.reduce((s, e) => s + e.durationMinutes, 0);
   const billableMinutes = entries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
   
   // By member
   const memberMap = new Map<number, { name: string; minutes: number; billableMinutes: number; billingRate: number }>();
   for (const e of entries) {
-    const m = members.find(m => m.id === e.userId);
+    const m = userIdToMember.get(e.userId);
     if (!memberMap.has(e.userId)) memberMap.set(e.userId, { name: m?.name || 'Unknown', minutes: 0, billableMinutes: 0, billingRate: m?.billingRate || 0 });
     const rec = memberMap.get(e.userId)!;
     rec.minutes += e.durationMinutes;
@@ -1265,6 +1295,23 @@ export async function getTrueProfitability() {
   const allEntries = await db.select().from(timeEntries).where(sql`${timeEntries.endTime} IS NOT NULL`);
   const allMembers = await db.select().from(teamMembers);
   
+  // Build userId (users.id) -> teamMember lookup for correct billing rate resolution
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const userIdToMember = new Map<number, typeof allMembers[0]>();
+  for (const m of allMembers) {
+    if (m.userId) {
+      userIdToMember.set(m.userId, m);
+    }
+  }
+  // Fallback: match by email or name for members with no userId
+  for (const u of allUsers) {
+    if (userIdToMember.has(u.id)) continue;
+    const byEmail = u.email ? allMembers.find(m => !m.userId && m.email && m.email.toLowerCase() === u.email!.toLowerCase()) : undefined;
+    if (byEmail) { userIdToMember.set(u.id, byEmail); continue; }
+    const byName = u.name ? allMembers.find(m => !m.userId && !m.email && m.name.toLowerCase() === u.name!.toLowerCase()) : undefined;
+    if (byName) { userIdToMember.set(u.id, byName); }
+  }
+
   let firmFeesCollected = 0;
   let firmLaborCost = 0;
   let firmConsultantCost = 0;
@@ -1283,7 +1330,7 @@ export async function getTrueProfitability() {
     const projectEntries = allEntries.filter(e => e.projectId === p.id);
     let laborCost = 0;
     for (const e of projectEntries) {
-      const m = allMembers.find(m => m.id === e.userId);
+      const m = userIdToMember.get(e.userId);
       laborCost += Math.round((e.durationMinutes / 60) * (m?.billingRate || 0));
     }
     

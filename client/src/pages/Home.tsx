@@ -144,8 +144,8 @@ export default function Home() {
 
   // Financial KPIs
   const totals = financials?.totals;
-  const collectionRate = totals && totals.contracted > 0
-    ? Math.round((totals.paid / totals.contracted) * 100)
+  const collectionRate = totals && totals.invoiced > 0
+    ? Math.round((totals.paid / totals.invoiced) * 100)
     : 0;
   const hasFinancialData = totals && totals.contracted > 0;
 
