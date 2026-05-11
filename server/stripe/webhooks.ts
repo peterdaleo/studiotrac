@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { stripe, getPlanFromPriceId } from "./config";
+import { getStripe, getPlanFromPriceId } from "./config";
 import * as db from "../db";
 
 export async function handleStripeWebhook(req: Request, res: Response) {
@@ -14,7 +14,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: any) {
     console.error("[Stripe Webhook] Signature verification failed:", err.message);
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });

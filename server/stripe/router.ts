@@ -1,14 +1,17 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
-import { stripe, STRIPE_PLANS, type PlanTier } from "./config";
+import { protectedProcedure, router } from "../_core/trpc";
+import { getStripe, STRIPE_PLANS, type StripePlanTier } from "./config";
 import * as db from "../db";
 
+// Re-export PlanTier alias for backward compat
+export type PlanTier = StripePlanTier;
+
 export const subscriptionRouter = router({
-  // Get available plans (public info)
+  // Get available plans (public info — no Stripe call needed)
   plans: protectedProcedure.query(() => {
     return Object.entries(STRIPE_PLANS).map(([key, plan]) => ({
-      id: key as PlanTier,
+      id: key as StripePlanTier,
       name: plan.name,
       amount: plan.amount,
       description: plan.description,
@@ -35,6 +38,7 @@ export const subscriptionRouter = router({
   createCheckout: protectedProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
+      const stripe = getStripe();
       const planConfig = STRIPE_PLANS[input.plan];
       if (!planConfig.priceId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "This plan does not support self-serve checkout" });
@@ -58,7 +62,6 @@ export const subscriptionRouter = router({
         await db.updateUserStripeCustomerId(ctx.user.id, customerId);
       }
 
-      // Determine the base URL from the request context
       const origin = process.env.APP_URL || "https://studiotrac-production.up.railway.app";
 
       const session = await stripe.checkout.sessions.create({
@@ -66,8 +69,8 @@ export const subscriptionRouter = router({
         mode: "subscription",
         payment_method_types: ["card"],
         line_items: [{ price: planConfig.priceId, quantity: 1 }],
-        success_url: `${origin}/settings?tab=billing&checkout=success`,
-        cancel_url: `${origin}/settings?tab=billing&checkout=canceled`,
+        success_url: `${origin}/billing?checkout=success`,
+        cancel_url: `${origin}/billing?checkout=canceled`,
         metadata: { userId: ctx.user.id.toString(), plan: input.plan },
         subscription_data: {
           metadata: { userId: ctx.user.id.toString(), plan: input.plan },
@@ -79,6 +82,7 @@ export const subscriptionRouter = router({
 
   // Create a Stripe Customer Portal session (for managing subscription)
   createPortalSession: protectedProcedure.mutation(async ({ ctx }) => {
+    const stripe = getStripe();
     const customerId = ctx.user.stripeCustomerId;
     if (!customerId) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No billing account found. Please subscribe to a plan first." });
@@ -88,7 +92,7 @@ export const subscriptionRouter = router({
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${origin}/settings?tab=billing`,
+      return_url: `${origin}/billing`,
     });
 
     return { url: session.url };
@@ -96,6 +100,7 @@ export const subscriptionRouter = router({
 
   // Cancel subscription (at period end)
   cancel: protectedProcedure.mutation(async ({ ctx }) => {
+    const stripe = getStripe();
     const subscription = await db.getActiveSubscription(ctx.user.id);
     if (!subscription) {
       throw new TRPCError({ code: "NOT_FOUND", message: "No active subscription found" });
@@ -112,6 +117,7 @@ export const subscriptionRouter = router({
 
   // Resume a canceled subscription (undo cancel_at_period_end)
   resume: protectedProcedure.mutation(async ({ ctx }) => {
+    const stripe = getStripe();
     const subscription = await db.getActiveSubscription(ctx.user.id);
     if (!subscription) {
       throw new TRPCError({ code: "NOT_FOUND", message: "No active subscription found" });
@@ -134,6 +140,7 @@ export const subscriptionRouter = router({
   changePlan: protectedProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
+      const stripe = getStripe();
       const subscription = await db.getActiveSubscription(ctx.user.id);
       if (!subscription) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No active subscription found" });

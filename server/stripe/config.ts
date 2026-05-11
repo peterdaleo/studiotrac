@@ -1,10 +1,36 @@
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn("[Stripe] STRIPE_SECRET_KEY not set — Stripe features will be unavailable");
+// Lazy singleton — only instantiated on first use so a missing key never
+// crashes the server at startup.  Every function that needs the client
+// should call getStripe() and handle the null case gracefully.
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error(
+      "[Stripe] STRIPE_SECRET_KEY is not set. " +
+        "Add it to your Railway environment variables to enable billing features."
+    );
+  }
+
+  _stripe = new Stripe(key);
+  return _stripe;
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "");
+/**
+ * Returns the Stripe client if the secret key is configured, otherwise null.
+ * Use this in places where Stripe is optional (e.g. health checks, plan listing).
+ */
+export function getStripeOrNull(): Stripe | null {
+  try {
+    return getStripe();
+  } catch {
+    return null;
+  }
+}
 
 export const STRIPE_PLANS = {
   starter: {
@@ -54,11 +80,14 @@ export const STRIPE_PLANS = {
   },
 } as const;
 
-export type PlanTier = keyof typeof STRIPE_PLANS;
+export type StripePlanTier = keyof typeof STRIPE_PLANS;
 
-export function getPlanFromPriceId(priceId: string): PlanTier | null {
+export function getPlanFromPriceId(priceId: string): StripePlanTier | null {
   for (const [plan, config] of Object.entries(STRIPE_PLANS)) {
-    if (config.priceId === priceId) return plan as PlanTier;
+    if (config.priceId === priceId) return plan as StripePlanTier;
   }
   return null;
 }
+
+// Keep backward-compat named export used by router/webhooks
+export { getStripe as stripe };
