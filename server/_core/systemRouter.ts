@@ -19,9 +19,10 @@ export const systemRouter = router({
     try {
       const tables = await db.execute(sql`SHOW TABLES`);
       const projectCount = await db.execute(sql`SELECT COUNT(*) as cnt FROM projects`).catch((e: any) => e?.message);
-      const projects = await db.execute(sql`SELECT id, name, isActive FROM projects ORDER BY id`).catch((e: any) => e?.message);
+      const projectCols = await db.execute(sql`SHOW COLUMNS FROM projects`).catch((e: any) => e?.message);
+      const projects = await db.execute(sql`SELECT id, name FROM projects ORDER BY id LIMIT 10`).catch((e: any) => e?.message);
       const teamMembersCols = await db.execute(sql`SELECT id, name, isActive FROM team_members ORDER BY id`).catch((e: any) => e?.message);
-      return { tables, projectCount, projects, teamMembersCols };
+      return { tables, projectCount, projectCols, projects, teamMembersCols };
     } catch (e: any) {
       return { error: e?.message };
     }
