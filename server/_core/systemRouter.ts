@@ -18,9 +18,10 @@ export const systemRouter = router({
     if (!db) return { error: "no db" };
     try {
       const tables = await db.execute(sql`SHOW TABLES`);
-      const invoicesCols = await db.execute(sql`SHOW COLUMNS FROM invoices`).catch(() => "table not found");
+      const projectCount = await db.execute(sql`SELECT COUNT(*) as cnt FROM projects`).catch((e: any) => e?.message);
+      const projects = await db.execute(sql`SELECT id, name, isActive FROM projects ORDER BY id`).catch((e: any) => e?.message);
       const teamMembersCols = await db.execute(sql`SELECT id, name, isActive FROM team_members ORDER BY id`).catch((e: any) => e?.message);
-      return { tables, invoicesCols, teamMembersCols };
+      return { tables, projectCount, projects, teamMembersCols };
     } catch (e: any) {
       return { error: e?.message };
     }
