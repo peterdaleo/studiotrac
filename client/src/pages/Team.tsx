@@ -48,6 +48,7 @@ import {
   UserPlus,
   Mail,
   Trash2,
+  KeyRound,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { getPhaseShortLabel } from "@shared/constants";
@@ -104,6 +105,10 @@ export default function Team() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteRole, setInviteRole] = useState<"user" | "pm" | "admin">("user");
+  const [resetPasswordDialogUserId, setResetPasswordDialogUserId] = useState<number | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
+  const [resetPasswordError, setResetPasswordError] = useState("");
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -144,6 +149,19 @@ export default function Team() {
     },
     onError: (err) => {
       toast.error(err.message || "Failed to invite team member");
+    },
+  });
+
+  const resetPassword = trpc.teamMembers.resetPassword.useMutation({
+    onSuccess: () => {
+      setResetPasswordDialogUserId(null);
+      setResetPasswordValue("");
+      setResetPasswordConfirm("");
+      setResetPasswordError("");
+      toast.success("Password reset successfully. Let the team member know their new password.");
+    },
+    onError: (err) => {
+      setResetPasswordError(err.message || "Failed to reset password");
     },
   });
 
@@ -258,6 +276,7 @@ export default function Team() {
   // Member Detail View
   if (selectedMember) {
     return (
+      <>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setLocation("/team")}>
@@ -296,6 +315,21 @@ export default function Team() {
                     <SelectItem value="user">Staff</SelectItem>
                   </SelectContent>
                 </Select>
+              )}
+              {selectedMember.registeredUser && selectedMember.registeredUser.loginMethod === "email" && selectedMember.registeredUser.id !== user?.id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    setResetPasswordValue("");
+                    setResetPasswordConfirm("");
+                    setResetPasswordError("");
+                    setResetPasswordDialogUserId(selectedMember.registeredUser!.id);
+                  }}
+                >
+                  <KeyRound className="h-3.5 w-3.5" /> Reset Password
+                </Button>
               )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -420,6 +454,88 @@ export default function Team() {
           </Card>
         </div>
       </div>
+
+      {/* Reset Password Modal */}
+      <Dialog
+        open={resetPasswordDialogUserId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordDialogUserId(null);
+            setResetPasswordValue("");
+            setResetPasswordConfirm("");
+            setResetPasswordError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new temporary password for <strong>{selectedMember?.name}</strong>. After resetting, let them know their new password so they can log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw-new">New Password</Label>
+              <Input
+                id="reset-pw-new"
+                type="password"
+                placeholder="At least 6 characters"
+                minLength={6}
+                value={resetPasswordValue}
+                onChange={(e) => { setResetPasswordValue(e.target.value); setResetPasswordError(""); }}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw-confirm">Confirm Password</Label>
+              <Input
+                id="reset-pw-confirm"
+                type="password"
+                placeholder="Repeat the new password"
+                value={resetPasswordConfirm}
+                onChange={(e) => { setResetPasswordConfirm(e.target.value); setResetPasswordError(""); }}
+                autoComplete="new-password"
+              />
+            </div>
+            {resetPasswordError && (
+              <p className="text-sm text-red-600">{resetPasswordError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordDialogUserId(null);
+                setResetPasswordValue("");
+                setResetPasswordConfirm("");
+                setResetPasswordError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={resetPassword.isPending}
+              onClick={() => {
+                if (resetPasswordValue.length < 6) {
+                  setResetPasswordError("Password must be at least 6 characters");
+                  return;
+                }
+                if (resetPasswordValue !== resetPasswordConfirm) {
+                  setResetPasswordError("Passwords do not match");
+                  return;
+                }
+                if (resetPasswordDialogUserId !== null) {
+                  resetPassword.mutate({ userId: resetPasswordDialogUserId, newPassword: resetPasswordValue });
+                }
+              }}
+            >
+              {resetPassword.isPending ? "Resetting..." : "Reset Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </>
     );
   }
 
@@ -548,19 +664,38 @@ export default function Team() {
                   {u.id === user?.id ? (
                     <Badge variant="outline" className="text-[10px]">You</Badge>
                   ) : (
-                    <Select
-                      value={u.role}
-                      onValueChange={(val) => handleRoleChange(u.id, val as "user" | "pm" | "admin")}
-                    >
-                      <SelectTrigger className="w-[110px]" size="sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="pm">Project Manager</SelectItem>
-                        <SelectItem value="user">Staff</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      {u.loginMethod === "email" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1"
+                          title="Reset password"
+                          onClick={() => {
+                            setResetPasswordValue("");
+                            setResetPasswordConfirm("");
+                            setResetPasswordError("");
+                            setResetPasswordDialogUserId(u.id);
+                          }}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          <span className="text-xs">Reset PW</span>
+                        </Button>
+                      )}
+                      <Select
+                        value={u.role}
+                        onValueChange={(val) => handleRoleChange(u.id, val as "user" | "pm" | "admin")}
+                      >
+                        <SelectTrigger className="w-[110px]" size="sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="pm">Project Manager</SelectItem>
+                          <SelectItem value="user">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                 </div>
               ))}
@@ -658,6 +793,91 @@ export default function Team() {
           ))}
         </div>
       )}
+
+      {/* Reset Password Modal (overview page) */}
+      <Dialog
+        open={resetPasswordDialogUserId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetPasswordDialogUserId(null);
+            setResetPasswordValue("");
+            setResetPasswordConfirm("");
+            setResetPasswordError("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new temporary password for{" "}
+              <strong>
+                {registeredUsers?.find((u) => u.id === resetPasswordDialogUserId)?.name ?? "this user"}
+              </strong>.
+              After resetting, let them know their new password so they can log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw-new-ov">New Password</Label>
+              <Input
+                id="reset-pw-new-ov"
+                type="password"
+                placeholder="At least 6 characters"
+                minLength={6}
+                value={resetPasswordValue}
+                onChange={(e) => { setResetPasswordValue(e.target.value); setResetPasswordError(""); }}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw-confirm-ov">Confirm Password</Label>
+              <Input
+                id="reset-pw-confirm-ov"
+                type="password"
+                placeholder="Repeat the new password"
+                value={resetPasswordConfirm}
+                onChange={(e) => { setResetPasswordConfirm(e.target.value); setResetPasswordError(""); }}
+                autoComplete="new-password"
+              />
+            </div>
+            {resetPasswordError && (
+              <p className="text-sm text-red-600">{resetPasswordError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordDialogUserId(null);
+                setResetPasswordValue("");
+                setResetPasswordConfirm("");
+                setResetPasswordError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={resetPassword.isPending}
+              onClick={() => {
+                if (resetPasswordValue.length < 6) {
+                  setResetPasswordError("Password must be at least 6 characters");
+                  return;
+                }
+                if (resetPasswordValue !== resetPasswordConfirm) {
+                  setResetPasswordError("Passwords do not match");
+                  return;
+                }
+                if (resetPasswordDialogUserId !== null) {
+                  resetPassword.mutate({ userId: resetPasswordDialogUserId, newPassword: resetPasswordValue });
+                }
+              }}
+            >
+              {resetPassword.isPending ? "Resetting..." : "Reset Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

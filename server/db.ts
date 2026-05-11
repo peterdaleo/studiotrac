@@ -120,10 +120,16 @@ export async function updateUserRole(userId: number, role: "user" | "pm" | "admi
   await db.update(users).set({ role }).where(eq(users.id, userId));
 }
 
+export async function updateUserPassword(userId: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+}
+
 export async function listUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt }).from(users).orderBy(asc(users.name));
+  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt }).from(users).orderBy(asc(users.name));
 }
 
 export async function getUserById(id: number) {

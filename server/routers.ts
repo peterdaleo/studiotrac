@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import { notifyOwner } from "./_core/notification";
 import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
+import bcrypt from "bcryptjs";
 
 const absenceTypeSchema = z.enum(["full_day", "partial_day", "work_from_home"]);
 
@@ -102,6 +103,26 @@ export const appRouter = router({
       return { success: true };
     }),
     listUsers: adminProcedure.query(() => db.listUsers()),
+    resetPassword: adminProcedure.input(z.object({
+      userId: z.number(),
+      newPassword: z.string().min(6, "Password must be at least 6 characters"),
+    })).mutation(async ({ input, ctx }) => {
+      // Prevent admin from using this on themselves (they can use normal settings)
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Use your account settings to change your own password" });
+      }
+      // Verify the target user exists and uses email/password auth
+      const targetUser = await db.getUserById(input.userId);
+      if (!targetUser) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      if (targetUser.loginMethod !== "email") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This user signed up with Google and does not have a password to reset" });
+      }
+      const passwordHash = await bcrypt.hash(input.newPassword, 12);
+      await db.updateUserPassword(input.userId, passwordHash);
+      return { success: true };
+    }),
     invite: adminProcedure.input(z.object({
       name: z.string().min(1),
       email: z.string().email(),
