@@ -65,6 +65,17 @@ export const systemRouter = router({
       // Verify
       const cols = await db.execute(sql`SHOW COLUMNS FROM projects LIKE 'driveFolderUrl'`);
       results.push("driveFolderUrl verify: " + JSON.stringify(cols?.[0]));
+      // Create waitlist_signups table if missing
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS waitlist_signups (
+        id int AUTO_INCREMENT NOT NULL,
+        name varchar(255) NOT NULL,
+        email varchar(320) NOT NULL,
+        firmName varchar(255) NOT NULL,
+        firmSize varchar(64) NOT NULL,
+        createdAt timestamp NOT NULL DEFAULT (now()),
+        CONSTRAINT waitlist_signups_id PRIMARY KEY(id)
+      )`);
+      results.push("waitlist_signups table ensured");
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };
