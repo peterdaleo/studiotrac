@@ -1,5 +1,4 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
-
 // ── Users ──────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -9,14 +8,13 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "pm", "admin"]).default("user").notNull(),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
-
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
-
 // ── Team Members ───────────────────────────────────────────────────
 export const teamMembers = mysqlTable("team_members", {
   id: int("id").autoincrement().primaryKey(),
@@ -31,10 +29,8 @@ export const teamMembers = mysqlTable("team_members", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type InsertTeamMember = typeof teamMembers.$inferInsert;
-
 // ── Team Absences ──────────────────────────────────────────────────
 export const teamAbsences = mysqlTable("team_absences", {
   id: int("id").autoincrement().primaryKey(),
@@ -49,10 +45,8 @@ export const teamAbsences = mysqlTable("team_absences", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type TeamAbsence = typeof teamAbsences.$inferSelect;
 export type InsertTeamAbsence = typeof teamAbsences.$inferInsert;
-
 // ── Projects ───────────────────────────────────────────────────────
 export const projects = mysqlTable("projects", {
   id: int("id").autoincrement().primaryKey(),
@@ -86,10 +80,8 @@ export const projects = mysqlTable("projects", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
-
 // ── Invoices ──────────────────────────────────────────────────────
 export const invoices = mysqlTable("invoices", {
   id: int("id").autoincrement().primaryKey(),
@@ -104,10 +96,8 @@ export const invoices = mysqlTable("invoices", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = typeof invoices.$inferInsert;
-
 // ── Tasks ──────────────────────────────────────────────────────────
 export const tasks = mysqlTable("tasks", {
   id: int("id").autoincrement().primaryKey(),
@@ -123,10 +113,8 @@ export const tasks = mysqlTable("tasks", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = typeof tasks.$inferInsert;
-
 // ── Project Notes ──────────────────────────────────────────────────
 export const projectNotes = mysqlTable("project_notes", {
   id: int("id").autoincrement().primaryKey(),
@@ -137,10 +125,8 @@ export const projectNotes = mysqlTable("project_notes", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type ProjectNote = typeof projectNotes.$inferSelect;
 export type InsertProjectNote = typeof projectNotes.$inferInsert;
-
 // ── Notifications ──────────────────────────────────────────────────
 export const notifications = mysqlTable("notifications", {
   id: int("id").autoincrement().primaryKey(),
@@ -153,43 +139,37 @@ export const notifications = mysqlTable("notifications", {
   relatedTaskId: int("relatedTaskId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
-
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
-
 // ── Project Files ──────────────────────────────────────────────────
 export const projectFiles = mysqlTable("project_files", {
   id: int("id").autoincrement().primaryKey(),
   projectId: int("projectId").notNull(),
   uploadedById: int("uploadedById"),
   fileName: varchar("fileName", { length: 500 }).notNull(),
-  fileKey: varchar("fileKey", { length: 1000 }).notNull(),
-  url: text("url").notNull(),
-  mimeType: varchar("mimeType", { length: 255 }),
+  fileUrl: text("fileUrl").notNull(),
   fileSize: int("fileSize"),
-  category: mysqlEnum("category", ["drawing", "specification", "correspondence", "photo", "contract", "other"]).default("other").notNull(),
+  mimeType: varchar("mimeType", { length: 255 }),
+  category: mysqlEnum("category", ["document", "drawing", "image", "other"]).default("other").notNull(),
+  isClientVisible: boolean("isClientVisible").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
-
 export type ProjectFile = typeof projectFiles.$inferSelect;
 export type InsertProjectFile = typeof projectFiles.$inferInsert;
-
 // ── Email Preferences ──────────────────────────────────────────────
 export const emailPreferences = mysqlTable("email_preferences", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  emailAddress: varchar("emailAddress", { length: 320 }).notNull(),
+  userId: int("userId").notNull().unique(),
   deadlineAlerts: boolean("deadlineAlerts").default(true).notNull(),
-  overdueAlerts: boolean("overdueAlerts").default(true).notNull(),
-  statusChangeAlerts: boolean("statusChangeAlerts").default(false).notNull(),
+  taskOverdueAlerts: boolean("taskOverdueAlerts").default(true).notNull(),
+  statusChangeAlerts: boolean("statusChangeAlerts").default(true).notNull(),
+  weeklyDigest: boolean("weeklyDigest").default(false).notNull(),
   alertDaysBefore: int("alertDaysBefore").default(3).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type EmailPreference = typeof emailPreferences.$inferSelect;
 export type InsertEmailPreference = typeof emailPreferences.$inferInsert;
-
 // ── Email Log ──────────────────────────────────────────────────────
 export const emailLog = mysqlTable("email_log", {
   id: int("id").autoincrement().primaryKey(),
@@ -200,10 +180,8 @@ export const emailLog = mysqlTable("email_log", {
   relatedProjectId: int("relatedProjectId"),
   relatedTaskId: int("relatedTaskId"),
 });
-
 export type EmailLogEntry = typeof emailLog.$inferSelect;
 export type InsertEmailLogEntry = typeof emailLog.$inferInsert;
-
 // ── Client Share Tokens ───────────────────────────────────────────
 export const clientShareTokens = mysqlTable("client_share_tokens", {
   id: int("id").autoincrement().primaryKey(),
@@ -215,10 +193,8 @@ export const clientShareTokens = mysqlTable("client_share_tokens", {
   createdById: int("createdById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
-
 export type ClientShareToken = typeof clientShareTokens.$inferSelect;
 export type InsertClientShareToken = typeof clientShareTokens.$inferInsert;
-
 // ── Consultant Contracts ─────────────────────────────────────────
 export const consultantContracts = mysqlTable("consultant_contracts", {
   id: int("id").autoincrement().primaryKey(),
@@ -231,10 +207,8 @@ export const consultantContracts = mysqlTable("consultant_contracts", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type ConsultantContract = typeof consultantContracts.$inferSelect;
 export type InsertConsultantContract = typeof consultantContracts.$inferInsert;
-
 // ── Consultant Payments ──────────────────────────────────────────
 export const consultantPayments = mysqlTable("consultant_payments", {
   id: int("id").autoincrement().primaryKey(),
@@ -244,10 +218,8 @@ export const consultantPayments = mysqlTable("consultant_payments", {
   notes: varchar("notes", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
-
 export type ConsultantPayment = typeof consultantPayments.$inferSelect;
 export type InsertConsultantPayment = typeof consultantPayments.$inferInsert;
-
 // ── Time Entries ────────────────────────────────────────────────────
 export const timeEntries = mysqlTable("time_entries", {
   id: int("id").autoincrement().primaryKey(),
@@ -271,10 +243,8 @@ export const timeEntries = mysqlTable("time_entries", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
-
 // ── Billing Department Emails ──────────────────────────────────────
 export const billingDepartmentEmails = mysqlTable("billing_department_emails", {
   id: int("id").autoincrement().primaryKey(),
@@ -283,7 +253,6 @@ export const billingDepartmentEmails = mysqlTable("billing_department_emails", {
 });
 export type BillingDepartmentEmail = typeof billingDepartmentEmails.$inferSelect;
 export type InsertBillingDepartmentEmail = typeof billingDepartmentEmails.$inferInsert;
-
 // ── Waitlist Signups ───────────────────────────────────────────────
 export const waitlistSignups = mysqlTable("waitlist_signups", {
   id: int("id").autoincrement().primaryKey(),
@@ -295,3 +264,21 @@ export const waitlistSignups = mysqlTable("waitlist_signups", {
 });
 export type WaitlistSignup = typeof waitlistSignups.$inferSelect;
 export type InsertWaitlistSignup = typeof waitlistSignups.$inferInsert;
+// ── Subscriptions ──────────────────────────────────────────────────
+export const subscriptions = mysqlTable("subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }).notNull().unique(),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }).notNull(),
+  stripePriceId: varchar("stripePriceId", { length: 255 }).notNull(),
+  plan: mysqlEnum("plan", ["starter", "professional", "enterprise"]).notNull(),
+  status: mysqlEnum("status", ["active", "canceled", "past_due", "incomplete", "trialing", "unpaid"]).default("active").notNull(),
+  currentPeriodStart: timestamp("currentPeriodStart"),
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
+  canceledAt: timestamp("canceledAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = typeof subscriptions.$inferInsert;

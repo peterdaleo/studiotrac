@@ -39,6 +39,10 @@ A full-featured architecture studio management platform built with React, Expres
 | `PORT` | No | Server port (defaults to `3000`) |
 | `UPLOAD_DIR` | No | Directory for file uploads (defaults to `./uploads`) |
 | `NODE_ENV` | No | Set to `production` for production builds |
+| `STRIPE_SECRET_KEY` | No | Stripe secret key for subscription billing |
+| `STRIPE_PUBLISHABLE_KEY` | No | Stripe publishable key (exposed to client) |
+| `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook signing secret for verifying events |
+| `APP_URL` | No | Public app URL for Stripe redirect URLs (defaults to Railway domain) |
 
 ## Local Development
 

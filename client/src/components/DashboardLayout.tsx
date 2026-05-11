@@ -41,6 +41,7 @@ import {
   Eye,
   EyeOff,
   ClipboardList,
+  Receipt,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -60,6 +61,7 @@ const baseMenuItems = [
   { icon: DollarSign, label: "Financials", path: "/financials", adminOnly: true },
   { icon: FileSpreadsheet, label: "Reports", path: "/reports" },
   { icon: ClipboardList, label: "Waitlist", path: "/admin/waitlist", adminOnly: true },
+  { icon: Receipt, label: "Billing", path: "/billing", adminOnly: true },
 ] as const;
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
