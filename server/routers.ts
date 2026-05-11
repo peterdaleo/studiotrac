@@ -675,6 +675,30 @@ export const appRouter = router({
     stats: protectedProcedure.query(() => db.getDashboardStats()),
     seed: protectedProcedure.mutation(() => db.seedDemoData()),
   }),
+
+  // ── Waitlist ─────────────────────────────────────────────────
+  waitlist: router({
+    // Public endpoint — called by the marketing site signup form
+    signup: publicProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(255),
+          email: z.string().email().max(320),
+          firmName: z.string().min(1).max(255),
+          firmSize: z.string().min(1).max(64),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        await db.createWaitlistSignup(input);
+        return { success: true };
+      }),
+
+    // Admin-only: list all signups
+    list: adminProcedure.query(() => db.listWaitlistSignups()),
+
+    // Admin-only: total count
+    count: adminProcedure.query(() => db.countWaitlistSignups()),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

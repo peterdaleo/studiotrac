@@ -17,6 +17,7 @@ import {
   timeEntries, InsertTimeEntry,
   teamAbsences, InsertTeamAbsence,
   billingDepartmentEmails, InsertBillingDepartmentEmail,
+  waitlistSignups, InsertWaitlistSignup, WaitlistSignup,
 } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1747,4 +1748,25 @@ export async function getAllProjectsBudgetSummary(): Promise<
     contractedFee: p.contractedFee ?? 0,
     totalCost: (laborByProject.get(p.id) ?? 0) + (consultantByProject.get(p.id) ?? 0),
   }));
+}
+
+// ── Waitlist Signups ───────────────────────────────────────────────
+
+export async function createWaitlistSignup(data: InsertWaitlistSignup): Promise<void> {
+  const db = await getDb();
+  if (!db) { console.warn("[Database] Cannot create waitlist signup: database not available"); return; }
+  await db.insert(waitlistSignups).values(data);
+}
+
+export async function listWaitlistSignups(): Promise<WaitlistSignup[]> {
+  const db = await getDb();
+  if (!db) { console.warn("[Database] Cannot list waitlist signups: database not available"); return []; }
+  return db.select().from(waitlistSignups).orderBy(desc(waitlistSignups.createdAt));
+}
+
+export async function countWaitlistSignups(): Promise<number> {
+  const db = await getDb();
+  if (!db) { console.warn("[Database] Cannot count waitlist signups: database not available"); return 0; }
+  const [row] = await db.select({ count: sql<number>`count(*)` }).from(waitlistSignups);
+  return row?.count ?? 0;
 }

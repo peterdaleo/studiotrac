@@ -21,6 +21,7 @@ import TimeTracking from "./pages/TimeTracking";
 import ClientPortal from "./pages/ClientPortal";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import WaitlistAdmin from "./pages/WaitlistAdmin";
 
 function DashboardRouter() {
   return (
@@ -40,6 +41,7 @@ function DashboardRouter() {
           <Route path="/reports" component={Reports} />
           <Route path="/time" component={TimeTracking} />
           <Route path="/settings" component={Settings} />
+          <Route path="/admin/waitlist" component={WaitlistAdmin} />
           <Route path="/404" component={NotFound} />
           <Route component={NotFound} />
         </Switch>

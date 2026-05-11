@@ -283,3 +283,15 @@ export const billingDepartmentEmails = mysqlTable("billing_department_emails", {
 });
 export type BillingDepartmentEmail = typeof billingDepartmentEmails.$inferSelect;
 export type InsertBillingDepartmentEmail = typeof billingDepartmentEmails.$inferInsert;
+
+// ── Waitlist Signups ───────────────────────────────────────────────
+export const waitlistSignups = mysqlTable("waitlist_signups", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  firmName: varchar("firmName", { length: 255 }).notNull(),
+  firmSize: varchar("firmSize", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type WaitlistSignup = typeof waitlistSignups.$inferSelect;
+export type InsertWaitlistSignup = typeof waitlistSignups.$inferInsert;

@@ -40,6 +40,7 @@ import {
   Timer,
   Eye,
   EyeOff,
+  ClipboardList,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -58,6 +59,7 @@ const baseMenuItems = [
   { icon: GanttChart, label: "Timeline", path: "/timeline" },
   { icon: DollarSign, label: "Financials", path: "/financials", adminOnly: true },
   { icon: FileSpreadsheet, label: "Reports", path: "/reports" },
+  { icon: ClipboardList, label: "Waitlist", path: "/admin/waitlist", adminOnly: true },
 ] as const;
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
