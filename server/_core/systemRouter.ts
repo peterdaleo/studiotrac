@@ -56,9 +56,15 @@ export const systemRouter = router({
       await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS invoicedAmount int DEFAULT 0 NOT NULL`).catch(() => results.push("invoicedAmount already exists"));
       results.push("invoicedAmount column ensured");
       // Add driveFolderUrl column to projects if missing (migration 0007)
-      await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS driveFolderUrl varchar(2048)`).catch(() => results.push("driveFolderUrl already exists"));
-      results.push("driveFolderUrl column ensured");
-
+      try {
+        await db.execute(sql`ALTER TABLE projects ADD COLUMN driveFolderUrl varchar(2048)`);
+        results.push("driveFolderUrl column added");
+      } catch (e: any) {
+        results.push("driveFolderUrl: " + (e?.message || "already exists"));
+      }
+      // Verify
+      const cols = await db.execute(sql`SHOW COLUMNS FROM projects LIKE 'driveFolderUrl'`);
+      results.push("driveFolderUrl verify: " + JSON.stringify(cols?.[0]));
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };
