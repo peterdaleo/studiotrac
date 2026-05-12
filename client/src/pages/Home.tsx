@@ -83,6 +83,12 @@ export default function Home() {
 
   const overdueTasks = allTasks?.filter((t) => t.status !== "done" && t.deadline && new Date(t.deadline) < new Date()) ?? [];
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const delayedProjects = projects?.filter(
+    (p) => p.status !== "completed" && p.deadline && new Date(p.deadline) < today
+  ).length ?? 0;
+
   if (statsLoading || projectsLoading) {
     return (
       <div className="space-y-6">
@@ -215,8 +221,8 @@ export default function Home() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Delayed</p>
-                <p className="text-3xl font-bold mt-1 text-red-600">{stats.delayed}</p>
+                <p className="text-sm font-medium text-muted-foreground">Delayed Projects</p>
+                <p className="text-3xl font-bold mt-1 text-red-600">{delayedProjects}</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
