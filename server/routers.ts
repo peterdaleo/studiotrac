@@ -722,6 +722,57 @@ export const appRouter = router({
     count: adminProcedure.query(() => db.countWaitlistSignups()),
   }),
 
+  // ── Onboarding ─────────────────────────────────────────────────
+  onboarding: router({
+    status: protectedProcedure.query(async ({ ctx }) => {
+      if (!ctx.organizationId) return { completed: false, orgName: null };
+      const org = await db.getOrganization(ctx.organizationId);
+      return { completed: org?.onboardingCompleted ?? false, orgName: org?.name ?? null };
+    }),
+    updateFirm: protectedProcedure
+      .input(z.object({
+        firmName: z.string().min(1).max(255),
+        firmSize: z.string().min(1).max(50),
+        logoUrl: z.string().max(512).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.organizationId) throw new TRPCError({ code: "BAD_REQUEST", message: "No organization" });
+        const slug = input.firmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        await db.updateOrganization(ctx.organizationId, {
+          name: input.firmName,
+          slug: `${slug}-${ctx.organizationId}`,
+          firmSize: input.firmSize,
+          ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
+        });
+        return { success: true };
+      }),
+    inviteMembers: protectedProcedure
+      .input(z.object({
+        members: z.array(z.object({
+          name: z.string().min(1).max(255),
+          email: z.string().email().max(320),
+        })).max(20),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.organizationId) throw new TRPCError({ code: "BAD_REQUEST", message: "No organization" });
+        const results: { email: string; success: boolean }[] = [];
+        for (const member of input.members) {
+          try {
+            await db.inviteTeamMember({ name: member.name, email: member.email }, ctx.organizationId);
+            results.push({ email: member.email, success: true });
+          } catch {
+            results.push({ email: member.email, success: false });
+          }
+        }
+        return { results };
+      }),
+    complete: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "BAD_REQUEST", message: "No organization" });
+      await db.updateOrganization(ctx.organizationId, { onboardingCompleted: true });
+      return { success: true };
+    }),
+  }),
+
   // ── Subscription / Billing ─────────────────────────────────────
   subscription: subscriptionRouter,
 });

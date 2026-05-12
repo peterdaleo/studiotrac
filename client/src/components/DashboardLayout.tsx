@@ -84,7 +84,19 @@ export default function DashboardLayout({
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
+  // Check onboarding status — redirect new org owners to onboarding wizard
+  const onboardingQuery = trpc.onboarding.status.useQuery(undefined, {
+    enabled: !!user,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   if (loading) {
+    return <DashboardLayoutSkeleton />;
+  }
+
+  if (user && onboardingQuery.data && !onboardingQuery.data.completed) {
+    window.location.href = "/onboarding";
     return <DashboardLayoutSkeleton />;
   }
 

@@ -23,6 +23,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import WaitlistAdmin from "./pages/WaitlistAdmin";
 import Billing from "./pages/Billing";
+import Onboarding from "./pages/Onboarding";
 
 function DashboardRouter() {
   return (
@@ -62,6 +63,7 @@ function App() {
             {/* Auth pages — no dashboard layout */}
             <Route path="/login" component={Login} />
             <Route path="/signup" component={Signup} />
+            <Route path="/onboarding" component={Onboarding} />
             {/* Public client portal — no auth, no dashboard layout */}
             <Route path="/portal/:token" component={ClientPortal} />
             {/* All other routes go through the dashboard */}

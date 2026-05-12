@@ -46,7 +46,8 @@ export default function Signup() {
         return;
       }
 
-      window.location.href = "/";
+      // Invite users join existing org (onboarding already done), new users go to onboarding
+      window.location.href = isInviteSignup ? "/" : "/onboarding";
     } catch {
       setError("Network error. Please try again.");
     } finally {

@@ -5,6 +5,9 @@ export const organizations = mysqlTable("organizations", {
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  logoUrl: varchar("logoUrl", { length: 512 }),
+  firmSize: varchar("firmSize", { length: 50 }),
+  onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
