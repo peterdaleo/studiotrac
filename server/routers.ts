@@ -320,6 +320,7 @@ export const appRouter = router({
       return db.updateProject(id, data);
     }),
     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
+    purgeArchived: adminProcedure.mutation(({ ctx }) => db.purgeArchivedProjects(ctx.organizationId)),
   }),
 
   // ── Tasks ────────────────────────────────────────────────────

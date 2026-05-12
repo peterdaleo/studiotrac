@@ -23,6 +23,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -34,6 +45,10 @@ import {
   LayoutGrid,
   List,
   ArrowUpDown,
+  Archive,
+  ChevronRight,
+  ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -67,6 +82,7 @@ export default function Projects() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [sortBy, setSortBy] = useState<"default" | "alpha" | "deadline">("default");
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -75,12 +91,12 @@ export default function Projects() {
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const { data: budgetSummary } = trpc.timeAnalytics.allProjectsBudgetSummary.useQuery();
 
-  // Build a quick lookup map: projectId -> { contractedFee, totalCost }
   const budgetMap = useMemo(() => {
     const m = new Map<number, { contractedFee: number; totalCost: number }>();
     budgetSummary?.forEach((b) => m.set(b.projectId, { contractedFee: b.contractedFee, totalCost: b.totalCost }));
     return m;
   }, [budgetSummary]);
+
   const utils = trpc.useUtils();
 
   const createProject = trpc.projects.create.useMutation({
@@ -92,33 +108,56 @@ export default function Projects() {
     },
   });
 
-  const filtered = useMemo(() => {
-    if (!projects) return [];
-    let result = projects.filter((p) => {
-      if (statusFilter !== "all" && p.status !== statusFilter) return false;
-      if (phaseFilter !== "all" && p.phase !== phaseFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          p.name.toLowerCase().includes(q) ||
-          (p.clientName?.toLowerCase().includes(q) ?? false)
-        );
-      }
-      return true;
-    });
+  const purgeArchived = trpc.projects.purgeArchived.useMutation({
+    onSuccess: () => {
+      utils.projects.list.invalidate();
+      utils.dashboard.stats.invalidate();
+      toast.success("Archived projects permanently deleted");
+    },
+    onError: () => toast.error("Failed to purge archived projects"),
+  });
 
-    if (sortBy === "alpha") {
-      result = [...result].sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortBy === "deadline") {
-      result = [...result].sort((a, b) => {
+  const applySort = (list: typeof projects) => {
+    if (!list) return [];
+    if (sortBy === "alpha") return [...list].sort((a, b) => a.name.localeCompare(b.name));
+    if (sortBy === "deadline") {
+      return [...list].sort((a, b) => {
         if (!a.deadline && !b.deadline) return 0;
         if (!a.deadline) return 1;
         if (!b.deadline) return -1;
         return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
       });
     }
+    return list;
+  };
 
-    return result;
+  const { activeFiltered, archivedFiltered } = useMemo(() => {
+    if (!projects) return { activeFiltered: [], archivedFiltered: [] };
+
+    const matchesFilter = (p: (typeof projects)[0]) => {
+      if (phaseFilter !== "all" && p.phase !== phaseFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return p.name.toLowerCase().includes(q) || (p.clientName?.toLowerCase().includes(q) ?? false);
+      }
+      return true;
+    };
+
+    // When the user explicitly filters by "completed", show all matching in main list
+    if (statusFilter === "completed") {
+      return {
+        activeFiltered: applySort(projects.filter((p) => p.status === "completed" && matchesFilter(p))),
+        archivedFiltered: [],
+      };
+    }
+
+    const active = projects.filter((p) => p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p));
+    const archived = projects.filter((p) => p.status === "completed" && matchesFilter(p));
+
+    return {
+      activeFiltered: applySort(active),
+      archivedFiltered: applySort(archived),
+    };
   }, [projects, statusFilter, phaseFilter, search, sortBy]);
 
   const getMemberName = (id: number | null) =>
@@ -138,6 +177,148 @@ export default function Projects() {
     });
   };
 
+  const renderGridCard = (project: NonNullable<typeof projects>[0]) => {
+    const daysUntilDeadline = project.deadline
+      ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
+      : null;
+    return (
+      <Card
+        key={project.id}
+        className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        onClick={() => setLocation(`/projects/${project.id}`)}
+      >
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1 min-w-0 pr-3">
+              <h3 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
+                {project.name}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {project.clientName || "No client"}
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
+            >
+              {getStatusLabel(project.status)}
+            </Badge>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <User className="h-3 w-3" />
+                {getMemberName(project.projectManagerId)}
+              </span>
+              <span className="font-medium text-foreground/70">
+                {getPhaseShortLabel(project.phase)}
+              </span>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-muted-foreground">Progress</span>
+                <span className="font-semibold">{project.completionPercentage}%</span>
+              </div>
+              <Progress value={project.completionPercentage} className="h-1.5" />
+            </div>
+
+            {(() => {
+              const b = budgetMap.get(project.id);
+              if (!b) return null;
+              return (
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="text-muted-foreground">Budget</span>
+                  </div>
+                  <BudgetBar
+                    contractedFee={b.contractedFee}
+                    totalCost={b.totalCost}
+                    isAdmin={isAdmin}
+                    compact
+                  />
+                </div>
+              );
+            })()}
+
+            {daysUntilDeadline !== null && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <Calendar className="h-3 w-3 text-muted-foreground" />
+                <span className={daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}>
+                  {daysUntilDeadline < 0
+                    ? `${Math.abs(daysUntilDeadline)} days overdue`
+                    : daysUntilDeadline === 0
+                    ? "Due today"
+                    : `${daysUntilDeadline} days remaining`}
+                </span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderCompactRow = (project: NonNullable<typeof projects>[0]) => {
+    const daysUntilDeadline = project.deadline
+      ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
+      : null;
+    return (
+      <div
+        key={project.id}
+        className="flex items-center gap-4 px-4 py-3 hover:bg-accent/30 transition-colors cursor-pointer"
+        onClick={() => setLocation(`/projects/${project.id}`)}
+      >
+        <div className={`w-2 h-2 rounded-full shrink-0 ${statusDotMap[project.status] ?? "bg-slate-400"}`} />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium truncate block">{project.name}</span>
+        </div>
+        <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:block">
+          {project.clientName || "—"}
+        </span>
+        <span className="text-xs text-muted-foreground w-16 text-center hidden md:block">
+          {getPhaseShortLabel(project.phase)}
+        </span>
+        <div className="w-20 hidden lg:block">
+          <Progress value={project.completionPercentage} className="h-1.5" />
+        </div>
+        <span className="text-xs font-mono w-10 text-right">{project.completionPercentage}%</span>
+        {(() => {
+          const b = budgetMap.get(project.id);
+          if (!b) return <div className="w-24 hidden xl:block" />;
+          return (
+            <div className="w-24 hidden xl:block">
+              <BudgetBar
+                contractedFee={b.contractedFee}
+                totalCost={b.totalCost}
+                isAdmin={isAdmin}
+                compact
+              />
+            </div>
+          );
+        })()}
+        {daysUntilDeadline !== null ? (
+          <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}`}>
+            {daysUntilDeadline < 0
+              ? `${Math.abs(daysUntilDeadline)}d overdue`
+              : daysUntilDeadline === 0
+              ? "Due today"
+              : `${daysUntilDeadline}d left`}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground w-24 text-right">No deadline</span>
+        )}
+        <Badge
+          variant="outline"
+          className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
+        >
+          {getStatusLabel(project.status)}
+        </Badge>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -150,6 +331,10 @@ export default function Projects() {
       </div>
     );
   }
+
+  const activeCount = activeFiltered.length;
+  const archivedCount = archivedFiltered.length;
+  const totalArchived = projects?.filter((p) => p.status === "completed").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -259,7 +444,6 @@ export default function Projects() {
         </Select>
 
         <div className="flex items-center gap-1 ml-auto">
-          {/* Sort */}
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
             <SelectTrigger className="w-[140px] h-9">
               <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
@@ -294,8 +478,8 @@ export default function Projects() {
         </div>
       </div>
 
-      {/* Project List */}
-      {filtered.length === 0 ? (
+      {/* Active Projects */}
+      {activeCount === 0 && archivedCount === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FolderKanban className="h-12 w-12 text-muted-foreground/40 mb-4" />
           <h3 className="text-lg font-medium">No projects found</h3>
@@ -305,157 +489,97 @@ export default function Projects() {
               : "Create your first project to get started"}
           </p>
         </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((project) => {
-            const daysUntilDeadline = project.deadline
-              ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
-              : null;
-            return (
-              <Card
-                key={project.id}
-                className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                onClick={() => setLocation(`/projects/${project.id}`)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0 pr-3">
-                      <h3 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
-                        {project.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {project.clientName || "No client"}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
-                    >
-                      {getStatusLabel(project.status)}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {getMemberName(project.projectManagerId)}
-                      </span>
-                      <span className="font-medium text-foreground/70">
-                        {getPhaseShortLabel(project.phase)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className="font-semibold">{project.completionPercentage}%</span>
-                      </div>
-                      <Progress value={project.completionPercentage} className="h-1.5" />
-                    </div>
-
-                    {(() => {
-                      const b = budgetMap.get(project.id);
-                      if (!b) return null;
-                      return (
-                        <div>
-                          <div className="flex items-center justify-between text-xs mb-1.5">
-                            <span className="text-muted-foreground">Budget</span>
-                          </div>
-                          <BudgetBar
-                            contractedFee={b.contractedFee}
-                            totalCost={b.totalCost}
-                            isAdmin={isAdmin}
-                            compact
-                          />
-                        </div>
-                      );
-                    })()}
-
-                    {daysUntilDeadline !== null && (
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span className={daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}>
-                          {daysUntilDeadline < 0
-                            ? `${Math.abs(daysUntilDeadline)} days overdue`
-                            : daysUntilDeadline === 0
-                            ? "Due today"
-                            : `${daysUntilDeadline} days remaining`}
-                        </span>
-                      </div>
-                    )}
+      ) : (
+        <>
+          {activeCount > 0 && (
+            viewMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {activeFiltered.map(renderGridCard)}
+              </div>
+            ) : (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {activeFiltered.map(renderCompactRow)}
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
-      ) : (
-        /* Compact list view */
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {filtered.map((project) => {
-                const daysUntilDeadline = project.deadline
-                  ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
-                  : null;
-                return (
-                  <div
-                    key={project.id}
-                    className="flex items-center gap-4 px-4 py-3 hover:bg-accent/30 transition-colors cursor-pointer"
-                    onClick={() => setLocation(`/projects/${project.id}`)}
-                  >
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${statusDotMap[project.status] ?? "bg-slate-400"}`} />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium truncate block">{project.name}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:block">
-                      {project.clientName || "—"}
-                    </span>
-                    <span className="text-xs text-muted-foreground w-16 text-center hidden md:block">
-                      {getPhaseShortLabel(project.phase)}
-                    </span>
-                    <div className="w-20 hidden lg:block">
-                      <Progress value={project.completionPercentage} className="h-1.5" />
-                    </div>
-                    <span className="text-xs font-mono w-10 text-right">{project.completionPercentage}%</span>
-                    {(() => {
-                      const b = budgetMap.get(project.id);
-                      if (!b) return <div className="w-24 hidden xl:block" />;
-                      return (
-                        <div className="w-24 hidden xl:block">
-                          <BudgetBar
-                            contractedFee={b.contractedFee}
-                            totalCost={b.totalCost}
-                            isAdmin={isAdmin}
-                            compact
-                          />
-                        </div>
-                      );
-                    })()}
-                    {daysUntilDeadline !== null ? (
-                      <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}`}>
-                        {daysUntilDeadline < 0
-                          ? `${Math.abs(daysUntilDeadline)}d overdue`
-                          : daysUntilDeadline === 0
-                          ? "Due today"
-                          : `${daysUntilDeadline}d left`}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground w-24 text-right">No deadline</span>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
-                    >
-                      {getStatusLabel(project.status)}
-                    </Badge>
+            )
+          )}
+
+          {/* Archived (Completed) Section — only shown when not filtering by completed */}
+          {statusFilter !== "completed" && (
+            <div className="mt-2">
+              {/* Archived header */}
+              <div className="flex items-center justify-between py-2 px-1">
+                <button
+                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setArchivedExpanded((v) => !v)}
+                >
+                  {archivedExpanded
+                    ? <ChevronDown className="h-4 w-4" />
+                    : <ChevronRight className="h-4 w-4" />}
+                  <Archive className="h-4 w-4" />
+                  Archived ({totalArchived})
+                </button>
+
+                {isAdmin && totalArchived > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Purge Archived
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Purge Archived Projects?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete all {totalArchived} completed project{totalArchived !== 1 ? "s" : ""} and all their associated tasks, notes, invoices, and files. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => purgeArchived.mutate()}
+                          className="bg-red-500 hover:bg-red-600"
+                          disabled={purgeArchived.isPending}
+                        >
+                          {purgeArchived.isPending ? "Deleting..." : "Delete All"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+
+              {/* Archived project list */}
+              {archivedExpanded && archivedCount > 0 && (
+                viewMode === "grid" ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-2 opacity-75">
+                    {archivedFiltered.map(renderGridCard)}
                   </div>
-                );
-              })}
+                ) : (
+                  <Card className="border-0 shadow-sm mt-2 opacity-75">
+                    <CardContent className="p-0">
+                      <div className="divide-y">
+                        {archivedFiltered.map(renderCompactRow)}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              )}
+
+              {archivedExpanded && archivedCount === 0 && (
+                <p className="text-sm text-muted-foreground px-1 py-2">No archived projects match your current filters.</p>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </>
       )}
     </div>
   );

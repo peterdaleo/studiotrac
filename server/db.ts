@@ -486,6 +486,38 @@ export async function purgeArchivedTasks(orgId: number) {
   await db.delete(tasks).where(and(eq(tasks.status, "done"), eq(tasks.organizationId, orgId)));
 }
 
+export async function purgeArchivedProjects(orgId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get all completed project IDs for this org
+  const completedProjects = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.status, "completed"), eq(projects.organizationId, orgId)));
+  await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
+  try {
+    for (const p of completedProjects) {
+      const id = p.id;
+      const safeDel = async (fn: () => Promise<any>) => { try { await fn(); } catch {} };
+      await safeDel(() => db.delete(tasks).where(eq(tasks.projectId, id)));
+      await safeDel(() => db.delete(projectNotes).where(eq(projectNotes.projectId, id)));
+      await safeDel(() => db.delete(projectFiles).where(eq(projectFiles.projectId, id)));
+      await safeDel(() => db.execute(sql`DELETE FROM invoices WHERE projectId = ${id}`));
+      await safeDel(() => db.delete(clientShareTokens).where(eq(clientShareTokens.projectId, id)));
+      await safeDel(() => db.delete(notifications).where(eq(notifications.relatedProjectId, id)));
+      const consultants = await db.select({ id: consultantContracts.id }).from(consultantContracts).where(eq(consultantContracts.projectId, id)).catch(() => []);
+      for (const c of consultants) {
+        await safeDel(() => db.delete(consultantPayments).where(eq(consultantPayments.consultantId, c.id)));
+      }
+      await safeDel(() => db.delete(consultantContracts).where(eq(consultantContracts.projectId, id)));
+      await safeDel(() => db.delete(timeEntries).where(eq(timeEntries.projectId, id)));
+      await safeDel(() => db.delete(projects).where(eq(projects.id, id)));
+    }
+  } finally {
+    await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
+  }
+}
+
 // ── Project Notes ──────────────────────────────────────────────────
 export async function listProjectNotes(projectId: number) {
   const db = await getDb();
