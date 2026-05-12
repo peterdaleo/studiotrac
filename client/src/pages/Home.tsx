@@ -215,16 +215,16 @@ export default function Home() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Delayed</p>
-                <p className="text-3xl font-bold mt-1 text-red-600">{stats.delayed}</p>
+                <p className="text-sm font-medium text-muted-foreground">Overdue Tasks</p>
+                <p className="text-3xl font-bold mt-1 text-red-600">{stats.overdueTasks}</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
               </div>
             </div>
             <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground">
-              <Zap className="h-3.5 w-3.5 text-red-500" />
-              <span>{stats.overdueTasks} overdue tasks</span>
+              <Zap className="h-3.5 w-3.5 text-amber-500" />
+              <span>{stats.delayed} delayed project{stats.delayed !== 1 ? "s" : ""}</span>
             </div>
           </CardContent>
         </Card>

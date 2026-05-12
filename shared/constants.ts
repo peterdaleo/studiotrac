@@ -35,11 +35,13 @@ export type ProjectPhase = (typeof PROJECT_PHASES)[number]["value"];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]["value"];
 export type TaskStatus = "todo" | "in_progress" | "done" | "overdue";
 
-/** Returns true if a task is overdue: not done and deadline is in the past */
+/** Returns true if a task is overdue: not done and deadline is strictly before today (start of today) */
 export function isTaskOverdue(status: string, deadline: Date | string | null | undefined): boolean {
   if (status === "done") return false;
   if (!deadline) return false;
-  return new Date(deadline) < new Date();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(deadline) < today;
 }
 
 export function getPhaseLabel(phase: string): string {
