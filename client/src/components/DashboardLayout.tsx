@@ -20,6 +20,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useStaffPreview, useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
@@ -47,7 +48,6 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { trpc } from "@/lib/trpc";
 
 const baseMenuItems = [
@@ -262,6 +262,7 @@ function DashboardLayoutContent({
               </div>
             )}
 
+            {/* Main navigation — all items, evenly spaced */}
             <SidebarMenu>
               {menuItems.map((item) => {
                 const isActive =
@@ -285,95 +286,109 @@ function DashboardLayoutContent({
                 );
               })}
             </SidebarMenu>
-
-            <div className="mt-auto pt-2 border-t border-sidebar-border/40">
-              <SidebarMenu className="pt-2">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={location === "/notifications"}
-                    onClick={() => setLocation("/notifications")}
-                    tooltip="Notifications"
-                    className="h-10 transition-all font-normal"
-                  >
-                    <div className="relative">
-                      <Bell className={`h-4 w-4 ${location === "/notifications" ? (isStaffPreview ? "text-amber-600" : "text-sidebar-primary") : ""}`} />
-                      {(unreadCount ?? 0) > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center">
-                          {unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <span>Notifications</span>
-                    {(unreadCount ?? 0) > 0 && (
-                      <Badge variant="destructive" className="ml-auto text-[10px] h-5 px-1.5">
-                        {unreadCount}
-                      </Badge>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={location === "/settings"}
-                    onClick={() => setLocation("/settings")}
-                    tooltip="Settings"
-                    className="h-10 transition-all font-normal"
-                  >
-                    <Settings className={`h-4 w-4 ${location === "/settings" ? (isStaffPreview ? "text-amber-600" : "text-sidebar-primary") : ""}`} />
-                    <span>Settings</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </div>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-sidebar-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className={`h-8 w-8 border shrink-0 ${isStaffPreview ? "border-amber-300" : "border-sidebar-border"}`}>
-                    <AvatarFallback className={`text-xs font-medium ${isStaffPreview ? "bg-amber-100 text-amber-700" : "bg-sidebar-primary/20 text-sidebar-primary"}`}>
-                      {user?.name?.charAt(0).toUpperCase() ?? "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium truncate leading-none text-sidebar-foreground">
-                        {user?.name || "User"}
-                      </p>
-                      {isStaffPreview && (
-                        <span className="text-[9px] font-bold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full leading-none">
-                          STAFF VIEW
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-sidebar-foreground/50 truncate mt-1">
-                      {user?.email || ""}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {realAdmin && (
-                  <>
+          {/* Footer: avatar + name on left, notification bell + settings gear on right */}
+          <SidebarFooter className="border-t border-sidebar-border/40 p-3">
+            <TooltipProvider delayDuration={300}>
+              <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                {/* Avatar + user info — opens profile/sign-out dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2.5 rounded-lg px-1 py-1 hover:bg-sidebar-accent/50 transition-colors flex-1 min-w-0 text-left group-data-[collapsible=icon]:flex-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <Avatar className={`h-8 w-8 border shrink-0 ${isStaffPreview ? "border-amber-300" : "border-sidebar-border"}`}>
+                        <AvatarFallback className={`text-xs font-medium ${isStaffPreview ? "bg-amber-100 text-amber-700" : "bg-sidebar-primary/20 text-sidebar-primary"}`}>
+                          {user?.name?.charAt(0).toUpperCase() ?? "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate leading-none text-sidebar-foreground">
+                            {user?.name || "User"}
+                          </p>
+                          {isStaffPreview && (
+                            <span className="text-[9px] font-bold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full leading-none shrink-0">
+                              STAFF VIEW
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-sidebar-foreground/50 truncate mt-0.5">
+                          {user?.email || ""}
+                        </p>
+                      </div>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="top" className="w-48">
+                    {realAdmin && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={toggleStaffPreview}
+                          className="cursor-pointer"
+                        >
+                          {isStaffPreview ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                          <span>{isStaffPreview ? "Exit Staff View" : "Preview as Staff"}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem
-                      onClick={toggleStaffPreview}
-                      className="cursor-pointer"
+                      onClick={logout}
+                      className="cursor-pointer text-destructive focus:text-destructive"
                     >
-                      {isStaffPreview ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                      <span>{isStaffPreview ? "Exit Staff View" : "Preview as Staff"}</span>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Sign out</span>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Notification bell icon button */}
+                <div className="flex items-center gap-1 shrink-0 group-data-[collapsible=icon]:hidden">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setLocation("/notifications")}
+                        className={`relative h-8 w-8 flex items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          location === "/notifications"
+                            ? isStaffPreview
+                              ? "bg-amber-100 text-amber-600"
+                              : "bg-sidebar-accent text-sidebar-primary"
+                            : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        }`}
+                        aria-label="Notifications"
+                      >
+                        <Bell className="h-4 w-4" />
+                        {(unreadCount ?? 0) > 0 && (
+                          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Notifications{(unreadCount ?? 0) > 0 ? ` (${unreadCount})` : ""}
+                    </TooltipContent>
+                  </Tooltip>
+
+                  {/* Settings icon button */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setLocation("/settings")}
+                        className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          location === "/settings"
+                            ? isStaffPreview
+                              ? "bg-amber-100 text-amber-600"
+                              : "bg-sidebar-accent text-sidebar-primary"
+                            : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        }`}
+                        aria-label="Settings"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Settings</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </TooltipProvider>
           </SidebarFooter>
         </Sidebar>
         <div
