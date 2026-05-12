@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { subscriptionRouter } from "./stripe/router";
 import { superAdminRouter } from "./superAdmin/router";
-import { publicProcedure, protectedProcedure, adminProcedure, adminOrPmProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, adminOrPmProcedure, superAdminProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
@@ -716,11 +716,11 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Admin-only: list all signups
-    list: adminProcedure.query(() => db.listWaitlistSignups()),
+    // Super-admin only: list all signups
+    list: superAdminProcedure.query(() => db.listWaitlistSignups()),
 
-    // Admin-only: total count
-    count: adminProcedure.query(() => db.countWaitlistSignups()),
+    // Super-admin only: total count
+    count: superAdminProcedure.query(() => db.countWaitlistSignups()),
   }),
 
   // ── Onboarding ─────────────────────────────────────────────────

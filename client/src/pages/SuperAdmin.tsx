@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,9 +57,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function SuperAdmin() {
+  const { user } = useAuth({ redirectOnUnauthenticated: true });
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
   const utils = trpc.useUtils();
-  const { data: metrics, isLoading: metricsLoading } = trpc.superAdmin.metrics.useQuery();
-  const { data: firms, isLoading: firmsLoading } = trpc.superAdmin.firms.useQuery();
+  const { data: metrics, isLoading: metricsLoading } = trpc.superAdmin.metrics.useQuery(
+    undefined, { enabled: isSuperAdmin }
+  );
+  const { data: firms, isLoading: firmsLoading } = trpc.superAdmin.firms.useQuery(
+    undefined, { enabled: isSuperAdmin }
+  );
 
   const [selectedFirmId, setSelectedFirmId] = useState<number | null>(null);
   const [cancelOrgId, setCancelOrgId] = useState<number | null>(null);
@@ -66,6 +74,26 @@ export default function SuperAdmin() {
     { id: selectedFirmId! },
     { enabled: selectedFirmId !== null }
   );
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-6">
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-medium text-amber-900">Access denied</p>
+                <p className="text-sm text-amber-800/90">
+                  This page is restricted to platform administrators.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const cancelSub = trpc.superAdmin.cancelSubscription.useMutation({
     onSuccess: (data) => {

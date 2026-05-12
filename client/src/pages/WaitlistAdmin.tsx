@@ -117,7 +117,7 @@ function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
 
 export default function WaitlistAdmin() {
   const { user } = useAuth({ redirectOnUnauthenticated: true });
-  const isAdmin = useEffectiveAdmin(user?.role);
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
 
   // Check session-level password gate
   const [unlocked, setUnlocked] = useState(
@@ -128,11 +128,11 @@ export default function WaitlistAdmin() {
 
   const { data: signups, isLoading, refetch, isFetching } = trpc.waitlist.list.useQuery(
     undefined,
-    { enabled: isAdmin && unlocked },
+    { enabled: isSuperAdmin && unlocked },
   );
 
-  // Admin role guard
-  if (!isAdmin) {
+  // Super-admin guard
+  if (!isSuperAdmin) {
     return (
       <div className="p-6">
         <Card className="border-amber-200 bg-amber-50/50">
@@ -140,9 +140,9 @@ export default function WaitlistAdmin() {
             <div className="flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-amber-600" />
               <div>
-                <p className="font-medium text-amber-900">Admin access required</p>
+                <p className="font-medium text-amber-900">Access denied</p>
                 <p className="text-sm text-amber-800/90">
-                  Only admins can view the waitlist dashboard.
+                  This page is restricted to platform administrators.
                 </p>
               </div>
             </div>
