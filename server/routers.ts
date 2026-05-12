@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { subscriptionRouter } from "./stripe/router";
+import { superAdminRouter } from "./superAdmin/router";
 import { publicProcedure, protectedProcedure, adminProcedure, adminOrPmProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -775,6 +776,9 @@ export const appRouter = router({
 
   // ── Subscription / Billing ─────────────────────────────────────
   subscription: subscriptionRouter,
+
+  // ── Super Admin ────────────────────────────────────────────────
+  superAdmin: superAdminRouter,
 });
 
 export type AppRouter = typeof appRouter;

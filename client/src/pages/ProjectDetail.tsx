@@ -159,6 +159,7 @@ export default function ProjectDetail() {
   const deleteProject = trpc.projects.delete.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate();
+      utils.dashboard.stats.invalidate();
       toast.success("Project deleted");
       setLocation("/projects");
     },
@@ -247,6 +248,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
+      utils.financials.overview.invalidate();
       setPaymentDialogOpen(null);
       toast.success("Payment recorded");
     },
@@ -256,6 +258,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
+      utils.financials.overview.invalidate();
       toast.success("Payment deleted");
     },
   });
@@ -264,6 +267,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.invoices.list.invalidate({ projectId });
       utils.projects.get.invalidate({ id: projectId });
+      utils.financials.overview.invalidate();
       setInvoiceDialogOpen(false);
       toast.success("Invoice created");
     },
@@ -273,6 +277,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.invoices.list.invalidate({ projectId });
       utils.projects.get.invalidate({ id: projectId });
+      utils.financials.overview.invalidate();
       toast.success("Invoice updated");
     },
   });
@@ -281,6 +286,7 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.invoices.list.invalidate({ projectId });
       utils.projects.get.invalidate({ id: projectId });
+      utils.financials.overview.invalidate();
       toast.success("Invoice deleted");
     },
   });

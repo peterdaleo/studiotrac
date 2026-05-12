@@ -122,6 +122,7 @@ export default function Team() {
   const createMember = trpc.teamMembers.create.useMutation({
     onSuccess: () => {
       utils.teamMembers.list.invalidate();
+      utils.dashboard.stats.invalidate();
       setDialogOpen(false);
       toast.success("Team member added");
     },
@@ -140,6 +141,7 @@ export default function Team() {
   const inviteMember = trpc.teamMembers.invite.useMutation({
     onSuccess: (data) => {
       utils.teamMembers.list.invalidate();
+      utils.dashboard.stats.invalidate();
       setInviteDialogOpen(false);
       if (data.emailSent) {
         toast.success("Team member invited and email sent successfully");
@@ -168,6 +170,7 @@ export default function Team() {
   const deleteMember = trpc.teamMembers.delete.useMutation({
     onSuccess: () => {
       utils.teamMembers.list.invalidate();
+      utils.dashboard.stats.invalidate();
       setLocation("/team");
       toast.success("Team member removed");
     },

@@ -72,18 +72,23 @@ export default function Tasks() {
   const createTask = trpc.tasks.create.useMutation({
     onSuccess: () => {
       utils.tasks.list.invalidate();
+      utils.dashboard.stats.invalidate();
       setDialogOpen(false);
       toast.success("Task created");
     },
   });
 
   const updateTask = trpc.tasks.update.useMutation({
-    onSuccess: () => utils.tasks.list.invalidate(),
+    onSuccess: () => {
+      utils.tasks.list.invalidate();
+      utils.dashboard.stats.invalidate();
+    },
   });
 
   const deleteTask = trpc.tasks.delete.useMutation({
     onSuccess: () => {
       utils.tasks.list.invalidate();
+      utils.dashboard.stats.invalidate();
       toast.success("Task deleted");
     },
   });

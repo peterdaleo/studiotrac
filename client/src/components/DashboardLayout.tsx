@@ -60,7 +60,8 @@ const baseMenuItems = [
   { icon: GanttChart, label: "Timeline", path: "/timeline" },
   { icon: DollarSign, label: "Financials", path: "/financials", adminOnly: true },
   { icon: FileSpreadsheet, label: "Reports", path: "/reports" },
-  { icon: ClipboardList, label: "Waitlist", path: "/admin/waitlist", adminOnly: true },
+  { icon: ClipboardList, label: "Waitlist", path: "/admin/waitlist", superAdminOnly: true },
+  { icon: Building2, label: "Platform Admin", path: "/admin/platform", superAdminOnly: true },
   { icon: Receipt, label: "Billing", path: "/billing", adminOnly: true },
 ] as const;
 
@@ -174,7 +175,12 @@ function DashboardLayoutContent({
 
   const realAdmin = user?.role === "admin";
   const isAdmin = useEffectiveAdmin(user?.role);
-  const menuItems = baseMenuItems.filter((item) => !("adminOnly" in item && item.adminOnly && !isAdmin));
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
+  const menuItems = baseMenuItems.filter((item) => {
+    if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
+    if ("adminOnly" in item && item.adminOnly) return isAdmin;
+    return true;
+  });
 
   const activeMenuItem = menuItems.find((item) => {
     if (item.path === "/") return location === "/";

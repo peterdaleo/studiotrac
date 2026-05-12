@@ -86,6 +86,7 @@ export default function Projects() {
   const createProject = trpc.projects.create.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate();
+      utils.dashboard.stats.invalidate();
       setDialogOpen(false);
       toast.success("Project created successfully");
     },

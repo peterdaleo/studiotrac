@@ -24,6 +24,7 @@ import Signup from "./pages/Signup";
 import WaitlistAdmin from "./pages/WaitlistAdmin";
 import Billing from "./pages/Billing";
 import Onboarding from "./pages/Onboarding";
+import SuperAdmin from "./pages/SuperAdmin";
 
 function DashboardRouter() {
   return (
@@ -44,6 +45,7 @@ function DashboardRouter() {
           <Route path="/time" component={TimeTracking} />
           <Route path="/settings" component={Settings} />
           <Route path="/admin/waitlist" component={WaitlistAdmin} />
+          <Route path="/admin/platform" component={SuperAdmin} />
           <Route path="/billing" component={Billing} />
           <Route path="/404" component={NotFound} />
           <Route component={NotFound} />

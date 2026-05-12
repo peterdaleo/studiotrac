@@ -25,6 +25,7 @@ export const users = mysqlTable("users", {
   organizationId: int("organizationId"),
   orgRole: mysqlEnum("orgRole", ["owner", "admin", "member"]).default("member").notNull(),
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  isSuperAdmin: boolean("isSuperAdmin").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

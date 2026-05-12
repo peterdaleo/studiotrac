@@ -147,7 +147,9 @@ export default function TimeTracking() {
       toast.success("Timer stopped");
       await Promise.all([
         utils.timeEntries.activeTimer.invalidate(),
-        utils.timeAnalytics.timesheet.invalidate({ userId: timesheetUserId, weekStart }),
+        utils.timeAnalytics.timesheet.invalidate(),
+        utils.timeAnalytics.teamTimeReport.invalidate(),
+        utils.dashboard.stats.invalidate(),
       ]);
     },
   });
@@ -156,7 +158,9 @@ export default function TimeTracking() {
     onSuccess: () => {
       toast.success("Time entry added");
       setManualOpen(false);
-      timesheet.refetch();
+      utils.timeAnalytics.timesheet.invalidate();
+      utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.dashboard.stats.invalidate();
     },
   });
 
@@ -164,14 +168,18 @@ export default function TimeTracking() {
     onSuccess: () => {
       toast.success("Time entry updated");
       setEditingEntryId(null);
-      timesheet.refetch();
+      utils.timeAnalytics.timesheet.invalidate();
+      utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.dashboard.stats.invalidate();
     },
   });
 
   const deleteEntry = trpc.timeEntries.delete.useMutation({
     onSuccess: () => {
       toast.success("Entry deleted");
-      timesheet.refetch();
+      utils.timeAnalytics.timesheet.invalidate();
+      utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.dashboard.stats.invalidate();
     },
   });
 

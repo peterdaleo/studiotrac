@@ -63,3 +63,21 @@ export const adminOrPmProcedure = t.procedure.use(
     });
   }),
 );
+
+export const superAdminProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+
+    if (!ctx.user || !ctx.user.isSuperAdmin) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Super-admin access required" });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+        organizationId: ctx.user.organizationId ?? null,
+      },
+    });
+  }),
+);
