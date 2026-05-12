@@ -480,6 +480,12 @@ export async function reorderTasks(taskOrders: { id: number; sortOrder: number }
   }
 }
 
+export async function purgeArchivedTasks(orgId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(tasks).where(and(eq(tasks.status, "done"), eq(tasks.organizationId, orgId)));
+}
+
 // ── Project Notes ──────────────────────────────────────────────────
 export async function listProjectNotes(projectId: number) {
   const db = await getDb();

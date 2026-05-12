@@ -373,6 +373,7 @@ export const appRouter = router({
     reorder: protectedProcedure.input(z.object({
       taskOrders: z.array(z.object({ id: z.number(), sortOrder: z.number() })),
     })).mutation(({ input }) => db.reorderTasks(input.taskOrders)),
+    purgeArchived: adminProcedure.mutation(({ ctx }) => db.purgeArchivedTasks(ctx.organizationId)),
   }),
 
   // ── Project Notes ────────────────────────────────────────────

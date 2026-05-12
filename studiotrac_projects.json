@@ -1,0 +1,4523 @@
+[
+  {
+    "id": "0ArQwrB5prC5KwsC24CG",
+    "tasks": [
+      {
+        "id": "1774129506835",
+        "assignedTo": "David Thomas",
+        "deadline": "2026-03-20T04:00:00.000Z",
+        "title": "Assign a deadline",
+        "completed": false,
+        "createdAt": "2026-03-21T21:45:06.835Z"
+      }
+    ],
+    "clientNotes": "",
+    "client": "Dhruv",
+    "name": "DC-26-010 - Odessa Preserve - Lot 19",
+    "percentageComplete": 0,
+    "notes": "Sal D: 2-8-26\nDavid Thomas - please assign a deadline to this one.  Project Folder is created on the project drive under 2026 jobs.\n\nInvoice at 50% completion based on 60 day payment cycle from Dhruv. ",
+    "status": "On Track",
+    "billing": {
+      "25": true,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-04-15T04:00:00.000Z",
+    "phase": "Project Signed",
+    "team": [
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-02-09T00:40:22.863Z",
+        "id": "1770597622863",
+        "name": "David Thomas",
+        "role": "PM"
+      },
+      {
+        "assignedAt": "2026-02-09T00:40:34.300Z",
+        "id": "1770597634300",
+        "acknowledgements": {},
+        "role": "PRODUCTION",
+        "name": "Celso"
+      }
+    ],
+    "address": "Odessa, FL",
+    "personalDeadlines": {
+      "David Thomas": {
+        "deadline": "2026-02-10T05:00:00.000Z",
+        "task": "Assign production to Celso",
+        "acknowledgements": {},
+        "taskAssignedAt": "2026-02-09T00:42:17.931Z"
+      }
+    }
+  },
+  {
+    "id": "0DyxXoHsbRQTFp9BK2TI",
+    "deadline": "2026-05-13T04:00:00.000Z",
+    "phase": "Planning",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "On Track",
+    "personalDeadlines": {},
+    "address": "23451 Ryan Rd. Warren, MI 48091",
+    "team": [
+      {
+        "role": "PM",
+        "name": "Sal L",
+        "assignedAt": "2026-03-30T15:37:32.574Z",
+        "id": "1774885052574",
+        "acknowledgements": {}
+      }
+    ],
+    "client": "Luigi Fiorino",
+    "tasks": [],
+    "clientNotes": "",
+    "notes": "Timeline:\n02/27: Pre-App Meeting with City of Warren\n04/07: Submittal to City of Warren\n04/08: Sent Electronic Copies to City via email\n04/14: Email tentative confirmation for 05/13 Variance Meeting\n\nItems of Note:\n- Site DOES NOT comply with \"Just\" a parking lot. Needs to be associated with a \"Physical\" building.\n",
+    "name": "DC26-012 Ryan Rd. Tesla Charging Lot",
+    "percentageComplete": 0
+  },
+  {
+    "id": "1XordN38RzQhDyap2gJK",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "deadline": "2026-06-10T04:00:00.000Z",
+    "status": "On Track",
+    "personalDeadlines": {},
+    "address": "805 S. Main St.",
+    "team": [
+      {
+        "role": "DESIGNER",
+        "name": "Peter",
+        "assignedAt": "2026-05-08T14:50:47.879Z",
+        "id": "1778251847879",
+        "acknowledgements": {}
+      }
+    ],
+    "client": "Dr. Umang Patel",
+    "clientNotes": "",
+    "tasks": [],
+    "notes": "5-8-26\nSchematic elevations:\nH:\\My Drive\\SMA's shared workspace\\SERRA-MARKO AND ASSOCIATES\\PROJECTS IN DEVELOPMENT\\805 S MAIN ST\n\nBuilding Surveyor:\nColin Maloney\nSenior Account Executive\nPrecision Property Measurements\nP: (206) 690-8960\nE: cmaloney@ppmco.net  \nhttps://asbuiltdrawings.com/",
+    "percentageComplete": 0,
+    "name": "S-26-1216 - LOMBARD FACADE AND PT"
+  },
+  {
+    "id": "2ysnxnga2omN9g0S1mL3",
+    "status": "Completed",
+    "clientNotes": "",
+    "client": "US",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "deadline": "2026-03-17T04:00:00.000Z",
+    "address": "1055",
+    "name": "PM ASSIGNMENTS",
+    "team": [
+      {
+        "id": "1773513433568",
+        "assignedAt": "2026-03-14T18:37:13.568Z",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Peter"
+      },
+      {
+        "id": "1773513442495",
+        "assignedAt": "2026-03-14T18:37:22.495Z",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Sald"
+      }
+    ],
+    "percentageComplete": 0,
+    "notes": "",
+    "personalDeadlines": {
+      "Peter": {
+        "taskAssignedAt": "2026-03-14T18:37:49.187Z",
+        "acknowledgements": {},
+        "task": "COORDINATE PM PROJECT ASSIGNMENTS",
+        "deadline": "2026-03-17T04:00:00.000Z"
+      },
+      "Sal": {
+        "acknowledgements": {},
+        "task": "COORDINATE PM PROJECT ASSIGNMENTS",
+        "deadline": "2026-03-17T04:00:00.000Z",
+        "taskAssignedAt": "2026-03-14T18:37:47.421Z"
+      }
+    }
+  },
+  {
+    "id": "3SEktgUDqo12CHLNYilI",
+    "status": "On Track",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "address": "31806 GRAND RIVER AVE.",
+    "team": [
+      {
+        "assignedAt": "2026-03-26T18:21:35.699Z",
+        "id": "1774549295699",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Peter"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-06T18:00:42.806Z",
+        "id": "1775498442806",
+        "name": "Hunter",
+        "role": "PRODUCTION"
+      }
+    ],
+    "personalDeadlines": {},
+    "clientNotes": "",
+    "tasks": [],
+    "client": "Vibe Credit Union",
+    "percentageComplete": 40,
+    "name": "DA26-006 - VIBE",
+    "notes": "Zoned C-2. Max wall sign 100SF. 7'AFF MIN.\n\n05-01-26\nProject with zoning committee \n\n4-20-26\nFilled out Site Plan Review \n\n04-15-26\nSite plan approval set completed\n\n4-6-26\nSD approved. Compose SPA floor plan and elevations.\nMatterport:\nhttps://my.matterport.com/show/?m=Sf1Y4FHKoP6"
+  },
+  {
+    "id": "3ujkYzbmuQPYU2FS2Eut",
+    "notes": "10/09/25 EM: Brian said he talked with Nam and the layout is approved to move forward. I sent an email saying if we did not hear anything back from Nam by Friday morning we would take that there are no changes and move forward with the CD's.\n\n10/15/25 EM: Brian wants to add wall mounted hand sinks in the lash and facial rooms. Adjust doors to have sinks back to back if possible.\n\n02/10/26 EM: changes to the layout of the shampoo area. they are keeping the hrv. Peter to send price to NAM\n\n2/11/26 EM: revisions complete. payment received and drawings emails.",
+    "percentageComplete": 100,
+    "name": "S-25-1197 NINE SALON",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1759927475875",
+        "role": "PM"
+      }
+    ],
+    "address": "2823 Highland Rd., Highland, MI 48356",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Drawings",
+    "deadline": "2025-10-24T04:00:00.000Z",
+    "client": "Nam Nguyen",
+    "clientNotes": "",
+    "status": "Completed"
+  },
+  {
+    "id": "4UVFxs8NWEkGixZJ6Qls",
+    "phase": "Project Signed",
+    "deadline": "2026-05-08T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "On Hold",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "id": "1773951040423",
+        "assignedAt": "2026-03-19T20:10:40.423Z",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Peter"
+      },
+      {
+        "role": "PM",
+        "name": "Hunter",
+        "id": "1776704276521",
+        "assignedAt": "2026-04-20T16:57:56.521Z",
+        "acknowledgements": {}
+      }
+    ],
+    "address": "4945 Huston Dr, Orion Township, MI 48359",
+    "client": "Sanborn Construction",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "assignedTo": "Peter",
+        "priority": 1,
+        "deadline": "2026-05-01T04:00:00.000Z",
+        "id": "1773951050176",
+        "completed": true,
+        "createdAt": "2026-03-19T20:10:50.176Z",
+        "title": "SCHEMATICS"
+      }
+    ],
+    "notes": "4-30-26\nConceptuals for planning review sent to client.",
+    "percentageComplete": 0,
+    "name": "DA-26-004 4-Plex - 4945 Huston Dr"
+  },
+  {
+    "id": "4XHqKvelHsTyxDIIaX2P",
+    "name": "S-25-1189S_Vassar Processing Expansion",
+    "percentageComplete": 100,
+    "notes": "11-4-25 Sent a message to Ray - no response. We need to invoice to date.\n10/29/25 R.A\nAwaiting confirmation of EV chargers and new power load. \nOnly thing left to be finalized is power. ",
+    "clientNotes": "",
+    "client": "Ray Murad",
+    "address": "6554 Oak Rd , Vassar MI 48768",
+    "team": [
+      {
+        "name": "Roena",
+        "id": "1759163015382"
+      },
+      {
+        "id": "1761770542245",
+        "name": "Peter"
+      }
+    ],
+    "personalDeadlines": {
+      "Peter": {
+        "taskAssignedAt": "2025-11-04T18:41:38.937Z",
+        "task": "load sheet and EV charger ",
+        "deadline": "2025-11-04T05:00:00.000Z"
+      }
+    },
+    "status": "Completed",
+    "totalHours": 0,
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Documents",
+    "deadline": "2025-11-21T05:00:00.000Z"
+  },
+  {
+    "id": "4gGXoarSP8g98sPzpaP8",
+    "clientNotes": "",
+    "client": "Greg Evans",
+    "percentageComplete": 99,
+    "name": "DA-25-029 - Ideas to Action",
+    "notes": "10-31-25 Edits to construction drawings. See email 10-28-25\n\n9-29-25 Edit according to markups.",
+    "status": "Completed",
+    "totalHours": 0,
+    "deadline": "2025-11-05T05:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Review",
+    "address": "UNKNOWN",
+    "team": [
+      {
+        "name": "Hunter",
+        "id": "1756155106069"
+      },
+      {
+        "name": "Peter",
+        "id": "1756155108857"
+      },
+      {
+        "name": "Eric",
+        "id": "1756407972681"
+      }
+    ],
+    "personalDeadlines": {
+      "Peter": {
+        "taskAssignedAt": "2025-11-08T15:12:19.020Z",
+        "deadline": "2025-11-08T05:00:00.000Z"
+      },
+      "Hunter": {
+        "taskAssignedAt": "2025-11-07T14:01:53.259Z",
+        "task": ""
+      }
+    }
+  },
+  {
+    "id": "5iNb5Jeew2MSa17qhabN",
+    "status": "On Track",
+    "phase": "Project Signed",
+    "deadline": "2026-05-22T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "address": "TBD",
+    "team": [
+      {
+        "name": "Peter",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-04-20T21:42:51.831Z",
+        "id": "1776721371831"
+      }
+    ],
+    "personalDeadlines": {},
+    "clientNotes": "",
+    "tasks": [
+      {
+        "assignedTo": "Peter",
+        "priority": 10,
+        "deadline": "2026-04-29T04:00:00.000Z",
+        "id": "1776721439917",
+        "completed": true,
+        "createdAt": "2026-04-20T21:43:59.917Z",
+        "title": "Schematic of edits -1000sf + Proposal"
+      },
+      {
+        "id": "1778530825997",
+        "deadline": "2026-05-12T04:00:00.000Z",
+        "priority": 4,
+        "assignedTo": "Peter",
+        "title": "Design and proposal",
+        "createdAt": "2026-05-11T20:20:25.997Z",
+        "completed": false
+      }
+    ],
+    "client": "Lulguraj Residence",
+    "percentageComplete": 0,
+    "name": "DA Torch Lake",
+    "notes": ""
+  },
+  {
+    "id": "67Eya0bZQfPb7O6KDnm3",
+    "clientNotes": "",
+    "status": "Completed",
+    "phase": "Construction Drawings",
+    "deadline": "2025-10-10T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "totalHours": 0,
+    "client": "John Hoose",
+    "percentageComplete": 100,
+    "name": "S-25-1191_Catering Commerce Twp.",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1757529607633"
+      }
+    ],
+    "address": "3050 Union Lake Rd., Suite 3A",
+    "notes": "8/28/25: Tom to send measurements by 12-noon today.\n9/3/25: emailed John schematic equipment plan and list of questions.\n9/3/25: John will respond in a couple days\n9/11/25: I sent a follow up email\n9//16/25 EM: received comments and emailed back revised scheme w/ questions.\n9/18/25 EM: John approved floor plan. Needs gas loads to request upgrade to gas meter.\n9/30/25 EM: ~ power and RCP sent to John for approval\n                     ~ received hood drawings from Captiveaire\n10/02/25 EM: sent email asking about upgrading the elec. service\n10/03/25 EM: ~ rtu size changed from 7.5tons to 10 tons.\n                        ~ waiting for elec service info\n                        ~ John requested steel sizes to beef up joists for rooftop equipment\n                        ~ put project on hold until we can get info straight....Peter is following up with John\n"
+  },
+  {
+    "id": "6HoE65CzANWxkyEhNxis",
+    "address": "2850 Washtenaw Ave, Ypsilanti, MI 48197",
+    "name": "S-BRX Washtenaw Fountain Plaza",
+    "team": [
+      {
+        "name": "Peter",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-02-08T22:48:34.154Z",
+        "id": "1770590914154"
+      }
+    ],
+    "percentageComplete": 100,
+    "notes": "",
+    "personalDeadlines": {},
+    "status": "On Hold",
+    "clientNotes": "",
+    "client": "Brixmor",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "phase": "Review",
+    "deadline": "2026-02-20T05:00:00.000Z"
+  },
+  {
+    "id": "6gL6vjBIs4tklYbFiAVm",
+    "client": "Trowbridge",
+    "deadline": "2026-01-14T05:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "phase": "Construction Documents",
+    "status": "Completed",
+    "clientNotes": "",
+    "notes": "",
+    "personalDeadlines": {
+      "Peter": {
+        "taskAssignedAt": "2026-01-08T16:27:24.714Z",
+        "deadline": "2026-01-14T05:00:00.000Z",
+        "task": "Compose compliant plans."
+      }
+    },
+    "address": "51685 Van Dyke Ave",
+    "name": "DA19091 -Dr. Alamat",
+    "team": [
+      {
+        "id": "1767825420004",
+        "assignedAt": "2026-01-07T22:37:00.004Z",
+        "name": "Peter"
+      }
+    ],
+    "percentageComplete": 100
+  },
+  {
+    "id": "6oFVnIZXF6kR8bCHQI6s",
+    "percentageComplete": 95,
+    "name": "DC 24-001 - Sugar Bay USVI -Wedding Deck",
+    "notes": "ssdaleo - 8-25-25:\n***ASR: Increased scope @ wedding deck: Size of deck, design of architectural elements, and new bridge connector.\n\nRA: New bridge structural, framing for pergolas, storage building and paver details added and sent to owner on 03-25-26.",
+    "clientNotes": "Details for Wedding Deck have been completed, we are working on incorporating the electrical scope including  lighting, outlets and a dedicated panel schedule for the rooftop. Awaiting additional field coordination to confirm the electrical source for connection.\n\nlatest CD set: \nhttps://drive.google.com/file/d/1Eq8jkWnRGyJusXYoAAe1R3nduVKozaVc/view?usp=sharing\n\n",
+    "client": "Dhruv",
+    "address": "St Thomas - USVI",
+    "team": [
+      {
+        "assignedAt": "2025-11-05T13:33:37.814Z",
+        "id": "1762349617814",
+        "role": "PM",
+        "name": "Roena"
+      },
+      {
+        "assignedAt": "2025-11-05T13:33:44.045Z",
+        "id": "1762349624045",
+        "name": "David"
+      }
+    ],
+    "completedAt": null,
+    "status": "On Track",
+    "totalHours": 0,
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Construction Drawings"
+  },
+  {
+    "id": "7KytqvIMdleJoSmdoLlM",
+    "status": "Completed",
+    "clientNotes": "",
+    "client": "Julian Duncan",
+    "deadline": "2026-03-27T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "address": "37303 S. Groesbeck, Clinton Twp.",
+    "team": [
+      {
+        "assignedAt": "2026-02-20T18:59:56.713Z",
+        "id": "1771613996713",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Emily"
+      }
+    ],
+    "name": "S-26-1209 Social Hall",
+    "percentageComplete": 100,
+    "notes": "Client: \nJulian Duncan\njuliandelord@gmail.com\n\n2/19/26: Jay measured space.\n2/20/26 EM: draw existing and contact client to set up a meeting to go over layout.\n2/23/26 EM: emailed existing plan to Julian and requested a meeting.\n3/12/26 EM: \n  ~Julian would like a layout showing 60\" round tables with 8-10 chairs per table.\n  ~there is no pulpit or raised platform, just open space.\n  ~ scheme 1 is approved to move forward with construction drawings\n  ~finishes: seal concrete throughout, ceiling & lighting to remain.\n3/13/26 EM: sent table layout to Julian.\n3/17/26 EM: Reached out yesterday asking for size of furnace. Julian said he will get it to me today.\n3/20/26 EM: sent reminder email to Julian for furnace size. \n3/24/26 EM: Julian will drop off balance on Thursday/Friday and would like to pick up 5 copies from ARC.\n3/27/26 EM: Julian provided cc info for payment. drawings emailed and sent to ARC for prints that he will pick up\n",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "7jz8M7qoQG6DUfgDQ6Dy",
+    "phase": "Schematic Design",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-04-03T04:00:00.000Z",
+    "status": "On Hold",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-02-18T22:16:57.157Z",
+        "id": "1771453017157",
+        "name": "Emily",
+        "role": "PM"
+      }
+    ],
+    "address": "300 N Inkster",
+    "client": "Jeff Gappy",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "createdAt": "2026-04-28T15:47:35.190Z",
+        "completed": false,
+        "title": "follow up",
+        "deadline": "2026-05-05T04:00:00.000Z",
+        "priority": 8,
+        "assignedTo": "Emily",
+        "id": "1777391255190"
+      }
+    ],
+    "notes": "Existing Site Information:\nG:\\My Drive\\SMA's shared workspace\\SERRA-MARKO AND ASSOCIATES\\PROJECTS IN DEVELOPMENT\\JEFF GAPPY - DEARBORN RETAIL\n\nJeff Gappy:\njeffgappy@gmail.com\n310 883-4928\n\n3/9/26  EM:  virtual meeting w/ Joe & Jeff. \n ~create utility room w/ roof hatch, electrical, water meters in Unit 3.\n ~They will send us approved site plan with approved building footprint.\n ~Jeff will talk with Joe and send pics/videos of a building he likes to modify the elevations.\n3/13/26 EM: sent follow up email. Will check back in on 3/17 if we don't receive any info.\n3/13/26 EM: Jeff sent example elevations and site plan.\n~Site plan does not have 5'min walk in front of bldg, no drive thru, no walk in the back of the bldg. Sent email asking for guidance.\n",
+    "percentageComplete": 5,
+    "name": "S-26-001 Dearborn Heights Retail"
+  },
+  {
+    "id": "8UL8xtIjV1p9Ny7BSl9a",
+    "name": "DC-23-015 North Pasco Resort -Maintenance Building",
+    "percentageComplete": 75,
+    "notes": "Sal D: 3-27-26:\n\n- finish architecture sheets\n- Send to GLOBAL and RESURGET for matching new design:  Get and ASR and turnaround - see if they can meet the deadline targets for PERMIT SET\n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "tasks": [
+      {
+        "title": "Markups Corrections",
+        "createdAt": "2026-03-20T20:13:14.598Z",
+        "completed": true,
+        "id": "1774037594598",
+        "deadline": "2026-03-20T05:00:00.000Z",
+        "assignedTo": "David"
+      }
+    ],
+    "clientNotes": "Mirror Building per site plan - Revisions to CD’s - all disciplines in progress.\n\nCD Link (to be revised): https://drive.google.com/file/d/1Hftp_JPmVRwDpY3oQ3n4LDSr8bX43_yL/view?usp=sharing \n\n5/1/26: Working on further coordination with Structural, MEP and providing construction details. ",
+    "client": "Dhruv",
+    "team": [
+      {
+        "assignedAt": "2025-11-05T13:32:52.134Z",
+        "id": "1762349572134",
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "role": "DESIGNER",
+        "id": "1762349575962",
+        "assignedAt": "2025-11-05T13:32:55.962Z",
+        "name": "Sean"
+      },
+      {
+        "id": "1762349580242",
+        "role": "PRODUCTION",
+        "assignedAt": "2025-11-05T13:33:00.242Z",
+        "name": "David"
+      },
+      {
+        "acknowledgements": {},
+        "id": "1775154078838",
+        "assignedAt": "2026-04-02T18:21:18.838Z",
+        "name": "Sal L.",
+        "role": "PM"
+      }
+    ],
+    "address": "Dade City, FL",
+    "personalDeadlines": {
+      "David": {
+        "acknowledgements": {},
+        "deadline": "2026-03-20T04:00:00.000Z",
+        "task": "Send Revit Model to SMEP consults",
+        "taskAssignedAt": "2026-03-18T13:48:28.454Z"
+      },
+      "Sal": {
+        "taskAssignedAt": "2026-03-18T13:49:31.503Z",
+        "acknowledgements": {},
+        "deadline": "2026-03-18T04:00:00.000Z",
+        "task": "Marlups for David"
+      }
+    },
+    "status": "On Track",
+    "deadline": "2026-05-08T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Documents",
+    "totalHours": 0
+  },
+  {
+    "id": "9NdzPgiDpIbizbScbxvI",
+    "notes": "",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "name": "Roena",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-01-27T13:38:35.405Z",
+        "id": "1769521115405"
+      }
+    ],
+    "name": "S-26-1208S_EVANS INSURANCE ",
+    "address": "23303 Greenfiield",
+    "percentageComplete": 50,
+    "deadline": "2026-02-13T05:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "client": "James Evans ",
+    "status": "Completed",
+    "clientNotes": ""
+  },
+  {
+    "id": "A2tpbLwRhADOeb3jyoqH",
+    "notes": "",
+    "percentageComplete": 100,
+    "name": "SMA-25-1194 BEAUTY SYSTEMS GROUP",
+    "team": [
+      {
+        "name": "Roena",
+        "id": "1758717322818"
+      }
+    ],
+    "address": "ARBORLAND 117A",
+    "deadline": "2025-10-15T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Documents",
+    "client": "BRIXMOR",
+    "clientNotes": "",
+    "status": "Completed"
+  },
+  {
+    "id": "A2zzXfRwNMbrSmbBdPRS",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Planning",
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "status": "On Track",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "acknowledgements": {},
+        "id": "1774377213192",
+        "assignedAt": "2026-03-24T18:33:33.192Z",
+        "name": "Sal L",
+        "role": "PM"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-29T21:08:02.646Z",
+        "id": "1777496882646",
+        "name": "Celso",
+        "role": "DESIGNER"
+      }
+    ],
+    "address": "3700 3rd Ave Detroit, MI - Stall #3",
+    "client": "Gassan",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "id": "1774379976468",
+        "priority": 20,
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "assignedTo": "Eric",
+        "title": "Set up Shell File",
+        "createdAt": "2026-03-24T19:19:36.468Z",
+        "completed": true
+      },
+      {
+        "id": "1776177494302",
+        "assignedTo": "Sal L",
+        "priority": 1,
+        "deadline": "2026-04-17T04:00:00.000Z",
+        "title": "Schematic Floor Plan",
+        "completed": true,
+        "createdAt": "2026-04-14T14:38:14.302Z"
+      },
+      {
+        "completed": true,
+        "createdAt": "2026-04-14T14:39:01.099Z",
+        "title": "Set up Revit Template",
+        "assignedTo": "Sal L",
+        "deadline": "2026-04-20T04:00:00.000Z",
+        "priority": 2,
+        "id": "1776177541099"
+      },
+      {
+        "title": "Create Revit File",
+        "createdAt": "2026-04-29T21:08:36.235Z",
+        "completed": true,
+        "id": "1777496916235",
+        "deadline": "2026-04-29T04:00:00.000Z",
+        "priority": 1,
+        "assignedTo": "Celso"
+      },
+      {
+        "deadline": "2026-05-01T04:00:00.000Z",
+        "priority": 2,
+        "assignedTo": "Celso",
+        "id": "1777496958589",
+        "createdAt": "2026-04-29T21:09:18.589Z",
+        "completed": true,
+        "title": "85% Progress"
+      },
+      {
+        "id": "1777496991170",
+        "assignedTo": "Celso",
+        "deadline": "2026-05-01T04:00:00.000Z",
+        "priority": 3,
+        "title": "Background to MEP (Floor Plan / RCP)",
+        "completed": true,
+        "createdAt": "2026-04-29T21:09:51.170Z"
+      },
+      {
+        "deadline": "2026-05-29T04:00:00.000Z",
+        "priority": 5,
+        "assignedTo": "Celso",
+        "id": "1777497020828",
+        "createdAt": "2026-04-29T21:10:20.828Z",
+        "completed": true,
+        "title": "Permit Submission"
+      }
+    ],
+    "notes": "",
+    "percentageComplete": 0,
+    "name": "DC 26-011: Taste of Marrakech"
+  },
+  {
+    "id": "A5nJgX4vL0Fqe00nLHPG",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1756234023249",
+        "role": "PM"
+      },
+      {
+        "role": "DESIGNER",
+        "name": "Sald",
+        "assignedAt": "2026-01-28T19:40:46.949Z",
+        "id": "1769629246949",
+        "acknowledgements": {}
+      }
+    ],
+    "name": "DC-23-019 Highway 98 - Holiday Inn Express",
+    "address": "HOMOSASSA, CITRUS COUNTY, FLORIDA",
+    "percentageComplete": 95,
+    "notes": "Sal 8-7-25: \nPermit set due week of 8/8.  Notify Jessica (jdaleo@dadccollaborative.com) of completion and reminder of payment of outstanding invoices due prior to release.    <<<<COMPLETED\n\nSal 8-14-25:\nPermit set released - awaiting inputs from owner to wrap up construction set including IHG approval\n\nSal 11-3-25: Soils report received form owner - Emily sent to Resurget for review / foundation check. \n\n1/12/26 EM: muni comments received and sent to NYE.\n1/19/26 EM: asked NYE when we would receive the revisions. - no response\n1/21/26 EM: asked NYU when we would receive the revisions because the client is asking.\n1/22/26 EM: revisions issued.",
+    "status": "On Hold",
+    "clientNotes": "8-12-25 Permit Set: https://drive.google.com/drive/folders/1byzfBrhMWCKSY37aFP8FQv9SnAxuKZ40?usp=sharing \n\nAwaiting inputs from owner to wrap up final construction set including IHG coordination and approval \n",
+    "phase": "Construction Documents",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "deadline": "2025-09-08T04:00:00.000Z",
+    "client": "Dhruv",
+    "totalHours": 0
+  },
+  {
+    "id": "AXP14kwVwFosX1rA1ryy",
+    "status": "Completed",
+    "clientNotes": "",
+    "client": "Jonathan Reyes",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Drawings",
+    "deadline": "2026-01-05T05:00:00.000Z",
+    "address": "3236 Orchard Lake Rd",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1763482611215",
+        "assignedAt": "2025-11-18T16:16:51.215Z"
+      }
+    ],
+    "name": "Phyx Performance",
+    "percentageComplete": 100,
+    "notes": "AS-built scans scheduled 11-18-25\n\n11/25/25 EM: called Jon with layout questions. He was on his way to urgent care and wanted to put a pin in the design until after Thanksgiving\n\n12/10/25 EM: called Jon and he said the floor plan looks good, but please add the 220V for the sauna and a 5' opening between the cold tub and utility closet to provide access to the bathrooms. He is still waiting to hear back from the LL for the rtu sizes.\n\n12/19/25 EM: drawings complete. Jon will stop in on Jan 5th to drop off the check.\n\n01/05/26 EM: Jon dropped off the check. He wanted to cardio wall lined up with the column, the electrical to switch places with the future sauna and the drinking fountain moved to the other side of the hose bib. Drawings were revised and emailed to him.\n\n01/28/26 EM: Dan from the city called yesterday concerned about the space having an occupant load of 109 and not having fire suppression. I emailed him a letter stating fire suppression was only required for an occupant load of 300 or more for an A-3 space.\n\n02/02/26 EM: Dan requested the demising walls to be fire rated. both walls are cmu extending above the roof. letter was emailed.\n\n02/03/26 EM: email received from bldg dept that all questions were answered and the building clerk will contact the owner when the permit is ready.\n\n03/09/26 EM: need drawings changed to IIIB and update wall details to show wood.",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "BhEfbXJKVkQJGIdgMCjr",
+    "status": "Completed",
+    "clientNotes": "",
+    "totalHours": 43,
+    "client": "CALOGERO DANNA",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false
+    },
+    "phase": "Construction Drawings",
+    "deadline": "2026-05-31T04:00:00.000Z",
+    "address": "UNKNOWN",
+    "name": "DA-24-033 - ASPEN GLEN",
+    "team": [
+      {
+        "id": "1755867985264",
+        "name": "Hunter"
+      }
+    ],
+    "percentageComplete": 75,
+    "notes": "8-29-25: Compose 9 unit. Plans.\n\n8-15-25: Elevations approved. Edit construction drawings.\nCompose schematic elevation and resend to Calogero for approval. Remove cantilevered bays.\n\n8-18-25: Hunter to start plan updates and changes per the master deed\n\n8-22-25: Final Layout determined with Calo and Mimmo. The 8 Unit building is to be completed first. Final CDs for the 8-unit building are to be completed by August 29. \n\n\nThe 9-unit building's due date is to be determined. "
+  },
+  {
+    "id": "BlDALgURgTlxJNkpUYcT",
+    "tasks": [
+      {
+        "createdAt": "2026-05-01T20:04:47.026Z",
+        "completed": false,
+        "title": "Design to be updated per meeting",
+        "deadline": "2026-05-08T04:00:00.000Z",
+        "priority": 4,
+        "assignedTo": "Sald",
+        "id": "1777665887026"
+      }
+    ],
+    "clientNotes": "",
+    "client": "Jessica Juhasz ",
+    "name": "DA26-008 - Juhasz Residence",
+    "percentageComplete": 0,
+    "notes": "",
+    "status": "On Track",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "phase": "Project Signed",
+    "team": [
+      {
+        "acknowledgements": {
+          "imL8QesMUAe9Qbc1fVi4ICYMH5a2": "2026-03-25T13:38:08.159Z"
+        },
+        "assignedAt": "2026-03-25T13:23:27.836Z",
+        "id": "1774445007836",
+        "name": "Hunter",
+        "role": "PM"
+      },
+      {
+        "name": "Sald",
+        "role": "DESIGNER",
+        "acknowledgements": {},
+        "assignedAt": "2026-03-25T13:23:36.933Z",
+        "id": "1774445016933"
+      }
+    ],
+    "address": "193 Sandalwood, Rochester Hills, MI",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "BzjsWQ3Nb7sm2697ahP0",
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Construction Documents",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "Completed",
+    "completedAt": "2026-05-12T16:16:52.628Z",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-05-08T15:03:50.102Z",
+        "id": "1778252630102",
+        "name": "Roena",
+        "role": "PM"
+      }
+    ],
+    "address": "Hesperia ",
+    "client": "Andre Cali",
+    "tasks": [],
+    "clientNotes": "",
+    "notes": "",
+    "name": "S-21-0829 Hesperia ",
+    "percentageComplete": 100
+  },
+  {
+    "id": "CI5NvVEfSOeYZhRsDBEa",
+    "notes": "Preliminary layout send to client 8/27",
+    "address": "6230 Orchard Lake",
+    "name": "S-25-1190S- Office Layout",
+    "team": [
+      {
+        "name": "Roena",
+        "id": "1759162981022"
+      }
+    ],
+    "percentageComplete": 10,
+    "totalHours": 0,
+    "client": "Chris Jonna",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2025-10-31T04:00:00.000Z",
+    "phase": "Schematic Design",
+    "status": "Completed",
+    "clientNotes": ""
+  },
+  {
+    "id": "DAEAlnlwChpJIB9YpUcE",
+    "address": "Dade City, FL",
+    "team": [
+      {
+        "assignedAt": "2025-11-05T13:54:11.600Z",
+        "id": "1762350851600",
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "assignedAt": "2025-11-05T13:54:20.643Z",
+        "role": "DESIGNER",
+        "id": "1762350860643",
+        "name": "Sean"
+      },
+      {
+        "name": "David",
+        "role": "PRODUCTION",
+        "acknowledgements": {},
+        "id": "1774639189630",
+        "assignedAt": "2026-03-27T19:19:49.630Z"
+      },
+      {
+        "assignedAt": "2026-04-02T18:19:33.248Z",
+        "id": "1775153973248",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Sal L."
+      }
+    ],
+    "personalDeadlines": {
+      "Sal": {
+        "task": "",
+        "acknowledgements": {},
+        "taskAssignedAt": "2026-01-28T15:29:34.243Z"
+      }
+    },
+    "status": "On Track",
+    "totalHours": 0,
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2026-06-05T04:00:00.000Z",
+    "percentageComplete": 70,
+    "name": "DC-23-015 North Pasco Resort -Island Cabana",
+    "notes": "Sal D: 3-27-26:\n\n- finish architecture sheets\n- Send updates to GLOBAL and RESURGET \n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "clientNotes": "Construction Drawings - will need final design approval from the owner. \n\nDD Link: https://drive.google.com/file/d/1FO2zL9vELAsPwOcQGvQMWs8P5_ScUPzT/view?usp=sharing ",
+    "client": "Dhruv"
+  },
+  {
+    "id": "DHmeoWPzA3vVcdVVNFJ4",
+    "clientNotes": "",
+    "status": "Completed",
+    "client": "Eddie Mattia",
+    "totalHours": 0,
+    "deadline": "2025-09-08T04:00:00.000Z",
+    "phase": "Schematic Design",
+    "billing": {
+      "25": true,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "percentageComplete": 25,
+    "address": "Groesbeck, Mt. Clemens, MI",
+    "name": "S-24-1120 Dispensary Groesbeck, Mt. Clemens",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1757529699491"
+      }
+    ],
+    "notes": "$3,000 due at completion of photometric and landscape plan\n\n9/5: emailed invoice to Eddie and waiting for payment"
+  },
+  {
+    "id": "DIuH3XJIZkthE32KaFKz",
+    "address": "Bayonet Point FL",
+    "team": [
+      {
+        "name": "Sald",
+        "id": "1753968363680",
+        "role": "DESIGNER"
+      },
+      {
+        "assignedAt": "2025-12-19T18:19:10.603Z",
+        "id": "1766168350603",
+        "role": "PM",
+        "name": "Roena"
+      }
+    ],
+    "personalDeadlines": {
+      "Sal": {
+        "task": "Revise per markup",
+        "taskAssignedAt": "2025-11-05T12:56:49.082Z"
+      },
+      "Roena": {
+        "deadline": "2026-03-20T04:00:00.000Z",
+        "task": "comcheck ",
+        "acknowledgements": {},
+        "taskAssignedAt": "2026-02-04T13:50:51.183Z"
+      }
+    },
+    "status": "On Track",
+    "totalHours": 0,
+    "phase": "Construction Drawings",
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": false,
+      "70": false
+    },
+    "name": "DC-23-010 - DHRUV - Bayonet Point Apartments Clubhouse",
+    "percentageComplete": 65,
+    "notes": "**BILL ADDITIONAL HOURS WITH REMAINING BALANCE FOR REMOVAL OF 2ND FLOOR @ CD ISSUANCE\n\nSal- 7-30-25: \n- Redesign Building to remove 2nd floor.\nSal 11-5-25:\nRevise at front per mark up - remove glass at front .\n\nRevit Model sent to YH 01-23-26\n\nRevit model sent to NYE 02-18-26\n\nPreliminary structure sent 04-24-26. Sent back notes and RTU locations for further coordination. \n",
+    "tasks": [],
+    "clientNotes": "The architectural drawings are nearly complete, and the MEP drawings have been finalized. We are currently coordinating with the structural engineer on framing and foundation.\n\nOnce the full structural set is received, we will complete the final coordination, including updates to the building sections.\n\n\n10-2-25 approval drawings: https://drive.google.com/file/d/1Yy1fOv8Buu_ql3eiS6N6hFVC5W_MO7EZ/view?usp=sharing\n\n\n\n\n\n",
+    "client": "Dhruv"
+  },
+  {
+    "id": "E2F6YQYJl2dR8WHw6sFF",
+    "address": "508 &510 Second Pike St., Southhampton, PA 18966",
+    "team": [
+      {
+        "id": "1757529506067",
+        "name": "Emily"
+      }
+    ],
+    "name": "DC-25-007 Shop One - Playa Bowls",
+    "percentageComplete": 100,
+    "notes": "9/4/25: Tom is onsite measuring.\n\n9/10/25: Tom will send measurements and pics on Friday afternoon.\n9/10/25: Jack to send hvac specs. No temporary lighting.\n9/15/25: emailed questions to Jack",
+    "status": "Completed",
+    "clientNotes": "",
+    "totalHours": 0,
+    "client": "Shop One",
+    "phase": "Construction Drawings",
+    "deadline": "2025-09-25T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    }
+  },
+  {
+    "id": "ECnf7WrFsqmSfOunSXNj",
+    "status": "On Track",
+    "deadline": "2026-05-20T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "address": "17 Drew Ln. Shelburne, VT 05482",
+    "team": [
+      {
+        "role": "DESIGNER",
+        "name": "Fernando",
+        "assignedAt": "2026-04-09T19:04:46.863Z",
+        "id": "1775761486863",
+        "acknowledgements": {}
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-09T19:04:52.149Z",
+        "id": "1775761492149",
+        "name": "Sal L.",
+        "role": "PM"
+      }
+    ],
+    "personalDeadlines": {},
+    "tasks": [
+      {
+        "assignedTo": "Fernando",
+        "priority": 1,
+        "deadline": "2026-04-10T06:00:00.000Z",
+        "id": "1775795009200",
+        "completed": true,
+        "createdAt": "2026-04-10T04:23:29.200Z",
+        "title": "CD set for revisions"
+      }
+    ],
+    "clientNotes": "",
+    "client": "Ocotillo Healthcare Realty",
+    "name": "DC 26-014: Green Mountain Hyperbaric",
+    "percentageComplete": 0,
+    "notes": "05/06: \n- City Meeting in Regards to Waivers and Variances\n\n05/07: \n- Received Confirmation from Fernando that MEP + Structural should be completed by End of Weekish\n- 05/06 Meeting: Decision was made to push back decision to 05/20 for written variances\n- 05/20 will be new date to submit for permit package\n            \n"
+  },
+  {
+    "id": "EcqBoZ1vNbeJ3LhJeu9Z",
+    "clientNotes": "",
+    "status": "Completed",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2025-12-10T05:00:00.000Z",
+    "phase": "Construction Documents",
+    "client": "Sanborn Construction",
+    "percentageComplete": 100,
+    "name": "DA-25035 - PONTIAC SUB",
+    "team": [
+      {
+        "name": "Hunter",
+        "id": "1762961372013",
+        "assignedAt": "2025-11-12T15:29:32.013Z"
+      },
+      {
+        "id": "1762961376842",
+        "assignedAt": "2025-11-12T15:29:36.842Z",
+        "name": "Sald"
+      }
+    ],
+    "address": "Raymond St.",
+    "personalDeadlines": {
+      "Hunter": {
+        "task": "",
+        "taskAssignedAt": "2025-12-03T13:00:32.176Z"
+      }
+    },
+    "notes": "12-10-25\nRendering being completed today.\n\n11-13-25\nProject made in Revit \nApproved for CDs \n\n12-3-25\nNeed Rendered project for client \n\n12-16-25\nAsk Nancy if payment was made for renders"
+  },
+  {
+    "id": "ErRt9e38fEfZ8BJo9DCQ",
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Schematic Design",
+    "billing": {
+      "25": true,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "totalHours": 40,
+    "status": "On Track",
+    "personalDeadlines": {
+      "Sal": {
+        "acknowledgements": {},
+        "task": "",
+        "taskAssignedAt": "2026-01-28T15:45:49.500Z"
+      },
+      "Sean": {
+        "taskAssignedAt": "2026-02-28T01:56:40.773Z",
+        "task": "Design hotel ",
+        "deadline": "2026-03-20T04:00:00.000Z",
+        "acknowledgements": {}
+      }
+    },
+    "team": [
+      {
+        "name": "Sald",
+        "assignedAt": "2025-11-05T13:27:48.869Z",
+        "id": "1762349268869",
+        "role": "DESIGNER"
+      },
+      {
+        "name": "Sean",
+        "assignedAt": "2025-11-05T13:27:52.588Z",
+        "role": "DESIGNER",
+        "id": "1762349272588"
+      },
+      {
+        "id": "1769615166699",
+        "assignedAt": "2026-01-28T15:46:06.699Z",
+        "acknowledgements": {},
+        "role": "PRODUCTION",
+        "name": "Fernando"
+      },
+      {
+        "name": "David",
+        "role": "PRODUCTION",
+        "acknowledgements": {},
+        "assignedAt": "2026-03-18T14:42:38.511Z",
+        "id": "1773844958511"
+      },
+      {
+        "role": "PM",
+        "name": "Sal L.",
+        "id": "1775153792250",
+        "assignedAt": "2026-04-02T18:16:32.250Z",
+        "acknowledgements": {}
+      }
+    ],
+    "address": "Dade City, FL",
+    "client": "Dhruv",
+    "clientNotes": "Project is in design production.  \n\nAnticipated schedule:  \n- April / May 2026 = Design finalization.  \n- May / June 2026 Structural + MEP schematic design finalization & full Schematic design drawings issued.   \n\nSD work to date: https://drive.google.com/file/d/18cQmO0_OtThs49nvUfL4Qp32ajXMaFFK/view?usp=sharing \n",
+    "notes": "Sean working on architectural design 10-23-25\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing \n\n",
+    "percentageComplete": 10,
+    "name": "DC-23-015 North Pasco Resort - Hotel SD"
+  },
+  {
+    "id": "FW686t6eoeKWoEDJ34Sv",
+    "notes": "",
+    "personalDeadlines": {},
+    "address": "205 E. Auburn ",
+    "team": [
+      {
+        "name": "Roena",
+        "assignedAt": "2025-12-15T20:39:07.406Z",
+        "id": "1765831147406"
+      }
+    ],
+    "name": "S-25-1207 Zarminali Expansion ",
+    "percentageComplete": 100,
+    "client": "BRIXMOR",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Documents",
+    "deadline": "2026-01-07T05:00:00.000Z",
+    "status": "Completed",
+    "clientNotes": "Access to latest set of drawings: https://drive.google.com/file/d/1qbchZrjAZgzcKnPhU6ush7GeWJCdMPGy/view?usp=sharing"
+  },
+  {
+    "id": "G1VKeW1i3lPZ9zLVPTp3",
+    "status": "Completed",
+    "clientNotes": "",
+    "phase": "Construction Documents",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": true
+    },
+    "deadline": "2025-09-12T04:00:00.000Z",
+    "client": "Derrick Gerges ",
+    "totalHours": 0,
+    "team": [
+      {
+        "name": "Roena",
+        "id": "1756392856066"
+      }
+    ],
+    "name": "24-1118 Emerald Park Suite 400 ",
+    "address": "21445 Hoover Rd Ste 400",
+    "percentageComplete": 100,
+    "notes": "CDs are finished, waiting on electrical drawings from NYE to submit. Wire payment should be coming 08/29."
+  },
+  {
+    "id": "GzyRCH3C1Vgf6zEJXrzQ",
+    "status": "On Track",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "deadline": "2026-05-27T04:00:00.000Z",
+    "team": [
+      {
+        "name": "Roena",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-05-11T14:08:25.285Z",
+        "id": "1778508505285"
+      }
+    ],
+    "address": "85 E Big Beaver",
+    "personalDeadlines": {},
+    "clientNotes": "",
+    "tasks": [],
+    "client": "Mike Bianchi",
+    "percentageComplete": 0,
+    "name": "S-1215 Bianchi's Troy",
+    "notes": ""
+  },
+  {
+    "id": "HxNY5zOjXT37z7lZ2UXk",
+    "name": "DC-25-006 Shop One - Golf Envy",
+    "team": [
+      {
+        "id": "1757529486300",
+        "name": "Emily"
+      }
+    ],
+    "address": "516 Second Street Pike, Southampton, PA 18966",
+    "percentageComplete": 100,
+    "notes": "9/4/25: Tom is onsite measuring\n9/10/25: Jack to send hvac specs. No temporary lighting",
+    "status": "Completed",
+    "clientNotes": "",
+    "phase": "Construction Drawings",
+    "deadline": "2025-09-25T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "totalHours": 0,
+    "client": "Shop One"
+  },
+  {
+    "id": "I8b58dA8ytxe51oezC3n",
+    "status": "On Track",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "totalHours": 0,
+    "team": [
+      {
+        "assignedAt": "2025-11-05T13:29:49.551Z",
+        "role": "DESIGNER",
+        "id": "1762349389551",
+        "name": "Sald"
+      },
+      {
+        "name": "Sean",
+        "id": "1762349543159",
+        "role": "DESIGNER",
+        "assignedAt": "2025-11-05T13:32:23.159Z"
+      },
+      {
+        "id": "1774638661794",
+        "assignedAt": "2026-03-27T19:11:01.794Z",
+        "acknowledgements": {},
+        "role": "PRODUCTION",
+        "name": "David"
+      },
+      {
+        "id": "1775153760977",
+        "assignedAt": "2026-04-02T18:16:00.977Z",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Sal L."
+      }
+    ],
+    "address": "Dade City, FL",
+    "clientNotes": "Shell CD completed - based on assumed interior program.. Needs final owner approval of interior (based on new layout from SSA) prior to MEP revisions and final construction set issuance.\n\nCD Link: https://drive.google.com/file/d/1HQXLnYimC5y4q2yJMveMXEMkX8fMTyK2/view?usp=sharing \n\nShell CD's were approved, there were no comments that needed to be addressed in the reviews received in March. Working on further coordination with structural, MEP and architectural details. ",
+    "tasks": [
+      {
+        "createdAt": "2026-03-18T14:39:55.118Z",
+        "completed": false,
+        "title": "Revise per QC meeting",
+        "deadline": "2026-04-03T04:00:00.000Z",
+        "assignedTo": "Fernando",
+        "id": "1773844795118"
+      }
+    ],
+    "client": "Dhruv",
+    "percentageComplete": 90,
+    "name": "DC-23-015 North Pasco Resort - Entry Gate & Convenience Store",
+    "notes": "Sal D: 3-27-26:\nRoena Checking - needs a lot of detailing \n\nSal D: 3-18-26:\nThis project has been submitted for shell Permits.  We need to Revise per QC internal comments 1st then PM must schedule F&B equipment and final interior layout completion - should get approval 1st though per client notes. \n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing \n\n"
+  },
+  {
+    "id": "IMZRm27BtWmKTy41yMgl",
+    "address": "St Thomas - USVI",
+    "name": "DC 24-001 - Sugar Bay USVI -Mangrove Restaurant",
+    "team": [
+      {
+        "name": "David",
+        "id": "1756238557981"
+      },
+      {
+        "id": "1762349732586",
+        "role": "PM",
+        "assignedAt": "2025-11-05T13:35:32.586Z",
+        "name": "Roena"
+      }
+    ],
+    "percentageComplete": 65,
+    "notes": "11/11/2025\nAwaiting final FSE coordination with the latest drawings from Vivian. There is currently a discrepancy between the location of the storage wall and rear exit door. Once we receive the revised FSE, we can finalize RCP and send to WG for MEP. \n\nAlso, front roof will need to be extended in front of the Water Sports Area, per latest Vivian design. Schematic rendering was sent to owners and approved. WG will need to increase scope on structural for new roof, as well as all the notched rafters that were discovered during demolition. \n\n01-08-26 \nFSE has been coordinated and is good to go. Finalized RCP plans (kitchen, nightclub and storage areas) and preparing to send to WG for MEP. \n\n01-15-26 \nKick off meeting with WG. Bre will send a proposal for the increased structural scope. They will add any questions/comments to the Google doc, including any suggestions for HVAC systems for Dhruv approval (per Vivian's request). Awaiting panel pictures for electrical.  ",
+    "status": "On Track",
+    "clientNotes": "Architectural drawings have been coordinated with FSE and we are continuing coordination with MEP consultants. \n",
+    "totalHours": 0,
+    "client": "Dhruv",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Construction Drawings"
+  },
+  {
+    "id": "JCUsqZJqlWOypJwiD3Qx",
+    "notes": "Sal D: 3-27-26:\n\n- finish architecture sheets\n- Send to GLOBAL and RESURGET for matching new design:  Get and ASR and turnaround - see if they can meet the deadline targets for PERMIT SET\n\n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "percentageComplete": 60,
+    "address": "Dade City, FL",
+    "name": "DC-23-015 North Pasco Resort -Health and Wellness Center",
+    "team": [
+      {
+        "id": "1756232357351",
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "name": "Sean",
+        "id": "1756232360714",
+        "role": "DESIGNER"
+      },
+      {
+        "name": "David",
+        "assignedAt": "2025-11-05T13:36:42.256Z",
+        "role": "PRODUCTION",
+        "id": "1762349802256"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-02T18:19:08.320Z",
+        "id": "1775153948320",
+        "name": "Sal L.",
+        "role": "PM"
+      }
+    ],
+    "client": "Dhruv",
+    "totalHours": 0,
+    "deadline": "2026-05-08T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "clientNotes": "Revisions to CD’s - all disciplines. Arch+Struc+MEP CD revisions to be scheduled after final equipment AND programmatic input.  \n\nCD Link ( to be revised): https://drive.google.com/drive/folders/1CVkAm7J3kGvq2E9Vu-Hrv975r6oPC8bY?usp=sharing ",
+    "status": "On Track"
+  },
+  {
+    "id": "JSJLX5FgIGDJfpOysZ5y",
+    "client": "RENEE URBANIC",
+    "tasks": [
+      {
+        "createdAt": "2026-04-15T19:08:35.697Z",
+        "completed": true,
+        "title": "Develop elevations",
+        "deadline": "2026-04-22T04:00:00.000Z",
+        "priority": 1,
+        "assignedTo": "Hunter",
+        "id": "1776280115697"
+      },
+      {
+        "completed": true,
+        "createdAt": "2026-04-22T14:45:53.207Z",
+        "title": "window schedule",
+        "assignedTo": "Hunter",
+        "deadline": "2026-04-29T04:00:00.000Z",
+        "priority": 3,
+        "id": "1776869153207"
+      },
+      {
+        "deadline": "2026-05-07T04:00:00.000Z",
+        "priority": 1,
+        "assignedTo": "Hunter",
+        "id": "1777665694904",
+        "createdAt": "2026-05-01T20:01:34.904Z",
+        "completed": true,
+        "title": "Complete CD's"
+      },
+      {
+        "createdAt": "2026-05-01T20:03:46.420Z",
+        "completed": true,
+        "title": "Structure Drawings",
+        "priority": 6,
+        "deadline": "2026-05-06T04:00:00.000Z",
+        "assignedTo": "Peter",
+        "id": "1777665826420"
+      },
+      {
+        "title": "Design Basment",
+        "createdAt": "2026-05-08T15:33:21.845Z",
+        "completed": false,
+        "id": "1778254401845",
+        "priority": 6,
+        "deadline": "2026-05-13T04:00:00.000Z",
+        "assignedTo": "Peter"
+      }
+    ],
+    "clientNotes": "",
+    "notes": "renee: 234-380-7640 \n\n5-11-26\nBasement in design phase.\n\n4-20-26\nBegan elevation development and CD phase \n\n4-13-26:\nElevations designed and ready to model \n\nNotes from client 03-30-26:\nHunter to address client concerns in reply email. \n\nWe have been looking at plans.  A couple things: \n- maybe get rid of one of the twelve foot sliding door systems in great room.    We think the middle one is fine at twelve feet or larger if you want but think the one closer to the fireplace should be just a nice large window.   Thoughts? \n-bedrooms two and three - mane a pocket door to the bathrooms \n-Also wondering about the ceiling on the outside patio - is it high?   Will it have a peak or flat ?  \n",
+    "name": "DA26-007 - URBANIC RESIDENCE",
+    "percentageComplete": 83,
+    "phase": "Construction Drawings",
+    "deadline": "2026-06-05T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "status": "On Track",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "name": "Peter",
+        "role": "DESIGNER",
+        "acknowledgements": {},
+        "assignedAt": "2026-03-24T15:02:03.451Z",
+        "id": "1774364523451"
+      },
+      {
+        "acknowledgements": {
+          "imL8QesMUAe9Qbc1fVi4ICYMH5a2": "2026-03-25T13:38:07.762Z"
+        },
+        "assignedAt": "2026-03-25T13:17:09.299Z",
+        "id": "1774444629299",
+        "name": "Hunter",
+        "role": "PM"
+      }
+    ],
+    "address": "1673 Vista Dr."
+  },
+  {
+    "id": "JjLy74yUj8GzSTRopik4",
+    "client": "BRIXMOR",
+    "totalHours": 0,
+    "deadline": "2025-09-08T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": true
+    },
+    "phase": "Construction Documents",
+    "clientNotes": "",
+    "status": "Completed",
+    "notes": "",
+    "percentageComplete": 100,
+    "address": "3215 & 3217 Washtenaw Ave Ann Arbor",
+    "name": "25-1179S BRX ATT/ Bluemercury Split",
+    "team": []
+  },
+  {
+    "id": "KEj1uDWZHeTxJEeoE4t5",
+    "personalDeadlines": {},
+    "address": "1484 RIVONIA",
+    "team": [
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-01T16:56:13.263Z",
+        "id": "1775062573263",
+        "name": "Peter",
+        "role": "PM"
+      }
+    ],
+    "deadline": "2026-05-30T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "status": "On Track",
+    "notes": "4-8-26\nSee email from 4-6-26\n\n4-4-26\nSD1 SENT FOR REVIEW.",
+    "percentageComplete": 12,
+    "name": "DA-26009 Waterford Residence",
+    "client": "FERIS ATTY",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "title": "Facade redesign",
+        "createdAt": "2026-04-08T17:22:46.888Z",
+        "completed": true,
+        "id": "1775668966888",
+        "priority": 4,
+        "deadline": "2026-04-24T04:00:00.000Z",
+        "assignedTo": "Peter"
+      }
+    ]
+  },
+  {
+    "id": "KPAzOMWJirI8DU0O86Lb",
+    "personalDeadlines": {},
+    "notes": "2-10-26\nSigned. Complete kitchen design.\nKitchen drawings:\nG:\\My Drive\\SMA's shared workspace\\SERRA-MARKO AND ASSOCIATES\\RESIDENTIAL\\23-1083_ROYAL POINTE VLG\\BUILDING 1 - INDEPENDENT LIVING\\KITCHEN DRAWINGS\\PATTI\n\n1-20-26 Get project signed.",
+    "percentageComplete": 100,
+    "name": "S-23-1083 Building One Kitchen",
+    "team": [
+      {
+        "name": "Peter",
+        "role": "DESIGNER",
+        "acknowledgements": {
+          "GU5NPYWBVge0rpJWfCsufyUzcdd2": "2026-01-21T15:57:08.376Z"
+        },
+        "id": "1769007046068",
+        "assignedAt": "2026-01-21T14:50:46.068Z"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-02-11T19:17:21.792Z",
+        "id": "1770837441792",
+        "name": "Emily",
+        "role": "PM"
+      }
+    ],
+    "address": "Building One - Royal Point Village",
+    "phase": "Review",
+    "deadline": "2026-02-20T05:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "client": "Sal-Mar",
+    "clientNotes": "Building 1 Kitchen:\nKitchen drawings completed.\n\n2/20/26: drawings completed and invoice emailed to Joe & Sam.\n",
+    "status": "Completed"
+  },
+  {
+    "id": "Kgk2QVdrspfireKI2zal",
+    "clientNotes": "***Please provide specs for equipment - Dimensional information needed for space planning and utility (and potentially structural) requirements - ASAP***\n\n9/11/25: George responded to my 8/22 and 8/27 emails on 8/28 stating you were getting feedback from the client on several of my questions and should have answers soon. I sent a follow up email today. We need responses to move forward.\n\n10/30/25: emailed review set. Waiting for comments.",
+    "status": "Completed",
+    "deadline": "2025-11-04T05:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "client": "Verus Development ",
+    "totalHours": 0,
+    "percentageComplete": 100,
+    "name": "DA-24002-19711 Middlebelt",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1754939432187"
+      },
+      {
+        "name": "Sald",
+        "id": "1754939467025"
+      }
+    ],
+    "address": "19711 Middlebelt, Livonia, MI",
+    "notes": "ssdaleo 8-8-25: \nWaiting on signed proposal, AND RETAINER... but I told them project is on the schedule. \n\n8/28/25 EM: email sent with progress drawings and questions on 8/22. reminder email sent 8/27. George responded on 8/28 saying they will remove the mezzanine and stairs, a few hvac units will need to be replaces, and they are waiting for feedback from the tenant.\n\n9/11/25 EM: sent follow-up email to George. George called and said they do not have a lease signed yet, but they have an LOI. Him and Frank are going to go out to the building and look at some of the walls. They will call on Tuesday with answers.\n\n9/17/25 EM: phone call w/ George & Frank. \n  - change eifs to composite material (siding or nichiha....be vague)\n  - front door location to remain. replace door and all storefront glass\n  - remove vestibule\n  - remove mezzanine and all walls in back except for what we can keep for the bathrooms\n  - add furring and drywall to perimeter walls\n\n10/30/25 EM: sent review set to Frank & George. Waiting for response.\n\n11/3/25 EM: George approved drawings to submit. I emailed that Nancy will send the invoice in the morning and we will issue the drawings when we receive the payment.\n\n11/12/25 EM: Sal said we received payment. I emailed the drawings."
+  },
+  {
+    "id": "LhRsxzKRqhtkNUsF4srB",
+    "status": "On Hold",
+    "deadline": "2026-04-01T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Planning",
+    "totalHours": 0,
+    "team": [
+      {
+        "role": "DESIGNER",
+        "name": "Sal",
+        "id": "1774904803854",
+        "assignedAt": "2026-03-30T21:06:43.854Z",
+        "acknowledgements": {}
+      },
+      {
+        "role": "PM",
+        "name": "Peter",
+        "id": "1774904840116",
+        "assignedAt": "2026-03-30T21:07:20.116Z",
+        "acknowledgements": {}
+      }
+    ],
+    "address": "2401 Lakeshore Blvd, Marquette, MI",
+    "personalDeadlines": {
+      "Peter": {
+        "task": "",
+        "taskAssignedAt": "2025-11-21T23:01:02.754Z"
+      }
+    },
+    "tasks": [],
+    "clientNotes": "",
+    "client": "Chip Properties",
+    "name": "DA - 23013 - The Residences at North Harbor - Phase 2",
+    "percentageComplete": 0,
+    "notes": "***This project is waiting on the owner to sign and remit retainer payment to begin.***\n\nOAC Meetings to bill:\n4 meetings in March '26\n"
+  },
+  {
+    "id": "LsXdrqK9Kne65fITVtu3",
+    "deadline": "2026-02-06T05:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "totalHours": 0,
+    "status": "Completed",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "name": "Roena",
+        "id": "1757076062610"
+      },
+      {
+        "id": "1761593793717",
+        "name": "Peter"
+      }
+    ],
+    "address": "6441 Morris ",
+    "client": "Leo Lumaj",
+    "clientNotes": "",
+    "notes": "Peter - structural.\nElec needs to be finalized. \n\nM&P have been completed. The owners have requested a survey which we have not received yet but will need for grading/sidewalk. 09-04-25\n\nSurvey received 11-06. \n\nBalance Due. Invoice sent 02-05-26.\n\nCD set:  https://drive.google.com/file/d/12IBlR83a80DHT5gSZYw39JJikUSxtK0Y/view?usp=sharing\n\n\n\n\n",
+    "percentageComplete": 100,
+    "name": "S-24-1110S Marlette Mixed Development "
+  },
+  {
+    "id": "MqdwyasBw1RVLM5SEcHN",
+    "client": "Dhruv",
+    "clientNotes": "Construction Drawings. Will need final design approval sign off from the owner.   \n\nDD link: https://drive.google.com/file/d/1Dh-cSE1UsLqR8c48JYVZBIr3rrwmS0K6/view?usp=sharing ",
+    "notes": "INTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "name": "DC-23-015 North Pasco Resort -Island Concessions & Restrooms",
+    "percentageComplete": 60,
+    "totalHours": 0,
+    "deadline": "2026-06-05T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "status": "On Track",
+    "personalDeadlines": {
+      "Sal": {
+        "taskAssignedAt": "2026-01-28T15:31:11.564Z",
+        "task": "",
+        "acknowledgements": {}
+      }
+    },
+    "address": "Dade City, FL",
+    "team": [
+      {
+        "role": "DESIGNER",
+        "id": "1762349939680",
+        "assignedAt": "2025-11-05T13:38:59.680Z",
+        "name": "Sald"
+      },
+      {
+        "name": "Sean",
+        "id": "1762349944150",
+        "role": "DESIGNER",
+        "assignedAt": "2025-11-05T13:39:04.150Z"
+      },
+      {
+        "role": "DESIGNER",
+        "id": "1762349947337",
+        "assignedAt": "2025-11-05T13:39:07.337Z",
+        "name": "David"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-01-28T15:32:07.847Z",
+        "id": "1769614327847",
+        "name": "Peter",
+        "role": "PRODUCTION"
+      },
+      {
+        "id": "1769614336061",
+        "assignedAt": "2026-01-28T15:32:16.061Z",
+        "acknowledgements": {},
+        "role": "PRODUCTION",
+        "name": "Fernando"
+      },
+      {
+        "assignedAt": "2026-04-02T18:20:32.650Z",
+        "id": "1775154032650",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Sal L."
+      }
+    ]
+  },
+  {
+    "id": "NSqYi4Yrvs39o8TRtXAH",
+    "client": "Ed Blair",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "phase": "Construction Documents",
+    "deadline": "2026-03-30T04:00:00.000Z",
+    "status": "Completed",
+    "clientNotes": "",
+    "notes": "4-2-26 Meeting:\nRemove all basement windows (verify with city)\nFree-standing tub @ master bath \nSmaller sliding glass door at dining room \nChange 1st floor bath to casement window\nAll single hung to double hung \nRemove second floor water heater\nSmaller fireplace on first floor \nSliding window at side of craft room\nVerify Helical Piers + add Details (not entirely accurate - will be modified with the builder)\nAdd wet bar @ kitchen \n\n3-30-26\nAdd final mechanical details and review the project.\nWaiting on the final payment to release drawings\n\n3-23-26\n-Add Mechanical layout\n-complete project checklist \n\n\n3-17-26\nContinue CD's. \n-Stair Sections \n-wall section\n-terrace section\n-foundation plan/framing\n\n3-16-26\nConfirm with the client if the project is ready for the construction document phase. \nBegan CD's \n\n\n3-14-26\nRemoved all ceiling profiles on the 1st floor. \nThe basement depth was adjusted to be 6'-10\" pour.\n\n3-11-26\nHunter to meet with client @ 4 pm (Google Meet) \nplan adjustments per client meeting\n\n3-4-26\nDD Plans sent \n\nReplay received:\n26' deep garage \ncall out roof pitch @ elevations \n\n2-11-26\nSchematics sent.",
+    "personalDeadlines": {},
+    "address": "36052 SURF SIDE DRIVE",
+    "name": "DA26-001 Ed Blair Residence",
+    "team": [
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-01-29T21:09:37.767Z",
+        "id": "1769720977767",
+        "name": "Peter",
+        "role": "DESIGNER"
+      },
+      {
+        "role": "PRODUCTION",
+        "name": "Eric",
+        "assignedAt": "2026-01-29T21:09:48.744Z",
+        "id": "1769720988744",
+        "acknowledgements": {}
+      },
+      {
+        "assignedAt": "2026-01-29T21:11:18.504Z",
+        "id": "1769721078504",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Hunter"
+      }
+    ],
+    "percentageComplete": 100
+  },
+  {
+    "id": "PKlO1dUBI1h6kGfwMHnZ",
+    "percentageComplete": 6,
+    "name": "S-26-XXX - IL Retail Facade",
+    "notes": "",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "completed": true,
+        "createdAt": "2026-03-19T20:12:31.722Z",
+        "title": "FACADE SCHEMATICS",
+        "assignedTo": "Peter",
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "priority": 20,
+        "id": "1773951151722"
+      }
+    ],
+    "client": "Dr. Umang Patel",
+    "address": "805 S Main St",
+    "team": [
+      {
+        "name": "Peter",
+        "role": "DESIGNER",
+        "acknowledgements": {},
+        "id": "1773515459845",
+        "assignedAt": "2026-03-14T19:10:59.845Z"
+      }
+    ],
+    "personalDeadlines": {},
+    "status": "Completed",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-04-30T04:00:00.000Z",
+    "phase": "Project Signed"
+  },
+  {
+    "id": "PcFXRlyGEN1Fl7goarGU",
+    "status": "Completed",
+    "clientNotes": "Field survey and as-built complete. ",
+    "deadline": "2025-10-21T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Drawings",
+    "client": "Innovative Corporate Interiors",
+    "totalHours": 0,
+    "name": "DA Hamilton Animal Hospital",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1757529575837"
+      }
+    ],
+    "address": "1537 Main St. Clawson",
+    "percentageComplete": 100,
+    "notes": "As-builts complete.\n\n9/9/25: Beth meeting with client on Wednesday. We will meet at our office on Friday at 1pm.\n\n9/30/25 EM: Beth approved layout and said to proceed with the drawings.\n10/17/25 EM: Peter reviewing drawings"
+  },
+  {
+    "id": "Phx325JBoLQQRB0PZjDs",
+    "client": "Dhruv",
+    "clientNotes": " Revisions to CD’s - all disciplines - in progress.  \n\nNew Design (not final CD): https://drive.google.com/file/d/1UkEZNVly8kQzmCl0CK4UHvfkGJvS7iDY/view?usp=sharing ",
+    "tasks": [],
+    "notes": "Sal D: 3-27-26:\n- finish architecture sheets as is - need to revisit interior design per markups in folder after we get the consultants going<<<goal is permit set for now\n- Send to GLOBAL and RESURGET for matching new design:  Get and ASR and turnaround - see if they can meet the deadline targets for PERMIT SET\n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "percentageComplete": 85,
+    "name": "DC-23-015 North Pasco Resort - Clubhouse II - Fine Dining",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2026-05-08T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "totalHours": 0,
+    "status": "On Track",
+    "personalDeadlines": {
+      "David": {
+        "taskAssignedAt": "2026-03-18T13:41:53.250Z",
+        "acknowledgements": {},
+        "deadline": "2026-03-20T04:00:00.000Z",
+        "task": "Issue Revit Model to S+MEP"
+      },
+      "Sal": {
+        "task": "Review/Mkps set to date for David",
+        "deadline": "2026-03-19T04:00:00.000Z",
+        "acknowledgements": {},
+        "taskAssignedAt": "2026-03-18T13:43:34.872Z"
+      }
+    },
+    "team": [
+      {
+        "role": "DESIGNER",
+        "id": "1755882471122",
+        "name": "Sald"
+      },
+      {
+        "name": "Sean",
+        "id": "1755882478959",
+        "role": "DESIGNER"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-03-18T13:43:15.120Z",
+        "id": "1773841395120",
+        "name": "David",
+        "role": "PRODUCTION"
+      },
+      {
+        "name": "Sal L.",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-04-02T18:15:32.920Z",
+        "id": "1775153732920"
+      }
+    ],
+    "address": "Dade City, FL"
+  },
+  {
+    "id": "RpDRx2mp9E5tK465Xzws",
+    "client": "CHARLES MAHONE",
+    "totalHours": 0,
+    "deadline": "2025-08-15T04:00:00.000Z",
+    "phase": "Bidding",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": true,
+      "75": true,
+      "100": true
+    },
+    "clientNotes": "",
+    "status": "Completed",
+    "notes": "Awaiting payment to release the drawings. 8-13-25\n\nSee markups dated 8-4-25. Edit and resend as SD for approval. Approved 8-5-25 See \"8-5-25-FINAL_MARKUPS.pdf\"\n\nEdit SD to show single bedroom in right apartment. 8-1-25\n\nApartment designs sent for review, 7-30-25\n\n",
+    "percentageComplete": 100,
+    "address": "UNKNOWN",
+    "name": "DA-25012 - Mahone Residence Col",
+    "team": [
+      {
+        "id": "1754430322166",
+        "name": "Hunter"
+      }
+    ]
+  },
+  {
+    "id": "SyCacz5EsX8ciPOaJaBB",
+    "tasks": [],
+    "clientNotes": "",
+    "client": "Ben Lingo",
+    "name": "DA26-011- BEN LINGO - CABANA",
+    "percentageComplete": 100,
+    "notes": "04-15-26\ncompleted, to be sent to client \n\n4-9-26\nConstruction drawings for a small cabana.\nSee reference folder for dimensions and renderings.",
+    "status": "Completed",
+    "phase": "Construction Documents",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-04-15T04:00:00.000Z",
+    "team": [
+      {
+        "role": "PRODUCTION",
+        "name": "Hunter",
+        "id": "1775744212747",
+        "assignedAt": "2026-04-09T14:16:52.747Z",
+        "acknowledgements": {}
+      },
+      {
+        "name": "Peter",
+        "role": "PM",
+        "acknowledgements": {},
+        "id": "1775830781659",
+        "assignedAt": "2026-04-10T14:19:41.659Z"
+      }
+    ],
+    "address": "1010 NEWGATE COURT",
+    "completedAt": "2026-04-17T14:25:12.670Z",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "TU77XUtbsYBzo9jwr6Ay",
+    "percentageComplete": 80,
+    "address": "St Thomas - USVI",
+    "name": "DC 24-001 - Sugar Bay USVI -Athletic/ Spa Building",
+    "team": [
+      {
+        "name": "David",
+        "id": "1756238329521"
+      },
+      {
+        "role": "PM",
+        "id": "1756238340471",
+        "name": "Roena"
+      }
+    ],
+    "notes": "Owner site walk 8/26-08/28. Per Vivian email dated 08-28: Additional changes and adjustments to layout to be provided 08/29 along with electrical lighting specs. Coordination with MEP scheduled for the week of 09/02, estimated turn around time 4 weeks. Also awaiting for site information on existing electrical service, plumbing connections etc. \n\nOwner changes were sent over on 09/03, revised drawings were sent back for approval on 09/04. Email sent again requesting information for the light specs.\n\n09-22-2025  request to remove balcony and all the structural/foundation design that was already done for it. \nCoordination was done with new storage rooms on the outside to accommodate water heaters and electrical. They are redesigning the pool area and we were asked to prioritize the Registrars and Mangrove for the time being. \n\n04-28-26 Awaiting lighting specs from Vivian in order to finalize MEP. \nRequested field measurements of columns/beams for duct distribution. \n\n",
+    "clientNotes": "Architectural drawings are being updated to include the existing columns and beams identified during field demolition. We are also coordinating with MEP consultants to address ductwork routing around these beams. Awaiting lighting specs from Vivian in order to finalize the electrical drawings as well as additional information for the pool and rear exterior lighting.  \n\nlatest CD set: https://drive.google.com/file/d/1hCZWfJwDy2TFYXAnD-oyy5uVmwwsrWBQ/view?usp=sharing\n\n\n\n\n",
+    "status": "On Track",
+    "client": "Dhruv",
+    "totalHours": 0,
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "phase": "Construction Drawings"
+  },
+  {
+    "id": "Tjd8whJk51Q6KF2JHIxc",
+    "address": "UNKNOWN",
+    "team": [
+      {
+        "name": "Hunter",
+        "id": "1756147204301"
+      },
+      {
+        "id": "1756147210806",
+        "name": "Peter"
+      }
+    ],
+    "personalDeadlines": {},
+    "status": "Completed",
+    "totalHours": 0,
+    "deadline": "2025-11-21T05:00:00.000Z",
+    "phase": "Review",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "name": "DA-25020 BRADSKY RESIDENCE",
+    "percentageComplete": 100,
+    "notes": "See Devika's email.\nCoordination sheet + repository:\nhttps://docs.google.com/spreadsheets/d/1S-TuQpMIZnSOMP4qm3boU_Fj46xIWMDaBHTJkzTfORM/edit?gid=1611180344#gid=1611180344\n\nRedlines are placed in the above folder. Hunter will have a meeting with Margaret on August 26 at 1:30 pm online.\n\nTasks:\n-all dimensions to go to studs \n-Add garage and storage space under rear patio \n-change wall sections to have joists on 2x4 walls in basement \n\n\n11-13-25\nProject updates have been made, waiting on a response from AZD",
+    "clientNotes": "",
+    "client": "AZD"
+  },
+  {
+    "id": "UWBvr8FvMnAgVDUYLXJO",
+    "clientNotes": "",
+    "client": "Lulguraj Residence",
+    "name": "DA Torch Lake",
+    "percentageComplete": 0,
+    "notes": "Provide front porch steel structure.",
+    "status": "Completed",
+    "totalHours": 0,
+    "deadline": "2025-08-19T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Documents",
+    "address": "UNKNOWN",
+    "team": [],
+    "completedAt": "2026-04-20T21:41:08.075Z"
+  },
+  {
+    "id": "VE1yPhWKyz95uPJn04VM",
+    "clientNotes": "Completed - Waiting to insert SSA’s sheets to the CD set.(Laundry and vending Equipment)\n\nCD Link: https://drive.google.com/file/d/1HrGsQZOAJH3vZSz8o0k-LRMosw1vHCRB/view?usp=sharing \n\nAddressed review comments and resubmitted for permit 05-01-26. Working on further coordination with Structural, MEP and providing construction details. ",
+    "status": "On Track",
+    "totalHours": 0,
+    "client": "Dhruv",
+    "phase": "Construction Documents",
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "percentageComplete": 90,
+    "address": "Dade City, FL",
+    "name": "DC-23-015 North Pasco Resort - Sundry A",
+    "team": [
+      {
+        "name": "Sald",
+        "id": "1756231951565"
+      },
+      {
+        "id": "1756231957429",
+        "name": "Sean"
+      },
+      {
+        "id": "1762350463136",
+        "assignedAt": "2025-11-05T13:47:43.136Z",
+        "name": "David"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-02T18:18:07.910Z",
+        "id": "1775153887910",
+        "name": "Sal L.",
+        "role": "PM"
+      }
+    ],
+    "notes": "Sal D: 3-27-26:\nRoena Checking - needs a lot of detailing \n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing "
+  },
+  {
+    "id": "VzDrXEws6ylbLoOIruEZ",
+    "client": "Chuck Williams",
+    "clientNotes": "05/25/26: Sent Revised Equipment Package to Chuck Williams.",
+    "tasks": [
+      {
+        "id": "1776260681956",
+        "assignedTo": "Sal L.",
+        "deadline": "2026-04-22T04:00:00.000Z",
+        "priority": 1,
+        "title": "Update Plan Per Sketch",
+        "completed": true,
+        "createdAt": "2026-04-15T13:44:41.956Z"
+      }
+    ],
+    "notes": "",
+    "percentageComplete": 100,
+    "name": "26-015 Great Lakes Seed",
+    "deadline": "2026-05-05T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Project Signed",
+    "status": "On Hold",
+    "personalDeadlines": {},
+    "completedAt": null,
+    "team": [
+      {
+        "role": "PM",
+        "name": "Sal L.",
+        "id": "1776260655874",
+        "assignedAt": "2026-04-15T13:44:15.874Z",
+        "acknowledgements": {}
+      }
+    ],
+    "address": "12542 Stephens Rd."
+  },
+  {
+    "id": "W3jfK92UxC58SRch8xWw",
+    "deadline": "2025-07-11T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Review",
+    "client": "Dhruv",
+    "totalHours": 0,
+    "clientNotes": "CD Link: https://drive.google.com/file/d/1P-KjYkHvTgQlrsrtTZ0G_hSekOHsWS9I/view?usp=sharing ",
+    "status": "Completed",
+    "notes": "",
+    "percentageComplete": 100,
+    "name": "DC 24-001 - Sugar Bay USVI -Suite 725 Conversion - Wedding Deck Restrooms",
+    "team": [],
+    "address": "St Thomas - USVI"
+  },
+  {
+    "id": "WD8RNop1UMNmNf4WJbSp",
+    "client": "Jeff Riehl",
+    "clientNotes": "",
+    "notes": "2-9-26\nMarkups: G:\\Other computers\\My Computer\\PROJECTS\\2023 JOBS\\23026 - Jeff Riehl Residence\\5 - CD\\Horse Barn\\23-026D_Riehl Horse Barn_020526.pdf\n\nUpdated and set sent to Nick @ 1:40 pm\n\n\n1-14-26 \nHorse barn/stables approved for CD\n\n1-12-26\nMet w/ Nick for horse barn/stable changes, waiting for approval from client \n\n1-6-26\nPreliminary design made. Sent to Nick for approval\n\n1-5-26\nEdit horse stable / riding hall - eliminate breezeway. See markup: https://drive.google.com/file/d/1_P5-6H1F7_a6tUDPViB6jWfoVNd0lL_H/view?usp=sharing \nCreate a preliminary layout for Jeff's review and approval. Log your hours.\n\nFoundation sent 8-2. Complete remaining drawings - see edits underway.\n\n8-13\nFix elevations, roofs, floor plans, structural plans, and electrical plans\nAdd trusses in the living room and the rear patio.  show overhead lines on plans \n\n8-15\n",
+    "name": "DA 23026 - JEFF RIEHL RESIDENCE",
+    "percentageComplete": 100,
+    "phase": "Construction",
+    "deadline": "2026-02-06T05:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": true
+    },
+    "totalHours": 0,
+    "status": "Completed",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "name": "Hunter",
+        "id": "1755530306876",
+        "role": "PM"
+      }
+    ],
+    "address": "UNKNOWN"
+  },
+  {
+    "id": "YJTE0WB7IqLTJJOxYWCp",
+    "status": "On Hold",
+    "clientNotes": "Building 1, 2, and 3 fire exit drawings requested. These will be completed once we have the building 1 kitchen drawings implemented.",
+    "deadline": "2026-03-31T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "client": "Sal-Mar",
+    "name": "S-23-1083 Buildings 2 and 3",
+    "team": [
+      {
+        "role": "DESIGNER",
+        "name": "Peter",
+        "id": "1770308228919",
+        "assignedAt": "2026-02-05T16:17:08.919Z",
+        "acknowledgements": {}
+      },
+      {
+        "assignedAt": "2026-03-18T16:02:51.133Z",
+        "id": "1773849771133",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Roena"
+      }
+    ],
+    "address": "Royal Point Village",
+    "percentageComplete": 50,
+    "notes": "",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "Z2CQiOAtGdi78QnSocOj",
+    "notes": "Awaiting electrical information from owner / elec contractor. New panel will need to be added for the equipment, need to know where it will be fed from. \nArch & MP complete.",
+    "personalDeadlines": {},
+    "team": [
+      {
+        "id": "1760547892754",
+        "name": "Roena"
+      }
+    ],
+    "name": "S-25-1198 EMERALD LAB ",
+    "address": "EMERALD PARK # 316 ",
+    "percentageComplete": 100,
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2025-11-26T05:00:00.000Z",
+    "phase": "Construction Documents",
+    "client": "DAVID YOUSIF ",
+    "status": "Completed",
+    "clientNotes": ""
+  },
+  {
+    "id": "ZSnQRSm5AVGNelUGve4T",
+    "totalHours": 30,
+    "phase": "Review",
+    "deadline": "2026-04-24T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": true
+    },
+    "status": "On Hold",
+    "personalDeadlines": {
+      "Peter": {
+        "0": "2",
+        "1": "0",
+        "2": "2",
+        "3": "5",
+        "4": "-",
+        "5": "1",
+        "6": "0",
+        "7": "-",
+        "8": "1",
+        "9": "7",
+        "10": "T",
+        "11": "0",
+        "12": "4",
+        "13": ":",
+        "14": "0",
+        "15": "0",
+        "16": ":",
+        "17": "0",
+        "18": "0",
+        "19": ".",
+        "20": "0",
+        "21": "0",
+        "22": "0",
+        "23": "Z",
+        "task": "",
+        "acknowledgements": {},
+        "taskAssignedAt": "2026-01-28T14:30:25.858Z"
+      }
+    },
+    "address": "Gainesville, FL",
+    "team": [
+      {
+        "name": "Peter",
+        "role": "DESIGNER",
+        "id": "1753964463881"
+      },
+      {
+        "name": "Emily",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-03-18T16:06:33.369Z",
+        "id": "1773849993369"
+      },
+      {
+        "id": "1775235479712",
+        "assignedAt": "2026-04-03T16:57:59.712Z",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Sal"
+      }
+    ],
+    "client": "Dhruv",
+    "tasks": [
+      {
+        "createdAt": "2026-03-19T20:19:37.518Z",
+        "completed": true,
+        "title": "Call Gainesville to review muni comments.",
+        "deadline": "2026-03-23T04:00:00.000Z",
+        "assignedTo": "Peter",
+        "id": "1773951577518"
+      }
+    ],
+    "clientNotes": "11-17-25 Revision per Municipality / IHG review complete: \nRESUBMITTAL: https://drive.google.com/drive/folders/1CWnuQs3Z64_tZpwvGsyjI_fys97UG-o9?usp=sharing \nGREASE INTERCEPTOR APPLICATION TO BE COMPLETED AND SUBMITTED TO GRU: https://drive.google.com/file/d/1S7of4LY7BZaixvnm7BdFs4ZrO9i-bFBF/view?usp=sharing\n\nPERMIT SET LINK: https://drive.google.com/file/d/1EnujxwbVx1KqyvP7Lo7Jn07pi9nLlKIJ/view?usp=sharing \n\n04/30/26: \n~Hotel- most of the city's comments have been addressed and Prakash has uploaded them to the city's site. We are waiting for the updated geotech report that shows the soil capacity to confirm the foundations as requested by the city.\n~Studio Apartment conversion- waiting approval of the ASR.\n",
+    "notes": "4-3-26\nSee new unit plans:\nG:\\My Drive\\Projects\\2024 JOBS\\24-005 - DHRUV - Gainesville Hotel\\2 - REFERENCE\\Avid Studio Apts Units SD - 3-17-26.pdf\n\n2-25-26\nRemove one elevator - leave shaft for double.\n\n2-12-26\nProject will proceed as student housing. ASR necessary. \n\n1-15-26 Muni review: \\My Drive\\Projects\\2024 JOBS\\24-005 - DHRUV - Gainesville Hotel\\2 - REFERENCE\n\n1-6-25 Are we proceeding with repurposing the building to include student housing?\n\nssdaleo 7-31-25:\n-Project needs full checking / coordination with S+MEP\n-IHG approval needed ASAP!\n\n04/21/26 EM: \n- emailed Prakash that we still need the geotech that has the recommendations for foundations\n- I have several phone calls and emails in to the plan reviewers requested clarifications. Paul Myers at the city said there may be some items that have not been cleared out by the reviewers and we need to be careful of file naming when resubmitting. He said we could all get on a teams meeting if necessary.\n*Celso is updating the units to the studio apartments on for the first floor so he can prepare the under ground plumbing plan. ",
+    "name": "DC-24-005 - DHRUV - Gainesville Hotel",
+    "percentageComplete": 100
+  },
+  {
+    "id": "bF1gJTyM747LWi7awNFg",
+    "status": "On Track",
+    "deadline": "2026-06-05T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Drawings",
+    "totalHours": 0,
+    "team": [
+      {
+        "id": "1756231127763",
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "id": "1756231133718",
+        "role": "DESIGNER",
+        "name": "Sean"
+      },
+      {
+        "id": "1762350584677",
+        "role": "PRODUCTION",
+        "assignedAt": "2025-11-05T13:49:44.677Z",
+        "name": "David"
+      },
+      {
+        "role": "PM",
+        "name": "Sal L.",
+        "assignedAt": "2026-04-02T18:21:00.737Z",
+        "id": "1775154060737",
+        "acknowledgements": {}
+      }
+    ],
+    "address": "Dade City, FL",
+    "personalDeadlines": {
+      "Sal": {
+        "acknowledgements": {},
+        "task": "",
+        "taskAssignedAt": "2026-01-28T15:39:01.404Z"
+      }
+    },
+    "clientNotes": "Construction Drawings. Will need final design approval from the owner\n\nDD Link: https://drive.google.com/file/d/1EFaGm4c0bMGBOrHf-HeBxrY_qxtcBuei/view?usp=sharing ",
+    "client": "Dhruv",
+    "name": "DC-23-015 North Pasco Resort -Island Private Cabana",
+    "percentageComplete": 60,
+    "notes": "INTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing \n\n11-5-25 Sal:\nISSUE MODEL TO S+MEP!"
+  },
+  {
+    "id": "bfKWuCPCPv4C7TH4JMqQ",
+    "status": "On Track",
+    "clientNotes": " Construction Drawings. Will need final design approval from the owner.  \n\nDD Link: https://drive.google.com/file/d/1sGkahLzV-UUyTNkUikYIdv7EOnqCOQB0/view?usp=sharing ",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2026-06-05T04:00:00.000Z",
+    "client": "Dhruv",
+    "totalHours": 0,
+    "name": "DC-23-015 North Pasco Resort -Check-in and Storage",
+    "team": [
+      {
+        "name": "Sean",
+        "role": "DESIGNER",
+        "id": "1756231778241"
+      },
+      {
+        "id": "1756231786635",
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "name": "David",
+        "assignedAt": "2025-11-05T13:51:15.098Z",
+        "role": "PRODUCTION",
+        "id": "1762350675098"
+      },
+      {
+        "acknowledgements": {},
+        "id": "1775153929276",
+        "assignedAt": "2026-04-02T18:18:49.276Z",
+        "name": "Sal L.",
+        "role": "PM"
+      }
+    ],
+    "address": "Dade City, FL",
+    "percentageComplete": 75,
+    "notes": "Sal D: 3-27-26:\n\n- finish architecture sheets\n- Send updates to GLOBAL and RESURGET \n\n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing "
+  },
+  {
+    "id": "bgWIHcszuhmnVZ6c6BbG",
+    "client": "Vinny",
+    "clientNotes": "",
+    "notes": "9/8/25: emailed scheme to Vinny.\n9/15/25 EM: revised layout sent to Vinny and approved by Vinny. Proceed to DD drawings.\n9/26/25 EM: emailed power and RCP to Vinny for approval\n9/29/25 EM: Vinny approved electrical and said to proceed.\n10/30/25 EM: Brian said to move forward with 2 (10) rtus placed where we want. He is aware additional fees will incur if units are changed.\n11/10/25 EM: sent Peter drawings to review via Whatsapp. Please look at the proposed section on A301 and let me know if we need to add an epoxy set rod connecting the new conc to the existing footing? Please also take a look at the ceiling section son A601. The ceiling is conc and I'm attaching the unistrut to it. Do I need to call out anything more specific?\nLastly, is the balanced owed $3,750 + $1,000 (for asr) totaling $4,750?\n11/11/25 EM: drawings complete, invoice sent.",
+    "name": "S-25-1192 Roseville Nails & Spa",
+    "percentageComplete": 100,
+    "totalHours": 0,
+    "deadline": "2025-11-11T05:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "On Hold",
+    "personalDeadlines": {
+      "Peter": {
+        "task": "",
+        "taskAssignedAt": "2025-11-11T14:12:54.446Z"
+      }
+    },
+    "address": "32123 Gratiot Ave., Unit 4A",
+    "team": [
+      {
+        "role": "PM",
+        "id": "1757529653498",
+        "name": "Emily"
+      },
+      {
+        "assignedAt": "2025-11-10T20:12:02.964Z",
+        "id": "1762805522964",
+        "name": "Peter"
+      }
+    ]
+  },
+  {
+    "id": "bnEJ8Z2cCnPT7wiW2S0p",
+    "address": "56 Oxford Rd.",
+    "team": [
+      {
+        "id": "1761576855779",
+        "role": "DESIGNER",
+        "name": "Peter"
+      },
+      {
+        "name": "Eric",
+        "assignedAt": "2025-11-20T19:43:03.152Z",
+        "id": "1763667783152",
+        "role": "PRODUCTION"
+      },
+      {
+        "name": "Hunter",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-01-29T18:32:58.754Z",
+        "id": "1769711578754"
+      }
+    ],
+    "personalDeadlines": {},
+    "completedAt": "2026-05-01T19:59:21.893Z",
+    "status": "Completed",
+    "phase": "Construction Documents",
+    "deadline": "2026-04-24T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "percentageComplete": 100,
+    "name": "DA 56 Oxford Renovation / Addition",
+    "notes": "EMAIL FROM: Brad Benigni <brad@taylordoorco.com>\nHi Nicholas and Hunter,\n\nI had a conversation with Lee (framer) to review a few items on the plans, and we wanted to clarify what is currently included versus what may still need to be detailed.\n\nItems we’re looking for clarification on:\n\n•\tFront porch overhang details\nSpecifically how the overhang is framed and finished at the front porch area.\n•\tFront porch column / support details\nWe understand there may already be a front porch detail, but want to confirm if it fully addresses the structural/posts (column-like elements) and how they are intended to be built.\n•\tMaterial transition details\n\nWe need clarity on how materials will terminate and meet, particularly:\n\no\tBrick to limestone transitions\no\tGeneral detailing at openings and key junctions\n\nMaterial direction (for coordination):\n\nWe are currently planning the following, but please confirm if this aligns with the design intent and plans:\n\n•\tLimestone around the front door system and window openings\n•\tLikely AZEK (or similar) on the dormers instead of stucco\n•\tAvoiding heavy materials like full masonry on dormers\n•\tPossibly evaluating lighter materials above the garage for weight considerations\n\n\nAdditional note:\nWe want to be mindful of design time and billing, so if these details are already included in the plans, please point us to where they are. Otherwise, let us know what level of additional detailing is recommended or necessary.\n\nAppreciate your help in getting these items clarified so we can keep things moving efficiently on the framing side.\n\n\n\n\n3-02-26: Submittal set sent to Nick \n\n2-27-26 Bid set issued. awaiting review and edits.\n\n1-5-25 Approval Granted. Build AS-Built\n\n12-17-25 Awaiting approval\n\n12-8-25 Await input from Nick\n\n10-27-25 Begin design",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "completed": true,
+        "createdAt": "2026-04-20T20:55:27.060Z",
+        "title": "Update details",
+        "assignedTo": "Hunter",
+        "deadline": "2026-04-24T04:00:00.000Z",
+        "priority": 2,
+        "id": "1776718527060"
+      }
+    ],
+    "client": "Amy Krueger Malow"
+  },
+  {
+    "id": "d7oAdHI8kZ35y6o3bwWT",
+    "notes": "We need to edit the Stefek residence to eliminate the brick ledge.",
+    "name": "DA-25024 - STEFEK RESIDENCE",
+    "team": [
+      {
+        "id": "1760738216515",
+        "name": "Peter"
+      }
+    ],
+    "address": "UNKOWN",
+    "percentageComplete": 100,
+    "deadline": "2025-10-10T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Drawings",
+    "totalHours": 0,
+    "client": "JOHN STEFEK",
+    "status": "Completed",
+    "clientNotes": ""
+  },
+  {
+    "id": "dNkqkxphRz0AtKm5Sqb8",
+    "client": "Michael Attee",
+    "clientNotes": "",
+    "tasks": [],
+    "notes": "",
+    "percentageComplete": 100,
+    "name": "S-26-1214_Bodyrok Pilates",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Drawings",
+    "deadline": "2026-05-13T04:00:00.000Z",
+    "status": "Completed",
+    "personalDeadlines": {},
+    "completedAt": "2026-05-11T18:45:06.976Z",
+    "address": "20085 Haggerty rd ",
+    "team": [
+      {
+        "name": "Roena",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-04-17T12:43:06.364Z",
+        "id": "1776429786364"
+      }
+    ]
+  },
+  {
+    "id": "en2eCdRf8mGpqAEqTrHO",
+    "personalDeadlines": {
+      "Roena": {
+        "acknowledgements": {},
+        "task": "Get Al started on foudnation",
+        "taskAssignedAt": "2026-02-04T17:39:02.631Z"
+      },
+      "Peter": {
+        "task": "",
+        "taskAssignedAt": "2025-11-21T23:01:26.114Z"
+      }
+    },
+    "notes": "11-3-25 Joe will send alternate elevations which Sam wants to show the municipality to see if they will accept an alternate with less masonry.\n\nAfter approval, we can proceed with CD's. All architecture and foundations can be started. They need a set of architectural drawings composed to send to the steel manufacturer.\n\n11-7-25 talked to Joe about ordinance requirements for building materials (wood or cement boards, no narrow plank vinyl, metal siding or EIFS allowed). He will discuss with his dad and get back to us on how to proceed with elevations. \n\n01-16-26 sent Greg the revised elevations and addendum narrative to submit for the technical change. \n\n02-27-26_Bid Set including structural drawings completed. ",
+    "percentageComplete": 100,
+    "address": "TBD ",
+    "team": [
+      {
+        "id": "1760531645608",
+        "role": "PM",
+        "name": "Roena"
+      },
+      {
+        "name": "Peter",
+        "id": "1761579100927"
+      }
+    ],
+    "name": "S-25-1195 11 Acre Storage Facility ",
+    "client": "Sal-Mar",
+    "deadline": "2026-02-27T05:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": true,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "clientNotes": "Storage:\n2-27-26 - COMPLETED DRAWINGS: https://drive.google.com/file/d/1j1hCQ2GM0F5aZUDD7p8nMN5gWTkQwlJF/view?usp=sharing\n\n2-4-26 - Sam and Peter discussed structural drawings. We are going to provide structural drawings using a proprietary system that is based on light gauge studs (prefabricated system) with the understanding that the chosen company will create their own shop drawings. We will proceed completing the entire set of drawings.\nDue date: 2-27-26",
+    "status": "Completed"
+  },
+  {
+    "id": "fVaLhL0wmCpr9HiKPp9Y",
+    "name": "24-1158S_Walton Dispensary",
+    "percentageComplete": 0,
+    "notes": "Email go-ahead received 03-17-26. Waiting on signed proposal + deposit. ",
+    "tasks": [],
+    "clientNotes": "",
+    "client": "Derrick Gerges ",
+    "address": "Pontiac  ",
+    "team": [
+      {
+        "id": "1773853706031",
+        "assignedAt": "2026-03-18T17:08:26.031Z",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Roena"
+      },
+      {
+        "name": "Peter",
+        "role": "PRODUCTION",
+        "acknowledgements": {},
+        "assignedAt": "2026-04-01T15:10:03.822Z",
+        "id": "1775056203822"
+      },
+      {
+        "role": "DESIGNER",
+        "name": "Eric",
+        "id": "1775058162715",
+        "assignedAt": "2026-04-01T15:42:42.715Z",
+        "acknowledgements": {}
+      }
+    ],
+    "personalDeadlines": {},
+    "status": "On Hold",
+    "phase": "Project Signed",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-04-17T04:00:00.000Z"
+  },
+  {
+    "id": "fs1PLs3CW4iiTQfeFPvu",
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "client": "Dhruv",
+    "totalHours": 0,
+    "clientNotes": "Construction Drawings are complete with ongoing coordination related to field conditions, as well as finalizing  door schedules & hardware/electronic access controls. Plumbing and Electrical drawings are also complete. \n\nLobby Facade SD for approval: https://drive.google.com/file/d/1jw31WhDmwUR7PSQW2G0agQt1mEqoO5GW/view?usp=sharing\n\nLatest Architectural set:\nhttps://drive.google.com/file/d/1H3C0BWmO6ZYBS15Xdujvv6ZJMEFf4GPL/view?usp=sharing\n\n\n",
+    "status": "On Track",
+    "notes": "SSDALEO 8-25-25:\n*** ASR: Registrar building facade design \n\nRequested RCP for basement and kitchens (missing from previous files), along with final lighting layout & specs on 09-03. MEP timeline is 4 weeks after receiving all the information needed. \n\n11/04/2025\nrevisions received from Vivian including bathroom layouts, gym room split into two areas: a gym and a arcade rm, front doors entrance doors revised to sliding doors. Main floor bathroom change enlarged the kitchen space and will require coordination with FSE. RCP and lighting specs were sent, MEP cannot coordinate until we have revised FSE plans.\n\nArchitectural drawings have ben coordinated. Revised FSE received. Waiting on field electrical information for M&E drawings. 12-2-25\n\nPreliminary Electrical and Plumbing drawings received. Still waiting for field pictures before electrical can be finalized. Sent elec questions to FSE. 01-06-25\n\n01/16/26 field survey received. Sent to NY for electrical to be finalized. Some light specs were missing from Vivian's drawings, used placeholders just to wrap this up. \n\n01-29-26_revisions received - existing exit door in office area to be kept, new sliding door specs for entrances and canopy pier revisions. Ceiling details requested. Finalized electrical and plumbing drawings are expected by 02-06-26. \n\n02-12-26_Vivian sent revised ceiling drawings. Some light changes and some ceiling changes mainly due to mechanical systems installed lower than anticipated. RCP revised and ceiling details completed and sent back 02-13. Vivian requested elevations to include stone veneer and the addition of a waterfall. Proposed drawings revised to include insulation and rating since all existing walls were stripped down to metal studs. Pier details for the new canopy also completed.\n\n02-27-26_additional markups sent after field visit. ",
+    "percentageComplete": 99,
+    "name": "DC 24-001 - Sugar Bay USVI - Registrar Building",
+    "team": [
+      {
+        "role": "PM",
+        "id": "1756238215285",
+        "name": "Roena"
+      },
+      {
+        "id": "1756238226632",
+        "name": "David"
+      }
+    ],
+    "address": "St Thomas - USVI"
+  },
+  {
+    "id": "hcriYQ7pmJhuqOu3SzZ5",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "title": "Updates per email",
+        "createdAt": "2026-04-20T20:48:35.860Z",
+        "completed": true,
+        "id": "1776718115860",
+        "deadline": "2026-04-22T04:00:00.000Z",
+        "priority": 3,
+        "assignedTo": "Hunter"
+      },
+      {
+        "completed": false,
+        "createdAt": "2026-05-01T20:06:34.116Z",
+        "title": "Revise Elevations",
+        "assignedTo": "Peter",
+        "priority": 5,
+        "deadline": "2026-05-06T04:00:00.000Z",
+        "id": "1777665994116"
+      }
+    ],
+    "client": "Pawel Rzedzian",
+    "percentageComplete": 20,
+    "name": "DA26-005 - RZEDZIAN RESIDENCE",
+    "notes": "4-1-26:\nUpdate plans per meeting drawings \n\n\n03-30-2026\nAddressed current concerns with project alignment with the client. \nA meeting has been set up for 4-1-26 to properly lay out all rooms to the clients' requests and re-align the project.  ",
+    "status": "On Track",
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "phase": "Schematic Design",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "address": "1119 Harding Ave ",
+    "team": [
+      {
+        "id": "1774273656554",
+        "assignedAt": "2026-03-23T13:47:36.554Z",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Peter"
+      },
+      {
+        "acknowledgements": {
+          "imL8QesMUAe9Qbc1fVi4ICYMH5a2": "2026-03-25T13:38:07.758Z"
+        },
+        "id": "1774444589160",
+        "assignedAt": "2026-03-25T13:16:29.160Z",
+        "name": "Hunter",
+        "role": "PM"
+      }
+    ],
+    "personalDeadlines": {}
+  },
+  {
+    "id": "hvpaoQePlafUXZYmP0qP",
+    "notes": "9/25/25 EM: revise drawings for smaller vault and added insta nook area. Include adjacent tenant space as part of the revised drawings. Use business use group (education/training) for only 1 bathroom.\n\n9/30/25 EM: no response received. sent follow up email.",
+    "percentageComplete": 100,
+    "name": "S-25-1163 BISA LINA",
+    "team": [
+      {
+        "name": "Emily",
+        "id": "1758809382614"
+      }
+    ],
+    "address": "2121 W. Jefferson, Joilet, IL",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Documents",
+    "deadline": "2025-10-02T04:00:00.000Z",
+    "client": "Dev Patel (Veltiste)",
+    "clientNotes": "",
+    "status": "Completed"
+  },
+  {
+    "id": "i4qEXnaZfJ1j4JyDV10O",
+    "percentageComplete": 100,
+    "address": "21800 Greefield Rd Oak Park ",
+    "name": "S-25-1183 Forgotten Harvest",
+    "team": [
+      {
+        "id": "1755879035818",
+        "name": "Roena"
+      }
+    ],
+    "notes": "-Owners meet with planning 08/27 and were told CUs on roof were going to be ok as long as they were screened, regardless of height. \n-Meeting scheduled with our office 09/02 to discuss next steps and submit for demo permit. SPA drawings submitted 09/04 to make meeting on 09/23. \n-Equipment drawings received 09/29/2025. Structural engineer working on structural drawings. Awaiting on existing mechanical information before sending to MEP engineers. Developing Arch drawings. 09/29/2025\n-Arch and struc drawings submitted 11/06. Need to talk to the team about some structural details & questions from Al. Awaiting MEP drawings from NYE. ",
+    "clientNotes": "",
+    "status": "Completed",
+    "client": "Brian Louissa",
+    "totalHours": 0,
+    "phase": "Construction Documents",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2025-11-21T05:00:00.000Z"
+  },
+  {
+    "id": "iA9AFYLE6lm8HltQ1S86",
+    "notes": "",
+    "name": "S-TBD - CLUB PILATES SALINE",
+    "percentageComplete": 0,
+    "client": "REMY JONNA",
+    "tasks": [],
+    "clientNotes": "",
+    "personalDeadlines": {},
+    "address": "1365 E Michigan Ave",
+    "team": [
+      {
+        "name": "Emily",
+        "role": "PM",
+        "acknowledgements": {},
+        "id": "1778251496221",
+        "assignedAt": "2026-05-08T14:44:56.221Z"
+      }
+    ],
+    "deadline": "2026-05-22T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "status": "On Track"
+  },
+  {
+    "id": "itYfFjbM6N5YByZyyGML",
+    "status": "On Hold",
+    "phase": "Schematic Design",
+    "deadline": "2026-02-27T05:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "team": [
+      {
+        "name": "Hunter",
+        "role": "PM",
+        "id": "1764766891364",
+        "assignedAt": "2025-12-03T13:01:31.364Z"
+      },
+      {
+        "assignedAt": "2025-12-03T13:01:35.438Z",
+        "role": "DESIGNER",
+        "id": "1764766895438",
+        "name": "Sald"
+      }
+    ],
+    "address": "5929 Kinyon ",
+    "personalDeadlines": {
+      "Sal": {
+        "acknowledgements": {},
+        "task": "preliminary design updates per owner markups",
+        "taskAssignedAt": "2026-01-28T15:36:52.205Z"
+      }
+    },
+    "tasks": [],
+    "clientNotes": "",
+    "client": "Sanborn Construction",
+    "name": "DA - 25036 - Brighton Remodel ",
+    "percentageComplete": 20,
+    "notes": "02-10-26\nWaiting on Sanborn to provide site plan \n\n12-3-25\nProject to be developed in Revit ASAP for design \n\n12-23-25\nMeeting planned for Jan 6th, 4 pm @ D'Anna Office "
+  },
+  {
+    "id": "jKaLRbIYxNuCmDDKYOYb",
+    "status": "Completed",
+    "clientNotes": "",
+    "client": "Donna Kim",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "phase": "Construction Documents",
+    "deadline": "2025-12-01T05:00:00.000Z",
+    "address": "16636 19 mile rd ",
+    "name": "S25-1196 Korean BBQ",
+    "team": [
+      {
+        "id": "1760131523479",
+        "name": "Roena"
+      }
+    ],
+    "percentageComplete": 95,
+    "notes": "",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "jicyJAntlrSsghC81Vcl",
+    "notes": "10-24-25 Peter to check structural\n\n10-10-25 Peter to compose structural\n\n8-25 schematic composed. Being reviewed by the client.\nDesign steel deck.",
+    "name": "DA-23038 - Redd Residence Deck",
+    "percentageComplete": 35,
+    "client": "Wade Redd",
+    "clientNotes": "",
+    "personalDeadlines": {
+      "Peter": {
+        "0": "2",
+        "1": "0",
+        "2": "2",
+        "3": "5",
+        "4": "-",
+        "5": "1",
+        "6": "0",
+        "7": "-",
+        "8": "2",
+        "9": "7",
+        "10": "T",
+        "11": "0",
+        "12": "4",
+        "13": ":",
+        "14": "0",
+        "15": "0",
+        "16": ":",
+        "17": "0",
+        "18": "0",
+        "19": ".",
+        "20": "0",
+        "21": "0",
+        "22": "0",
+        "23": "Z",
+        "task": ""
+      },
+      "Hunter": {
+        "task": "Add base plate detail and general notes",
+        "deadline": "2025-10-29T04:00:00.000Z"
+      }
+    },
+    "address": "UNKNOWN",
+    "team": [
+      {
+        "id": "1754599182404",
+        "name": "Peter"
+      },
+      {
+        "id": "1760990908768",
+        "name": "Hunter"
+      }
+    ],
+    "totalHours": 0,
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "phase": "Review",
+    "deadline": "2025-10-29T04:00:00.000Z",
+    "status": "Completed"
+  },
+  {
+    "id": "jr4IX3hwOErWDkkDDXyy",
+    "address": "St Thomas - USVI",
+    "name": "DC 24-001 - Sugar Bay USVI - Guardhouse",
+    "team": [
+      {
+        "id": "1773847972214",
+        "assignedAt": "2026-03-18T15:32:52.214Z",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Roena"
+      }
+    ],
+    "percentageComplete": 50,
+    "notes": "",
+    "status": "On Hold",
+    "clientNotes": " Design Development Phase - Waiting on owner approval. \n\nSD for Design Approval: https://drive.google.com/file/d/1lquAaE5xO9F_mcPlKURlU-YIa0RuxFTP/view?usp=sharing",
+    "client": "Dhruv",
+    "totalHours": 20,
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "phase": "Design Development",
+    "deadline": "2026-02-27T05:00:00.000Z"
+  },
+  {
+    "id": "jsA435pZMkhhMqgzh1Uo",
+    "notes": "",
+    "personalDeadlines": {},
+    "team": [],
+    "name": "S-13 Acre - (5 Acre) The Vistas Senior Apartments",
+    "address": "13 Acre Site - Macomb",
+    "percentageComplete": 9,
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "phase": "Planning",
+    "client": "Sal-Mar",
+    "status": "On Hold",
+    "clientNotes": "2-4-26 – Sam and Peter discussed editing the elevation. We reached out to Greg Bono to determine the site planning status – we’re waiting for consent judgement feedback. We will submit for site plan approval thereafter. The elevation must be ready before submitting the site plan.\nProposal requires signature: LINK HERE:\nhttps://drive.google.com/file/d/1PkPDzyHrgmzROoeqpVV4vVjw2qWYfuRC/view?usp=sharing\n"
+  },
+  {
+    "id": "k6ixAL2OsDprch5jerrm",
+    "percentageComplete": 100,
+    "address": "21445 Hoover Rd Ste 405",
+    "name": "25-1185 Emerald Park ste 405 ",
+    "team": [
+      {
+        "name": "Roena",
+        "id": "1756393009051"
+      }
+    ],
+    "notes": "CDs are finished. Awaiting payment. Wire payment should be coming 08-29.",
+    "clientNotes": "",
+    "status": "Completed",
+    "client": "Derrick Gerges ",
+    "totalHours": 0,
+    "phase": "Construction Documents",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": true
+    },
+    "deadline": "2025-09-12T04:00:00.000Z"
+  },
+  {
+    "id": "kR1F1rOuz6s4MYQNvt6Y",
+    "address": "326 ALBERTSON",
+    "team": [
+      {
+        "name": "Roena",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-03-05T21:17:19.613Z",
+        "id": "1772745439613"
+      }
+    ],
+    "personalDeadlines": {},
+    "status": "Completed",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Design Development",
+    "deadline": "2026-04-09T04:00:00.000Z",
+    "name": "S-26-1212 326 ALBERTSON ",
+    "percentageComplete": 99,
+    "notes": "",
+    "tasks": [
+      {
+        "completed": true,
+        "createdAt": "2026-03-23T15:54:44.822Z",
+        "title": "CIVIL",
+        "assignedTo": "Roena",
+        "deadline": "2026-03-23T04:00:00.000Z",
+        "id": "1774281284822"
+      }
+    ],
+    "clientNotes": "",
+    "client": "NA"
+  },
+  {
+    "id": "kix0aCgc3IUYraKlwpTn",
+    "personalDeadlines": {},
+    "address": "Lot 43 – Bridge Valley II Subdivision",
+    "team": [
+      {
+        "name": "Sal",
+        "role": "DESIGNER",
+        "acknowledgements": {},
+        "id": "1776360749743",
+        "assignedAt": "2026-04-16T17:32:29.743Z"
+      },
+      {
+        "assignedAt": "2026-04-16T17:32:35.121Z",
+        "id": "1776360755121",
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Hunter"
+      }
+    ],
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Planning",
+    "status": "On Track",
+    "notes": "",
+    "name": "DA26-012 - Singson Residence ",
+    "percentageComplete": 0,
+    "client": "Erica Singson",
+    "tasks": [
+      {
+        "assignedTo": "Sal",
+        "deadline": "2026-04-30T04:00:00.000Z",
+        "priority": 8,
+        "id": "1776360780883",
+        "completed": false,
+        "createdAt": "2026-04-16T17:33:00.883Z",
+        "title": "Schematic Design"
+      },
+      {
+        "priority": 5,
+        "deadline": "2026-05-08T04:00:00.000Z",
+        "assignedTo": "Hunter",
+        "id": "1776718570821",
+        "createdAt": "2026-04-20T20:56:10.821Z",
+        "completed": false,
+        "title": "Create in Revit"
+      }
+    ],
+    "clientNotes": ""
+  },
+  {
+    "id": "kzkXXA0jE5icvhnmiJtb",
+    "personalDeadlines": {},
+    "completedAt": "2026-04-20T13:30:44.129Z",
+    "address": "1 N MAIN, MT CLEMENS",
+    "team": [
+      {
+        "name": "Peter",
+        "id": "1760106133795",
+        "role": "PM"
+      },
+      {
+        "name": "Hunter",
+        "id": "1760990927450",
+        "role": "PRODUCTION"
+      }
+    ],
+    "totalHours": 0,
+    "deadline": "2026-04-17T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Drawings",
+    "status": "Completed",
+    "notes": "4-14-26\nFrom an email:\nWe will eventually have to add sprinklers to the project if your ultimate goal is to provide an assembly use on the ground floor, however, if the idea is to delay using the banquet area, we can reclassify it as vacant office space and give the municipality a 2nd floor plan showing what is existing / proposed and a 1st floor plan with the banquet area as \"office\".\n\nDoing so would circumvent the installation of the sprinkler system and allow you to use the office spaces with the understanding that if you add the banquet component, you will have to sprinkler the entire building.\n\n\n10-27-25 - waiting for kitchen layout \n\n10-10-25 - stop and plot.\n9-27-25 Review set due this week.\n8-6-25 approval for CD's. Modelling must begin. Waiting for go-ahead from Nancy.\nClient reviewing SD 8-5-25\n\n",
+    "percentageComplete": 100,
+    "name": "DA-25023 - 1 N MAIN",
+    "client": "ANTHONY DIBARTOLOMEO",
+    "clientNotes": "10/15 - Permit set: https://drive.google.com/file/d/1AT6175pdZ1eeQVFyxocpV0nfplxW3cyE/view?usp=sharing\n\n10/14 - Status update: Completion of permit set on target for today or tomorrow. We continue to wait for the kitchen designer's design.\n\n10/10 - Status update: set is available via the following link: https://drive.google.com/file/d/1_YVR1Tt17bUmyg3gQn9WebNCSM_Zd0vp/view?usp=sharing\nWe will need to submit the kitchen separately since it is under development. [Patti Leopardi]\nSubmittal set ready on Tuesday.",
+    "tasks": []
+  },
+  {
+    "id": "lTqgjjKzS2SSFWi1YLws",
+    "personalDeadlines": {},
+    "notes": "2-3 months per phase, total design period 6-9 months\n\n11/26/25 EM: Abe dropped off 20k deposit check and discussed the layout: 20 frow rooms w/ 2,000 sf canopy, 2'w tables maybe 14' long and 1' apart, keep center bathrooms we don't lose much flower space, support spaces on the right side with maybe 2 of the grow room.\n\n1/6/26 EM: Agil asked if we can submit a demo plan before finishing CD's. We we responded that we can once the floor plan is finalized.\n\n1/8/26 EM: met w/ Abe to discuss layout. Revised layout send and requesting approval.\n\n1/9/26 EM: Agil and team approved layout.\n\n1/13/26 EM: Abe is working on gathering information for equipment, lighting, hvac and existing electrical service info. They would like 4 ss in the hallways in the cultivation area, grow ceilings will be foam - no cooler panel.\n\n1/14/26 EM: Agil wants us to go out to the site to field verify everything. There is fire suppression and elec panels in the back where we are proposing a flower room. Peter is providing an ASR and coordinating Jay to go out there.\n\n1/20/26 EM: Jay is going out there on 1/28. Peter & Emily to go over project with him before he heads out.\n\n2/232/26 EM: met w/ Abe & Anton. \n-Floor drains/trench drains layout marked up. \n-They are trying to get the small room from the adjacent tenant to square off the veg room. \n-separate cw to Itron (left tenant.) \n-keep water heater to provide hw to hose bibs in rooms\n-argoniomics iq for hvac. Anton will send specs. Units are  very heavy. Discuss w/ Peter if they want to have structure handled by someone in MN or us.\n-Anton still working on equipment\n-need to spray foam w/ vinyl facing on 1 side of the joists to create the separation of the rooms to the deck.\n-Check to see if carbon filters/odor control is required.\n\n4/13/26 EM: issue 80% drawing set. set will not include ME or structural\n4/14/26 EML payment rec'd, 80% set issued with tables, trench drains rotated in flower rms 8 &9",
+    "percentageComplete": 95,
+    "address": "2401 North State St., Waseca, MN",
+    "name": "S-25-1205 Grow @ Waseca, MN",
+    "team": [
+      {
+        "id": "1764601006034",
+        "role": "PM",
+        "assignedAt": "2025-12-01T14:56:46.034Z",
+        "name": "Emily"
+      },
+      {
+        "assignedAt": "2026-01-28T19:39:55.018Z",
+        "id": "1769629195018",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Peter"
+      }
+    ],
+    "client": "Abe Said",
+    "phase": "Construction Drawings",
+    "deadline": "2026-05-08T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "clientNotes": "04/23/26 EM: Working through mechanical, electrical and structural to support mechanical units.\n~ Electrical service needs to be increased for the grow. Anton is inquiring with XCEL energy is a single 8000A service is feasible or if there needs to be two 4000A services. We are trying to get the team on a call to discuss.\n~We just received the requested revised dry room submittal from Agronomics IQ\n~need approval of the Vosterman fan cutsheet that was emailed today.\n\n4/24/26 EM: We had a great meeting today with the m/e engineer, Agronomics IQ, Anton and Abe. Our engineer and AG IQ are investigating the use of fabric ducts. It was also recommended to remove the Schaeffer and Vosterman fans, which we are doing. Anton is contacting the electrical company to discuss the electrical service. Drawings are moving full steam ahead as we are awaiting answers. I mentioned in the meeting we will be pushing to have everything late next week or earlier.",
+    "status": "On Track"
+  },
+  {
+    "id": "lV2y2i7HgSqf9DzeMI19",
+    "clientNotes": "",
+    "status": "On Hold",
+    "phase": "Schematic Design",
+    "deadline": "2026-03-27T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "client": "Laith Jonna",
+    "percentageComplete": 0,
+    "name": "S-Laith Jonna Pontiac Multifam PID",
+    "team": [
+      {
+        "assignedAt": "2026-01-20T15:42:30.968Z",
+        "role": "DESIGNER",
+        "id": "1768923750968",
+        "name": "Peter"
+      }
+    ],
+    "address": "131 University",
+    "personalDeadlines": {},
+    "notes": "1-20-26 Compose schematic block diagrams"
+  },
+  {
+    "id": "mJsDv7BbGQkLmRy47Mcn",
+    "clientNotes": "",
+    "tasks": [],
+    "client": "Duma (Juma) Ekic",
+    "percentageComplete": 0,
+    "name": "DC26-013 - Balkan House",
+    "notes": "",
+    "status": "On Track",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "phase": "Project Signed",
+    "team": [
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-02T18:22:32.850Z",
+        "id": "1775154152850",
+        "name": "Sal L.",
+        "role": "PM"
+      }
+    ],
+    "address": "20561 Dwyer St, Detroit, MI 48234",
+    "personalDeadlines": {}
+  },
+  {
+    "id": "mYE8BwnnFyFL3MZbYPl5",
+    "deadline": "2025-11-07T05:00:00.000Z",
+    "phase": "Review",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": true
+    },
+    "totalHours": 0.5,
+    "status": "Completed",
+    "personalDeadlines": {
+      "Hunter": {
+        "taskAssignedAt": "2025-11-11T14:56:56.416Z",
+        "task": ""
+      }
+    },
+    "team": [
+      {
+        "id": "1755868747009",
+        "name": "Hunter"
+      },
+      {
+        "id": "1755868751043",
+        "name": "Eric"
+      },
+      {
+        "name": "Peter",
+        "id": "1755868755043"
+      }
+    ],
+    "address": "TBD",
+    "client": "FRANK FERRO",
+    "clientNotes": "Ciao!",
+    "notes": "8-29-25: See folder for new edits.\n\n8-22-25: Client review.\n\n8-6-25: Make edits according to Frank's markups. Done.\n\n8-20-25: Begin drafting in Revit \n\n9-22-25: First Floor to be accessible. 10' first floor clg. 8'-6\" second floor clg. \n\n9-27-25: sent plans and elevations for approval\n\n9-29-25: approved for CDs\n\nLINK TO PROJECT:\nhttps://drive.google.com/drive/folders/1Cdl0p8EIUswbJzh4vunrpTeaqeQbadaH?usp=sharing",
+    "percentageComplete": 100,
+    "name": "DA-25027-FRANK FERRO RESIDENCE"
+  },
+  {
+    "id": "mnNCjaLkQhSSrQfgcj7w",
+    "phase": "Project Signed",
+    "deadline": "2026-01-16T05:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "client": "Shawn Atto",
+    "clientNotes": "",
+    "status": "Completed",
+    "personalDeadlines": {
+      "Peter": {
+        "taskAssignedAt": "2026-01-09T19:32:47.841Z",
+        "task": "HVAC calcs"
+      }
+    },
+    "notes": "",
+    "percentageComplete": 100,
+    "name": "Atto - Cooper Creek Golf Course",
+    "team": [
+      {
+        "name": "Peter",
+        "assignedAt": "2026-01-08T03:00:33.070Z",
+        "id": "1767841233070"
+      }
+    ],
+    "address": "27925 Golf Pointe Blvd, Farmington Hills, MI 48331"
+  },
+  {
+    "id": "opzXV1BH6f4nH8QMEs6m",
+    "notes": "",
+    "team": [
+      {
+        "id": "1757950105141",
+        "name": "Peter"
+      }
+    ],
+    "name": "25-005 - HOME 2 Suites Ocala FL",
+    "address": "Ocala",
+    "percentageComplete": 100,
+    "phase": "Project Signed",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2025-09-19T04:00:00.000Z",
+    "client": "Dhruv",
+    "status": "Completed",
+    "clientNotes": "Approved Drawings: https://drive.google.com/drive/folders/13yIX2FKcwgCpaa6ZlJWJAGENb3b342Po?usp=sharing"
+  },
+  {
+    "id": "psiql1AKJZA072Y54Tdk",
+    "notes": "02/27/26:\nWe are attempting a 95% delivery on 3-23-26. This is contractually 80%.\n\n04/06/26:\n- Updated Specifications\n- Updated Pricing\n- Add in Basketball and Volleyball Nets\n- Add in Padded Walls in Gym.\n- Revised the \"Utility Room\" in the Kitchen area to be a \"Pantry\"\n- Adjust Sections to show 1/8\" Slope to Stage",
+    "percentageComplete": 95,
+    "name": "DC-25-001 BAPS - FAMILY ACTIVITY CENTER",
+    "client": "BAPS",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "createdAt": "2026-03-20T19:47:57.237Z",
+        "completed": true,
+        "title": "Stage Section",
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "priority": 20,
+        "assignedTo": "Sal L",
+        "id": "1774036077237"
+      },
+      {
+        "completed": true,
+        "createdAt": "2026-03-20T19:48:14.143Z",
+        "title": "Mezzanine Section",
+        "assignedTo": "Sal L",
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "priority": 20,
+        "id": "1774036094143"
+      },
+      {
+        "title": "1 Hr - Roof Assembly",
+        "completed": true,
+        "createdAt": "2026-03-20T19:48:31.730Z",
+        "id": "1774036111730",
+        "assignedTo": "Sal L",
+        "priority": 20,
+        "deadline": "2026-04-10T04:00:00.000Z"
+      },
+      {
+        "id": "1774040261502",
+        "deadline": "2026-04-10T04:00:00.000Z",
+        "priority": 20,
+        "assignedTo": "Sal L",
+        "title": "Coordinate Assemblies with Acoustics",
+        "createdAt": "2026-03-20T20:57:41.502Z",
+        "completed": true
+      },
+      {
+        "assignedTo": "Eric",
+        "deadline": "2026-03-23T04:00:00.000Z",
+        "priority": 20,
+        "id": "1774040491360",
+        "completed": true,
+        "createdAt": "2026-03-20T21:01:31.360Z",
+        "title": "Accessibility Notes (PER CAD)"
+      },
+      {
+        "title": "General Notes",
+        "completed": true,
+        "createdAt": "2026-03-20T21:02:49.609Z",
+        "id": "1774040569609",
+        "assignedTo": "Sal L",
+        "priority": 20,
+        "deadline": "2026-03-23T04:00:00.000Z"
+      },
+      {
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "priority": 20,
+        "assignedTo": "Eric",
+        "id": "1774041715672",
+        "createdAt": "2026-03-20T21:21:55.672Z",
+        "completed": true,
+        "title": "Equipment Plan + Schedule"
+      },
+      {
+        "id": "1774361557826",
+        "assignedTo": "Eric",
+        "priority": 20,
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "title": "Door Schedule",
+        "completed": true,
+        "createdAt": "2026-03-24T14:12:37.826Z"
+      },
+      {
+        "assignedTo": "Eric",
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "priority": 20,
+        "id": "1774361577037",
+        "completed": true,
+        "createdAt": "2026-03-24T14:12:57.037Z",
+        "title": "Send Door Schedule + Plans to Robb Rittner"
+      },
+      {
+        "id": "1774369090499",
+        "priority": 20,
+        "deadline": "2026-03-27T04:00:00.000Z",
+        "assignedTo": "Peter",
+        "title": "Specs",
+        "createdAt": "2026-03-24T16:18:10.499Z",
+        "completed": true
+      },
+      {
+        "completed": true,
+        "createdAt": "2026-04-02T14:49:32.900Z",
+        "title": "Exit Sign + Lighting Spec",
+        "assignedTo": "Sal L",
+        "priority": 19,
+        "deadline": "2026-04-10T04:00:00.000Z",
+        "id": "1775141372900"
+      }
+    ],
+    "personalDeadlines": {
+      "Fernando": {
+        "taskAssignedAt": "2026-03-11T20:16:56.737Z",
+        "task": "Details + Section Coordination",
+        "deadline": "2026-03-20T04:00:00.000Z",
+        "acknowledgements": {}
+      },
+      "Peter": {
+        "0": "2",
+        "1": "0",
+        "2": "2",
+        "3": "5",
+        "4": "-",
+        "5": "1",
+        "6": "0",
+        "7": "-",
+        "8": "3",
+        "9": "1",
+        "10": "T",
+        "11": "0",
+        "12": "4",
+        "13": ":",
+        "14": "0",
+        "15": "0",
+        "16": ":",
+        "17": "0",
+        "18": "0",
+        "19": ".",
+        "20": "0",
+        "21": "0",
+        "22": "0",
+        "23": "Z",
+        "taskAssignedAt": "2025-12-22T15:51:01.458Z",
+        "task": ""
+      },
+      "Eric": {
+        "taskAssignedAt": "2026-03-11T20:16:09.194Z",
+        "acknowledgements": {},
+        "task": "Model Coordination: Notes, Tags, Upfront Sheets",
+        "deadline": "2026-03-20T04:00:00.000Z"
+      }
+    },
+    "address": "9556 E. Fowler Ave. Thonotosassa, FL. 33592",
+    "team": [
+      {
+        "id": "1753708513154",
+        "name": "David"
+      },
+      {
+        "id": "1753708568673",
+        "name": "Sald"
+      },
+      {
+        "id": "1753708630293",
+        "name": "Peter"
+      },
+      {
+        "id": "1753708686813",
+        "name": "Sean"
+      },
+      {
+        "name": "Eric",
+        "id": "1753963702306",
+        "role": "DESIGNER"
+      },
+      {
+        "role": "PM",
+        "name": "Sal L",
+        "id": "1772466814935",
+        "assignedAt": "2026-03-02T15:53:34.935Z",
+        "acknowledgements": {}
+      },
+      {
+        "role": "DESIGNER",
+        "name": "Fernando",
+        "id": "1773260152930",
+        "assignedAt": "2026-03-11T20:15:52.930Z",
+        "acknowledgements": {}
+      }
+    ],
+    "totalHours": 32,
+    "deadline": "2026-05-13T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true
+    },
+    "phase": "Construction Documents",
+    "status": "On Track"
+  },
+  {
+    "id": "qKGbABhdFbZtIioetfUM",
+    "client": "George Kallapure",
+    "totalHours": 0,
+    "deadline": "2025-09-05T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "status": "Completed",
+    "clientNotes": "Please make the following changes.\n1) Please remove the first-floor laundry room and put the refrigerator back where it was in the bank set. I’m not sure how that change happened.\n2)\tEnlarge the arch in the mudroom as well as the fire door to 3’0\n3)\tIs it possible to increase the size of the kitchen window to 5’0?\n4) Full brick including the front over the garage.\n5)\tI will call to discuss the gable over the front door.\n6) Please draw the balcony like unit 34 Clear Spring shown below.\n\nNotes 8-26 (from email)\nOverall, it looks good. I think the foyer window needs to sit higher up in the gable. We need to either make the window larger or raise it. Also,\nI had the truss company do a prelim layout on the step ceilings in the three bedrooms. I’ve attached the layout so you can add to the plan. Lastly, is it possible to make the kitchen window 6’0\" wide? \n\nUpdated and sent to George for confirmation to finish cds\n\n",
+    "notes": "8-22: Email sent to check for any changes. The structure needs to be checked. ",
+    "address": "Unknown",
+    "name": "DA-25-026 - Garrett Homes - Unit 40 ",
+    "team": [
+      {
+        "name": "Hunter",
+        "id": "1754427197472"
+      }
+    ],
+    "percentageComplete": 86
+  },
+  {
+    "id": "qMWvYINqjmGq2ppdhyFg",
+    "notes": "",
+    "address": "3019 S 11TH",
+    "team": [
+      {
+        "id": "1758717461314",
+        "name": "Roena"
+      }
+    ],
+    "name": "NILES DISPENSARY",
+    "percentageComplete": 100,
+    "client": "SOZO",
+    "deadline": "2025-10-13T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": true
+    },
+    "status": "Completed",
+    "clientNotes": ""
+  },
+  {
+    "id": "qNl5XAZnxa66vLCPA3kw",
+    "totalHours": 0,
+    "deadline": "2026-05-05T04:00:00.000Z",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": true,
+      "75": true,
+      "100": true
+    },
+    "phase": "Construction Drawings",
+    "status": "On Hold",
+    "personalDeadlines": {
+      "Todd": {
+        "task": "We need 3 bedroom layout"
+      }
+    },
+    "address": "Ocala, FL",
+    "team": [
+      {
+        "acknowledgements": {},
+        "id": "1773849397537",
+        "assignedAt": "2026-03-18T15:56:37.537Z",
+        "name": "Sal L",
+        "role": "PM"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-03-24T15:14:36.566Z",
+        "id": "1774365276566",
+        "name": "Eric",
+        "role": "DESIGNER"
+      }
+    ],
+    "client": "Dhruv",
+    "clientNotes": "Revising per civil PUD adjustment.\n\nClubhouse is completed.\n\nBank / Progress Set: https://drive.google.com/file/d/1A106zgOcNsXy0STjl5VSmWF9ALAw1on2/view?usp=sharing \n\n04/27 Status:\n- Progress Email sent to Consultant Group. \n- \"Permit\" Sets to be submitted to DHRUV for UES review (Latest 05/05)\n\n04/29 Status:\n- Civil shall be submitted on May 15th for Site Plan Approvals.\n- MEP Progress Set Received. ",
+    "notes": "Need to coordinate MEP Mech plan with ceiling plan. Apts.\nworking on ceiling plan LED lights. Apts. Sheet. A120, A121, A210, A220, A230\nNeed exterior lighting on Apts. \nWaiting on Struct. Dwgs. Clubhouse.\n08/01/25- Ceiling Plans completed and sent to ny engineers.\n08/03/25-Updated Model with ceiling plans- sent to NY Engineers \n08/04/25-NY Engineers are finalizing their permit set of MEP drawings. Even though NY Engineers consider\ntheir set final, there will still be a need to adjust, based on not having a final civil plan from Tillman Engineering. \n08/07/25-Resurgent are reviewing their final permit set of structural drawings.\n08/11/25-Requested Ny Engineers include exterior lighting on columns at Entry of stairwells.\n08/21/25-Working on re-design of one apartment building to combine 8 corner units into four 3-bedroom units in order to reduce total unit count from 324 units to the PUD max at 320.\n08/22/25 Updated the engineering team of the re-design.\n\nssdaleo 8-26-25:\nIf we release 2 sets of building drawings, we need to bill additionally for revision time and additional building issuance per contract. \n09/04/25- Submit final floorplan layout to BD, for his approval on 3 Bedroom Apartment.\n\n10/15/25 - kevin @ Tillman will be sending final civil plan soon, we need to decide boring locations for each of the apts. - suggested 3 locations per building.\n10/16/25 - need new revised layout for 3-bedroom\n10/30/25- Kevin @ Tillman Eng. leaving firm - introduced me to New person, James will be taking over the project. Tillman will soon give me plan for borings.\n11/05/25- Meeting with James Hulsey at Tillman Engineering - James needs size of fire lines - MEP plans 08/28/25 are specifying (1) 6\" sanitary line and (1) 2.5 water line to each building. Need to send DWG's /PDF's to James.",
+    "percentageComplete": 100,
+    "name": "DC-23-031 - DHRUV - Ocala Apartments"
+  },
+  {
+    "id": "rVwAyu5lOvjmerx0RX2I",
+    "notes": "9/12/25 EM: sent 2 schemes for comments\n9/16/25 EM: Andy approved layout.\n9/16/25 EM: Peter B called and wants a quick occupant load to ask Kentwood if they can get away with 1 bathroom. I said I would, but I would not be working on the drawings until I have feedback.\n9/18/25 EM: Peter B said to move forward with latest layout.\n9/25/25 EM: sent power and rcp for tenant review/approval\n10/07/25 EM: sent rev floor plan, power and rcp for tenant review/approval.\n10/14/25 EM: had meeting and layout changes. Hoping to have revised floor plan on Friday or sooner\n10/15/25 EM: Peter B called with additional floor plan changes and would still like revised floor plan on Friday. Peter to send ASR\n\n11/19/25 EM: drawings completed, check received via email, drawings emailed out.\n\n1-6-26 EM: Peter B sent a new riser diagram before Christmas and needs it to be placed on the drawings for the inspector. I spoke with him today and he said he will give us the missing wire sizes. He also mentioned they are changing the storefronts on both the mall side and the exterior. He wants to expand the glass all the way to the demising walls on the mall side and part of the way on the exterior. He is meeting with his storefront guy today and then will send me a sketch of what they are going to do.\n\n1/12/26 EM: Peter B sent storefront glass sketch. Peter sent price for changes on 1/13. \n\n1/16/26 EM: Peter B asked how the storefront revisions were coming. I mentioned we did not receive an ok for the fee and he said he responded ok. He also requested 4' wing walls to be added to the pedicure areas. There will be 5' not 7'-3 between sides. The manicure stations are 12\" cabinet with 30\"table, so 4 stations is 15'long. The counter along the Urban tenant wall will be removed and the manicure tables will be against the wall.",
+    "percentageComplete": 100,
+    "name": "S-25-1193 Nail Salon, Kentwood",
+    "client": "Peter Bedder / Andy Tran",
+    "clientNotes": "",
+    "tasks": [
+      {
+        "id": "1775754516175",
+        "assignedTo": "Emily",
+        "deadline": "2026-05-08T04:00:00.000Z",
+        "priority": 6,
+        "title": "field coordination of mech and clg drops",
+        "completed": false,
+        "createdAt": "2026-04-09T17:08:36.175Z"
+      }
+    ],
+    "personalDeadlines": {
+      "Emily": {
+        "0": "2",
+        "1": "0",
+        "2": "2",
+        "3": "5",
+        "4": "-",
+        "5": "1",
+        "6": "0",
+        "7": "-",
+        "8": "1",
+        "9": "7",
+        "10": "T",
+        "11": "0",
+        "12": "4",
+        "13": ":",
+        "14": "0",
+        "15": "0",
+        "16": ":",
+        "17": "0",
+        "18": "0",
+        "19": ".",
+        "20": "0",
+        "21": "0",
+        "22": "0",
+        "23": "Z",
+        "task": "",
+        "taskAssignedAt": "2026-01-13T20:56:03.201Z"
+      }
+    },
+    "address": "Woodland Mall Space T110",
+    "team": [
+      {
+        "role": "PM",
+        "id": "1757529635106",
+        "name": "Emily"
+      },
+      {
+        "id": "1760558791954",
+        "role": "DESIGNER",
+        "name": "Peter"
+      }
+    ],
+    "totalHours": 0,
+    "phase": "Construction",
+    "deadline": "2025-11-19T05:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "On Hold"
+  },
+  {
+    "id": "rny39xDDt3DeOXwgXEsb",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "phase": "Construction Drawings",
+    "totalHours": 0,
+    "client": "Dhruv",
+    "status": "On Track",
+    "clientNotes": "Completed - Waiting to insert SSA’s sheets to the CD set.(Laundry and vending Equipment)\n\nCD Link: https://drive.google.com/file/d/1HxhxrjLrXkNc6nXQ7eOrmY3R858KsGME/view?usp=sharing  \n\nAddressed review comments and resubmitted for permit 05-01-26. Working on further coordination with Structural, MEP and providing construction details. ",
+    "notes": "Sal D: 3-27-26:\nRoena Checking - needs a lot of detailing \n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "name": "DC-23-015 North Pasco Resort - Sundry B",
+    "team": [
+      {
+        "name": "Sean",
+        "id": "1756232195334"
+      },
+      {
+        "id": "1756232202438",
+        "name": "Sald"
+      },
+      {
+        "name": "David",
+        "assignedAt": "2025-11-05T13:55:51.330Z",
+        "id": "1762350951330",
+        "role": "PRODUCTION"
+      },
+      {
+        "acknowledgements": {},
+        "assignedAt": "2026-04-02T18:18:29.649Z",
+        "id": "1775153909649",
+        "name": "Sal L.",
+        "role": "PM"
+      },
+      {
+        "role": "PRODUCTION",
+        "name": "Fernando",
+        "id": "1776093613768",
+        "assignedAt": "2026-04-13T15:20:13.768Z",
+        "acknowledgements": {}
+      }
+    ],
+    "address": "Dade City, FL",
+    "percentageComplete": 90
+  },
+  {
+    "id": "rwUoz74j54VwSy2BEEor",
+    "personalDeadlines": {},
+    "notes": "",
+    "percentageComplete": 60,
+    "name": "DC-23-015 North Pasco Resort -SITE MODEL",
+    "team": [
+      {
+        "name": "Sean",
+        "role": "DESIGNER",
+        "acknowledgements": {},
+        "assignedAt": "2026-01-28T15:37:56.102Z",
+        "id": "1769614676102"
+      },
+      {
+        "acknowledgements": {},
+        "id": "1769614684700",
+        "assignedAt": "2026-01-28T15:38:04.700Z",
+        "name": "Fernando",
+        "role": "PRODUCTION"
+      },
+      {
+        "id": "1774639520658",
+        "assignedAt": "2026-03-27T19:25:20.658Z",
+        "acknowledgements": {},
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "name": "Sal L.",
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-04-02T18:21:40.250Z",
+        "id": "1775154100250"
+      }
+    ],
+    "address": "North Pasco County, FL",
+    "deadline": "2026-05-15T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "phase": "Project Signed",
+    "client": "Dhruv",
+    "clientNotes": "",
+    "status": "On Track"
+  },
+  {
+    "id": "sODutOnQigH5EuvjUplI",
+    "client": "Dev Patel (Veltiste)",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "deadline": "2025-11-18T05:00:00.000Z",
+    "phase": "Construction Drawings",
+    "clientNotes": "",
+    "status": "Completed",
+    "personalDeadlines": {},
+    "notes": "10/29/25 EM: emailed Kuntal dimension questions.\n11/4/25 EM: sent follow up email. Kuntal responded with some questions and some answers. I responded and am waiting for a reply\n\n11/19/25 EM: waiting for payment\n\n11/21/25 EM: payment wired and should be at the bank on Monday. We received a review from the city for Bisa Lina in regards to the bathrooms. The plan reviewer is out today and will be back on Monday. Once that item is clarified, we will make adjustments to this project if needed before submitting.\n\n\n12/4/25 EM: sent drawings and application to Dev & Kuntal to complete so we can submit the drawings online.\n\n12/9/25 EM: have not received application info from Dev or Kuntal.\n\n12/10/25 EM: texts went back and fort last night and this morning. It sounds like Pawel from Nowak Signature is going to be the GC and will submit the drawings to the city. I requested his email and did not receive it, but I emailed the drawings to Dev and Kuntal.\n\n12/10/25 EM: correction, we are submitted the drawings to the city. Pawel will provide us with the application info needed.\n\n12/11/25 EM: drawing submitted online with contractor info as TBD. City will send invoice in about 24hrs.\n\n01/06/26 EM: response received, comments addressed and resubmitted to the city.\n\n01/08/26 EM: permit received and emailed to Dev & Kuntal.",
+    "percentageComplete": 100,
+    "address": "720 E NORTH AVE, CAROL STREAM, IL 60188",
+    "team": [
+      {
+        "id": "1761690361868",
+        "name": "Emily"
+      }
+    ],
+    "name": "S-25-1201 CAROL STREAM TRAINING CENTER"
+  },
+  {
+    "id": "sORU8xHxFv4bgxpaJF8b",
+    "notes": "1-19-26 Resend proposal for building according to email sent. SD approved.",
+    "clientNotes": "Apartments:\n2-4-26 – Waiting for approval from municipality based on the latest version of drawings as discussed with Joe. Given to Joe: 1-19-26\nhttps://drive.google.com/file/d/1OoPsHJPFsGq5b71GejLI3XZYpPxgdAgc/view?usp=sharing\n\nProposal requires signature: LINK HERE:\nhttps://drive.google.com/file/d/1VqBEbx60x0qB8Gx60rir11jARxSBLaeL/view?usp=sharing\n",
+    "phase": "Planning",
+    "address": "Macomb",
+    "deadline": "2026-03-31T04:00:00.000Z",
+    "name": "S - 11 Acre Senior Living",
+    "team": [
+      {
+        "id": "1761579236979",
+        "name": "Peter"
+      }
+    ],
+    "percentageComplete": 10,
+    "personalDeadlines": {},
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "client": "Sal-Mar",
+    "status": "On Hold"
+  },
+  {
+    "id": "smpPwpwunS6Az6m4sFqm",
+    "phase": "Review",
+    "notes": "9-29-25 - DD approved. Move to CD's.\n8-22-25 - Sal to send a proposal for construction drawings.\n\nReview the program with Hunter. Connect Dr. Kaspo with Beth\n\nHunter to make plan adjustments.",
+    "totalHours": 0,
+    "address": "UNKNOWN",
+    "deadline": "2025-12-16T05:00:00.000Z",
+    "name": "DA-KASPO DENTAL",
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": true
+    },
+    "status": "Completed",
+    "clientNotes": "",
+    "percentageComplete": 100,
+    "team": [
+      {
+        "name": "Sald",
+        "id": "1755885387721"
+      },
+      {
+        "name": "Peter",
+        "id": "1755885406381"
+      },
+      {
+        "id": "1760990945688",
+        "name": "Hunter"
+      }
+    ],
+    "personalDeadlines": {
+      "Sal": {
+        "taskAssignedAt": "2025-12-22T22:12:10.024Z",
+        "task": ""
+      },
+      "Hunter": {
+        "taskAssignedAt": "2025-12-15T14:58:46.031Z",
+        "task": ""
+      }
+    },
+    "client": "DR. KASPO"
+  },
+  {
+    "id": "t2TC69E9GKKWn2f8tKmw",
+    "totalHours": 0,
+    "percentageComplete": 100,
+    "address": "Livonia, MI",
+    "deadline": "2025-09-05T04:00:00.000Z",
+    "team": [],
+    "name": "S-25-1161 Car Wash Livonia",
+    "clientNotes": "",
+    "phase": "Construction Documents",
+    "notes": "CD's have been completed and we are waiting for final payment.\nJonathan called and said the project fell through. He said he would make monthly payments.",
+    "client": "Jonathan Tiwaini",
+    "status": "Completed",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    }
+  },
+  {
+    "id": "um52mYwdn3FzY64KkQFV",
+    "client": "Brian Loussia",
+    "status": "On Hold",
+    "personalDeadlines": {},
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": false
+    },
+    "address": "31383 Orchard Lake Rd",
+    "deadline": "2026-02-27T05:00:00.000Z",
+    "name": "S-25-1206 - Commercial Kitchen",
+    "team": [
+      {
+        "assignedAt": "2025-12-13T16:54:56.462Z",
+        "role": "PM",
+        "id": "1765644896462",
+        "name": "Emily"
+      },
+      {
+        "id": "1769629162234",
+        "assignedAt": "2026-01-28T19:39:22.234Z",
+        "name": "Peter",
+        "role": "DESIGNER",
+        "acknowledgements": {}
+      }
+    ],
+    "percentageComplete": 5,
+    "notes": "12-13-25 Schedule Jay for as-built scan.\n12-22-25 EM: scheme with questions sent to Brian.\n12-23-25 EM: Brian is meeting with his team regarding equipment and layout and will get back to us after the holidays.\n1-6-26 EM: sent a follow-up email.\n1-8-26 EM: additional cut sheets were sent. \n1-15-26 EM: emailed layout w/ questions to Brian.\n1-19-26 EM: Brian is working on getting the stamping conveyor drawings and should get them while Donald is out of town for 2 weeks. Wants to set up meeting for 1st week of February. Waiting to hear back for confirmation on Friday at 1pm.\n\n02/06/26 EM: Brian called and said he may be joining forces with another business that compliments his. He is looking to combine the space for 2 retail storefronts similar to Baskin Robins & Dunkin Donuts and having an off site kitchen. He would have minimal equipment... an oven for cookies, etc. He needs a few weeks to sort this out and will contact us when he decides what way he wants to proceed.",
+    "clientNotes": "",
+    "phase": "Schematic Design"
+  },
+  {
+    "id": "uvP0rwCgLjUBwmw3Rw5I",
+    "percentageComplete": 100,
+    "address": "6045 SOUTH CEDAR STREET LANSING, MI 48911",
+    "deadline": "2026-02-16T05:00:00.000Z",
+    "team": [
+      {
+        "role": "PM",
+        "acknowledgements": {
+          "wdhRvXuokfNeACiNb5fCBSSRjvu1": "2026-02-11T00:41:50.327Z"
+        },
+        "id": "1770738819148",
+        "assignedAt": "2026-02-10T15:53:39.148Z",
+        "name": "Roena"
+      }
+    ],
+    "name": "S-25-1200 Atto Gas Station",
+    "clientNotes": "",
+    "phase": "Design Development",
+    "notes": "2-10-22: Edit the site plan. 2000 SF for the restaurant. Adjust the convenience store as necessary if we can get close to 5,000 SF it would be ideal.",
+    "client": "Shawn Atto",
+    "status": "Completed",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "personalDeadlines": {}
+  },
+  {
+    "id": "vckcP8IYS2oHnUvnNyQX",
+    "notes": "",
+    "clientNotes": "",
+    "phase": "Construction Drawings",
+    "deadline": "2025-11-21T05:00:00.000Z",
+    "address": "21445 HOOVER STE 302",
+    "team": [
+      {
+        "assignedAt": "2025-11-18T13:49:10.955Z",
+        "id": "1763473750955",
+        "name": "Roena"
+      }
+    ],
+    "name": "S-25-1202 STE 302 AS BUILTS",
+    "percentageComplete": 100,
+    "personalDeadlines": {},
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": false,
+      "100": true
+    },
+    "status": "Completed",
+    "client": "Derrick Gerges "
+  },
+  {
+    "id": "wu2qFbchHlpHdpZV4lW4",
+    "clientNotes": "",
+    "team": [],
+    "percentageComplete": 0,
+    "personalDeadlines": {},
+    "client": "Dr. Umang Patel",
+    "notes": "",
+    "phase": "Project Signed",
+    "deadline": "2026-05-29T04:00:00.000Z",
+    "address": "7530 S. Woodward",
+    "name": "S-26-1217 - WOODBRIDGE FACADE",
+    "tasks": [],
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "On Track"
+  },
+  {
+    "id": "xSzQETKawlebr03Da9GX",
+    "personalDeadlines": {},
+    "client": "PAOLO LONGO",
+    "clientNotes": "",
+    "percentageComplete": 100,
+    "team": [
+      {
+        "role": "PM",
+        "id": "1755868001934",
+        "name": "Hunter"
+      },
+      {
+        "name": "Peter",
+        "id": "1760026623204"
+      },
+      {
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Emily",
+        "id": "1770159844055",
+        "assignedAt": "2026-02-03T23:04:04.055Z"
+      }
+    ],
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": false,
+      "75": true,
+      "100": false
+    },
+    "status": "Completed",
+    "phase": "Construction Drawings",
+    "notes": "2-11-26\nVerify payment - Submit Final CD's\n\n1-14-26\nThe mechanical kitchen was sent to Alex for design.\nConstruction Documents in progress\n\n11-12-25 Hunter to edit model and schedule to begin construction drawings. Structural to be completed by Resurget.\n10-10-25 Peter to assign PT\n10-9-25 Drawings approved. Complete construction drawings.\n\n9-27-25 Edits under review. Eliminated basement\n\nStart construction drawings - eliminate basement. Resend for approval.\nBuilding is not precast but structural brick on 0 lot-line.\n\n2/6/26 EM: check set given back to Hunter\n",
+    "totalHours": 0,
+    "deadline": "2026-02-06T05:00:00.000Z",
+    "address": "EAST STREET",
+    "name": "DA-24009 EAST STREET"
+  },
+  {
+    "id": "xp4qJx5mjXUw978K8Bxm",
+    "phase": "Schematic Design",
+    "notes": "Remy Jonna : remy@pillarconstructionco.com\nAnthony Ammori : aammori@ammoriequity.com\nAllan Lamb: alamb@ammoriequity.com\n\n3-31-26 EM: draw existing floor plan from Matterport scan. \n\n04-02-26 EM: pdf and CAD of existing floor plan sent to client.",
+    "address": "17051 Kercheval Ave., Grosse Pointe, MI",
+    "deadline": "2026-04-03T04:00:00.000Z",
+    "name": "S-L-26-2056 Club Pilates - Gross Pointe",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "tasks": [],
+    "status": "On Hold",
+    "clientNotes": "",
+    "percentageComplete": 10,
+    "team": [
+      {
+        "assignedAt": "2026-03-31T18:03:14.106Z",
+        "id": "1774980194106",
+        "name": "Fernando",
+        "role": "PRODUCTION",
+        "acknowledgements": {}
+      },
+      {
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Emily",
+        "assignedAt": "2026-04-01T21:48:23.296Z",
+        "id": "1775080103296"
+      }
+    ],
+    "personalDeadlines": {},
+    "client": "Remy"
+  },
+  {
+    "id": "y6iBSQuPZOmkfsyhp9ym",
+    "deadline": "2026-04-30T04:00:00.000Z",
+    "address": "State Rd. 80 & Captain Hendry Dr",
+    "name": "DA-24002 - Labelle - Holiday Inn Express",
+    "notes": "1-12-26 Labelle - redesign facade to match retail buildings.",
+    "phase": "Project Signed",
+    "status": "On Track",
+    "tasks": [],
+    "billing": {
+      "25": true,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "team": [
+      {
+        "role": "PM",
+        "acknowledgements": {},
+        "assignedAt": "2026-02-11T15:31:54.103Z",
+        "id": "1770823914103",
+        "name": "Emily"
+      }
+    ],
+    "percentageComplete": 4,
+    "clientNotes": "4/30/26 - waiting for response on whether there will be a pool amenity with the conversion to a Holiday Inn Express.",
+    "client": "Dhruv",
+    "personalDeadlines": {
+      "Peter": {
+        "acknowledgements": {},
+        "task": "Design facade.",
+        "deadline": "2026-03-18T04:00:00.000Z",
+        "taskAssignedAt": "2026-01-28T14:23:52.695Z"
+      }
+    }
+  },
+  {
+    "id": "yZUiyUNpoLtfQBry5eaM",
+    "notes": "1/5/26 EM: reached out to civil for utility locations, provided Celso with code review markup. \n\n1/7/26 EM: \n   - Response from Cory @ Landis: \"We were assuming water and sewer will come out the rear of the buildings, which seems to be pretty standard for commercial/retail strips. We’ll have an 8” sewer main in the back, assuming you’re going to have 6” max. sewer laterals to connect into. We haven’t sized water mains on site yet, but just let us know what size you need to serve your fixtures and we will make sure the line is at least that diameter.\"                  I responded asking if the grease trap and storm would be located in the rear as well and that we will send them our connection locations when we get them back from the plumbing engineer.\n   - sent email to client for material approval\n   - try to use all cmu and no metal stud framing above the storefronts. Follow example from Sal.\n1/16/26 EM: met with Sean from Resurget. He said we can use CMU, but the storefront widths are quite large and the facade will become bulkier. We can pitch the roof front to back. He will get back to us with preliminary column locations and any changes to the storefront openings. He asked about using BIM 360. We are looking into it.\n\n1/21/26 EM: after speaking w/ Resurget, we have decided to add 32\" cmu to both sides of the piers and keep the cmu above the storefront\n\n1/26/26 EM: Amit approved the elevation materials via email.\n\n1/28/26 EM: revised Revit model sent to Resurget. Celso will upload Revit file and pdf of the set at the end of today for project status.\n\n2/3/26 EM: Celso to have rear wall of floor plan and RCP revised for Wednesday morning to for me to send to NYE.\n\n2/5/26 EM:\n   ~sent coordination sheet link and Revit file to NYE.\n   ~Celso to complete markups and make new pdf set by end of day Friday, 2/6/26\n\n2/6/26 EM: Revit file rec'd from Resurget and shared w/ Celso. The higher middle are in the front has been confirmed w/ Daniel to be cmu and not cfmf. This was shared with Celso in a meets meeting.\n\n2/10/26 EM: Celso to have complete pdf set (building A) including all markups on Friday, Feb 13 for review. It is acknowledged coordination will still be required between consultants.\n\n2/3/26 EM: Celso to have all mark-ups and set coordinated w/ structural by end of today. NYE to give us drawings on Thursday.\n\n3/19/26 EM: sent follow-up emails to all consultants. NYE will have dwgs completed on 3/26/26\n\n4/24/26 EM: sent links to Sal.",
+    "phase": "Construction Drawings",
+    "name": "DA-24002 - Labelle - Retail A & B",
+    "deadline": "2026-04-23T04:00:00.000Z",
+    "address": "State Rd. 80 & Captain Hendry Dr",
+    "tasks": [
+      {
+        "title": "BLDG B PDF PROGRESS SET",
+        "completed": true,
+        "assignedTo": "Celso",
+        "priority": 1,
+        "deadline": "2026-03-24T04:00:00.000Z",
+        "createdAt": "2026-03-24T15:16:44.188Z",
+        "id": "1774365404188"
+      },
+      {
+        "id": "1775754422518",
+        "createdAt": "2026-04-09T17:07:02.518Z",
+        "deadline": "2026-04-13T04:00:00.000Z",
+        "priority": 2,
+        "assignedTo": "Celso",
+        "completed": true,
+        "title": "Bldg B markups"
+      },
+      {
+        "createdAt": "2026-04-14T19:42:55.435Z",
+        "id": "1776195775435",
+        "deadline": "2026-04-16T04:00:00.000Z",
+        "assignedTo": "Emily",
+        "priority": 2,
+        "title": "review bldg B & final review for A",
+        "completed": true
+      }
+    ],
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "status": "On Hold",
+    "clientNotes": "4/24/26 - Drawings completed. Waiting for payment to release drawings.",
+    "team": [
+      {
+        "id": "1767631392039",
+        "assignedAt": "2026-01-05T16:43:12.039Z",
+        "role": "DESIGNER",
+        "name": "Sald"
+      },
+      {
+        "assignedAt": "2026-01-05T16:43:53.554Z",
+        "role": "PRODUCTION",
+        "id": "1767631433554",
+        "name": "Celso"
+      },
+      {
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Emily",
+        "id": "1769015012558",
+        "assignedAt": "2026-01-21T17:03:32.558Z"
+      }
+    ],
+    "percentageComplete": 100,
+    "personalDeadlines": {
+      "Sal": {
+        "taskAssignedAt": "2026-01-29T17:40:40.237Z",
+        "acknowledgements": {},
+        "task": ""
+      }
+    },
+    "client": "Dhruv"
+  },
+  {
+    "id": "z7Cgo0yRcPuVMynjuyqF",
+    "clientNotes": "",
+    "percentageComplete": 30,
+    "team": [
+      {
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Emily",
+        "assignedAt": "2026-03-20T14:38:20.421Z",
+        "id": "1774017500421"
+      }
+    ],
+    "personalDeadlines": {},
+    "client": "Gabe",
+    "phase": "Design Development",
+    "notes": "Lab Consultant: Sean Daniel w/ Danco Medical Systems 937-980-5757 sdaniel@dancomedical.com\n\nClient: Gabe Zawaideh 248-931-5398 gzawaideh@gmail.com\n            Saeed 596-484-1041 saeedd@thevillagerx.com\n\n3/9/26 EM: email from Sean - yellow highlighted walls are 8'-6\"h alum/glass walls by Danco\n\n3/20/26 EM: call w/ Gabe & Saeed:\n~try for 1 bathroom. They said they will not have more than 15 persons. \n~make counters u-shape in Packing/shipping and add ref & freezer. They will provide specs. Remove islands.\n~add dishwasher next to the sinks in the labs.\n~the space will fall within the allowable quantities of hazardous materials and not be a H use group.\n~existing 5-ton HVAC\n~Hallway, parking/shipping, cubicles to have open ceiling.\n~all other spaces to have 2x2 ceiling. Danco to provide special coated ceiling tiles in labs except for large central lab.\n~meeting scheduled for 3/23/26 at noon via Meets\n\n4/14/26 EM: add powder room from Sean. Existing 5ton rtu available. 200amp elec service.\n\n4/24/26 EM:  Saeed said they are making some changes. We are waiting to hear back, so the project is on hold.\n\n",
+    "name": "S-26-1213 Village Rx",
+    "address": "2007 Orchard Lake, Sylvan Lake, MI",
+    "deadline": "2026-05-01T04:00:00.000Z",
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "tasks": [
+      {
+        "id": "1777391180320",
+        "createdAt": "2026-04-28T15:46:20.320Z",
+        "deadline": "2026-05-07T04:00:00.000Z",
+        "priority": 7,
+        "assignedTo": "Emily",
+        "completed": false,
+        "title": "follow up with team"
+      }
+    ],
+    "status": "On Hold"
+  },
+  {
+    "id": "zLoCjJayRUBWRfHAUcjp",
+    "totalHours": 0,
+    "address": "Dade City, FL",
+    "deadline": "2026-06-05T04:00:00.000Z",
+    "name": "DC-23-015 North Pasco Resort - Main Clubhouse, Pavilion & Lower Amenities",
+    "phase": "Construction Drawings",
+    "notes": "Sal 3-18-26: \n\nCall Soils Engineer!  We need this to finalize structure.<<<<COMPLETED  Engineer is going back out o take deeper tests at the lower amenity wall - structure needs this!\n\n- Designing the change to and finalizing the roof of the lower amenities - section details for structure\n- RCP finalization!\n- Final lower amenities facade - storefront updates>>>Sal D'Aleo\n- Lucido Coordination: scope intersection coordination: send a plan showing the extent of our scope and how we’re planning lower amenities drainage - send section detail.  we need a paver spec>>>DID THIS. SAL D SENT: https://drive.google.com/file/d/1ogIhjZrJckNi7zUtRvNT_8tWXZ9IbktC/view?usp=sharing \n- dimensional grid / logic for the lower amenities - per structure's request.\n- Elevator hoist way projection finishes - we need to model the pits for these and show the sump\n- revisit code review for final - review energy code\n- compile product manufs and any reps that we need\n- Add drains at sunken bar and deep patios - check plumbing.\n- On going: Design of details and sections for Fernando to draft >>> ALL\n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing \n\n\nSal: 8-22-25:\n1. Review wall coordination set from SSA for final layouts of all buildings.  Provide markups.\n2. Final Code review (finalize clearances, etc..) on Main CH model\n3. Finalize Architecture and determine drawing set strategy.\n4. Distribute to owner for approvals after SSA coordination complete. \n5. re- engage consults after owner approvals!\n\nInvoice additional services <<<SAL\n\n",
+    "followUpDate": "2026-02-13T03:36:46.606Z",
+    "status": "On Track",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "tasks": [
+      {
+        "title": "Section details for structure",
+        "completed": true,
+        "assignedTo": "Sal",
+        "deadline": "2026-03-19T04:00:00.000Z",
+        "createdAt": "2026-03-18T14:51:18.874Z",
+        "id": "1773845478874"
+      }
+    ],
+    "percentageComplete": 65,
+    "team": [
+      {
+        "role": "DESIGNER",
+        "assignedAt": "2025-11-05T14:10:20.695Z",
+        "id": "1762351820695",
+        "name": "Sald"
+      },
+      {
+        "name": "Sean",
+        "role": "DESIGNER",
+        "assignedAt": "2025-11-05T14:10:24.413Z",
+        "id": "1762351824413"
+      },
+      {
+        "name": "David",
+        "id": "1762351833879",
+        "role": "DESIGNER",
+        "assignedAt": "2025-11-05T14:10:33.879Z"
+      },
+      {
+        "role": "PRODUCTION",
+        "acknowledgements": {},
+        "assignedAt": "2026-02-03T18:55:14.775Z",
+        "id": "1770144914775",
+        "name": "Fernando"
+      },
+      {
+        "acknowledgements": {},
+        "role": "PM",
+        "name": "Sal L.",
+        "id": "1775153843649",
+        "assignedAt": "2026-04-02T18:17:23.649Z"
+      }
+    ],
+    "clientNotes": "\n\nSD links from early 2025:\nArch / Struc https://drive.google.com/file/d/1xDeJu7TAGoUx4wIIeErxcjw1k9oJ3wQ7/view?usp=sharing \nMEP: https://drive.google.com/drive/folders/17dj6_bYPmBffJS8RLw6EQdrVGdbK_ndt?usp=sharing\n\n",
+    "client": "Dhruv",
+    "personalDeadlines": {
+      "Sal": {
+        "task": "Markups for Fernando",
+        "acknowledgements": {},
+        "deadline": "2026-02-10T05:00:00.000Z",
+        "taskAssignedAt": "2026-01-29T17:52:36.497Z"
+      }
+    }
+  },
+  {
+    "id": "zMc17EsJpbME9d230NKE",
+    "client": "Dhruv",
+    "status": "On Track",
+    "billing": {
+      "25": true,
+      "50": true,
+      "75": true,
+      "100": true
+    },
+    "team": [
+      {
+        "name": "Sald",
+        "id": "1762351877831",
+        "assignedAt": "2025-11-05T14:11:17.831Z"
+      },
+      {
+        "assignedAt": "2025-11-05T14:11:21.221Z",
+        "id": "1762351881221",
+        "name": "Sean"
+      },
+      {
+        "name": "David",
+        "assignedAt": "2025-11-05T14:12:02.286Z",
+        "id": "1762351922286"
+      },
+      {
+        "id": "1775153867964",
+        "assignedAt": "2026-04-02T18:17:47.964Z",
+        "name": "Sal L.",
+        "role": "PM",
+        "acknowledgements": {}
+      }
+    ],
+    "name": "DC-23-015 North Pasco Resort - Sports Courts Restroom",
+    "address": "Dade City, FL",
+    "deadline": "2026-05-08T04:00:00.000Z",
+    "percentageComplete": 90,
+    "totalHours": 0,
+    "notes": "\nSal D: 3-27-26:\n\n- Update to link SSA's model and add sheets - adjust index\n- Coordinate any updates needed from GLOBAL and RESURGET\n\n\n\nINTERNAL PROJECT NOTES AND STANDARDS ACCROSS ALL BUILDINGS: https://docs.google.com/document/d/18f6rdDiL-KBHuh0GIBItTdNxfm-6s3y49t7HvslFgE4/edit?usp=sharing ",
+    "phase": "Construction Documents",
+    "clientNotes": "Completed - Waiting to insert SSA’s sheets to the CD set (Vending Equipment)\n\nCD link: https://drive.google.com/file/d/1HiP8b4gw4yBBl0DByDJXiG63Ie5RYnF-/view?usp=sharing "
+  },
+  {
+    "id": "zWmJN8MyhgF0fX460vOE",
+    "personalDeadlines": {},
+    "billing": {
+      "25": false,
+      "50": false,
+      "75": false,
+      "100": false
+    },
+    "client": "Derrick Gerges ",
+    "status": "Completed",
+    "notes": "",
+    "clientNotes": "",
+    "phase": "Design Development",
+    "deadline": "2026-03-13T04:00:00.000Z",
+    "address": "arizona",
+    "name": "26-1211S Chino Valley Site plan ",
+    "team": [
+      {
+        "id": "1772573919908",
+        "assignedAt": "2026-03-03T21:38:39.908Z",
+        "name": "Roena",
+        "role": "PM",
+        "acknowledgements": {}
+      }
+    ],
+    "percentageComplete": 100
+  },
+  {
+    "id": "zXcz7eMpCZAj2NqkhT5H",
+    "notes": "7/23/25 (ssdaleo) - Universal  Comments Received - forwarded to Emily for processing\n\nNeed product Approval Nos.",
+    "clientNotes": "OP2 - CD: https://drive.google.com/file/d/1c85pJQ_FBo9It2mOnwJH2lZIGKxCltMn/view?usp=sharing \nOP3 - CD: https://drive.google.com/file/d/1a03VUpQSCMKZDeH9qoobmjLbqZAUey5F/view?usp=sharing ",
+    "phase": "Review",
+    "deadline": "2025-08-15T04:00:00.000Z",
+    "address": "Bayonet Point, FL",
+    "team": [],
+    "name": "DC-23-022 - DHRUV - Bayonet Point Commons Outparcel Bldgs",
+    "totalHours": 0,
+    "percentageComplete": 100,
+    "billing": {
+      "25": true,
+      "50": true,
+      "70": true,
+      "75": true,
+      "100": true
+    },
+    "client": "Dhruv",
+    "status": "Completed"
+  }
+]

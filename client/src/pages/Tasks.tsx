@@ -22,6 +22,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus,
   Search,
   CheckCircle2,
@@ -35,6 +45,9 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronDown,
+  ChevronRight,
+  Archive,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { TASK_STATUSES } from "@shared/constants";
@@ -63,6 +76,8 @@ export default function Tasks() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [prioritySort, setPrioritySort] = useState<"none" | "asc" | "desc">("none");
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
 
   const { data: allTasks, isLoading } = trpc.tasks.list.useQuery({});
   const { data: projects } = trpc.projects.list.useQuery({});
@@ -97,6 +112,19 @@ export default function Tasks() {
     onSuccess: () => utils.tasks.list.invalidate(),
   });
 
+  const purgeArchived = trpc.tasks.purgeArchived.useMutation({
+    onSuccess: () => {
+      utils.tasks.list.invalidate();
+      utils.dashboard.stats.invalidate();
+      setShowPurgeConfirm(false);
+      setArchivedOpen(false);
+      toast.success("Archived tasks permanently deleted");
+    },
+    onError: () => {
+      toast.error("Failed to purge archived tasks");
+    },
+  });
+
   const filtered = useMemo(() => {
     if (!allTasks) return [];
     let result = allTasks.filter((t) => {
@@ -115,6 +143,10 @@ export default function Tasks() {
     }
     return result;
   }, [allTasks, statusFilter, projectFilter, assigneeFilter, search, prioritySort]);
+
+  // Split into active and archived (done) tasks
+  const activeTasks = useMemo(() => filtered.filter((t) => t.status !== "done"), [filtered]);
+  const archivedTasks = useMemo(() => filtered.filter((t) => t.status === "done"), [filtered]);
 
   const cyclePrioritySort = () => {
     setPrioritySort((prev) => {
@@ -142,7 +174,7 @@ export default function Tasks() {
     e.preventDefault();
     if (draggedId === null || draggedId === targetId) return;
 
-    const taskList = [...filtered];
+    const taskList = [...activeTasks];
     const dragIdx = taskList.findIndex((t) => t.id === draggedId);
     const dropIdx = taskList.findIndex((t) => t.id === targetId);
     if (dragIdx === -1 || dropIdx === -1) return;
@@ -178,6 +210,90 @@ export default function Tasks() {
       overdue: allTasks.filter((t) => t.status === "overdue").length,
     };
   }, [allTasks]);
+
+  // Reusable task row renderer
+  const renderTaskRow = (task: typeof filtered[0], isDraggable = true) => {
+    const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
+    return (
+      <div
+        key={task.id}
+        draggable={isDraggable}
+        onDragStart={isDraggable ? (e) => handleDragStart(e, task.id) : undefined}
+        onDragOver={isDraggable ? handleDragOver : undefined}
+        onDrop={isDraggable ? (e) => handleDrop(e, task.id) : undefined}
+        className={`flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-all ${
+          draggedId === task.id ? "opacity-50" : ""
+        }`}
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground/30 cursor-grab shrink-0" />
+        <button
+          onClick={() => {
+            const newStatus = task.status === "done" ? "todo" : "done";
+            updateTask.mutate({
+              id: task.id,
+              status: newStatus,
+              completedAt: newStatus === "done" ? new Date() : null,
+            });
+          }}
+          className="shrink-0"
+        >
+          {task.status === "done" ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+          ) : (
+            <Circle className={`h-5 w-5 ${isOverdue ? "text-red-400" : "text-muted-foreground/30"}`} />
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
+            {task.title}
+          </p>
+          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+            <button
+              onClick={() => setLocation(`/projects/${task.projectId}`)}
+              className="hover:text-primary transition-colors truncate max-w-[200px]"
+            >
+              {getProjectName(task.projectId)}
+            </button>
+            <span>{getMemberName(task.assigneeId)}</span>
+            {task.deadline && (
+              <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
+                <Clock className="h-3 w-3" />
+                {new Date(task.deadline).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className={`h-6 w-8 rounded text-[10px] font-bold flex items-center justify-center shrink-0 ${priorityColor(task.priority)}`}>
+          {task.priority}
+        </div>
+        <Select
+          value={task.status}
+          onValueChange={(v) => updateTask.mutate({
+            id: task.id,
+            status: v as any,
+            completedAt: v === "done" ? new Date() : null,
+          })}
+        >
+          <SelectTrigger className={`w-[110px] h-7 text-[10px] border ${taskStatusColors[task.status] ?? ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TASK_STATUSES.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:opacity-100 shrink-0"
+          onClick={() => deleteTask.mutate({ id: task.id })}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -362,109 +478,95 @@ export default function Tasks() {
         </Button>
       </div>
 
-      {/* Task List */}
+      {/* Active Task List */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-0">
-          {filtered.length === 0 ? (
+          {activeTasks.length === 0 ? (
             <div className="py-16 text-center">
               <CheckSquare className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-              <h3 className="font-medium">No tasks found</h3>
+              <h3 className="font-medium">No active tasks found</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 {search || statusFilter !== "all" ? "Try adjusting your filters" : "Create your first task"}
               </p>
             </div>
           ) : (
             <div className="divide-y">
-              {filtered.map((task) => {
-                const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
-                return (
-                  <div
-                    key={task.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, task.id)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, task.id)}
-                    className={`flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-all ${
-                      draggedId === task.id ? "opacity-50" : ""
-                    }`}
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground/30 cursor-grab shrink-0" />
-                    <button
-                      onClick={() => {
-                        const newStatus = task.status === "done" ? "todo" : "done";
-                        updateTask.mutate({
-                          id: task.id,
-                          status: newStatus,
-                          completedAt: newStatus === "done" ? new Date() : null,
-                        });
-                      }}
-                      className="shrink-0"
-                    >
-                      {task.status === "done" ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                      ) : (
-                        <Circle className={`h-5 w-5 ${isOverdue ? "text-red-400" : "text-muted-foreground/30"}`} />
-                      )}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
-                        {task.title}
-                      </p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <button
-                          onClick={() => setLocation(`/projects/${task.projectId}`)}
-                          className="hover:text-primary transition-colors truncate max-w-[200px]"
-                        >
-                          {getProjectName(task.projectId)}
-                        </button>
-                        <span>{getMemberName(task.assigneeId)}</span>
-                        {task.deadline && (
-                          <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
-                            <Clock className="h-3 w-3" />
-                            {new Date(task.deadline).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className={`h-6 w-8 rounded text-[10px] font-bold flex items-center justify-center shrink-0 ${priorityColor(task.priority)}`}>
-                      {task.priority}
-                    </div>
-                    <Select
-                      value={task.status}
-                      onValueChange={(v) => updateTask.mutate({
-                        id: task.id,
-                        status: v as any,
-                        completedAt: v === "done" ? new Date() : null,
-                      })}
-                    >
-                      <SelectTrigger className={`w-[110px] h-7 text-[10px] border ${taskStatusColors[task.status] ?? ""}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TASK_STATUSES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:opacity-100 shrink-0"
-                      onClick={() => deleteTask.mutate({ id: task.id })}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Button>
-                  </div>
-                );
-              })}
+              {activeTasks.map((task) => renderTaskRow(task, true))}
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* Archived (Done) Tasks — collapsible */}
+      {(archivedTasks.length > 0 || statusFilter === "done") && (
+        <div className="border border-dashed border-muted-foreground/20 rounded-xl overflow-hidden">
+          {/* Archived header */}
+          <div className="flex items-center justify-between px-5 py-3 bg-muted/20">
+            <button
+              onClick={() => setArchivedOpen((prev) => !prev)}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {archivedOpen ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              <Archive className="h-4 w-4" />
+              Archived ({archivedTasks.length})
+            </button>
+            {archivedTasks.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowPurgeConfirm(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Purge Archived
+              </Button>
+            )}
+          </div>
+
+          {/* Archived task rows */}
+          {archivedOpen && archivedTasks.length > 0 && (
+            <div className="divide-y bg-muted/5">
+              {archivedTasks.map((task) => renderTaskRow(task, false))}
+            </div>
+          )}
+
+          {archivedOpen && archivedTasks.length === 0 && (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No archived tasks
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="text-xs text-muted-foreground text-center">
         Drag tasks to reorder priority. Lower priority numbers indicate higher urgency.
       </p>
+
+      {/* Purge Confirmation Dialog */}
+      <AlertDialog open={showPurgeConfirm} onOpenChange={setShowPurgeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Purge Archived Tasks</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all {archivedTasks.length} archived (Done) task{archivedTasks.length !== 1 ? "s" : ""}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => purgeArchived.mutate()}
+              disabled={purgeArchived.isPending}
+            >
+              {purgeArchived.isPending ? "Deleting..." : "Purge All Archived"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
