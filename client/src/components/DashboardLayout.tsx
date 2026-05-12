@@ -175,7 +175,7 @@ function DashboardLayoutContent({
 
   const realAdmin = user?.role === "admin";
   const isAdmin = useEffectiveAdmin(user?.role);
-  const isSuperAdmin = user?.isSuperAdmin ?? false;
+  const isSuperAdmin = (user?.isSuperAdmin ?? false) && !isStaffPreview;
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
     if ("adminOnly" in item && item.adminOnly) return isAdmin;
