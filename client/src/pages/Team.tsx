@@ -49,6 +49,12 @@ import {
   Mail,
   Trash2,
   KeyRound,
+  Archive,
+  ChevronRight,
+  ChevronDown,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { getPhaseShortLabel } from "@shared/constants";
@@ -109,6 +115,9 @@ export default function Team() {
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
   const [resetPasswordError, setResetPasswordError] = useState("");
+  const [archivedTasksExpanded, setArchivedTasksExpanded] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -179,6 +188,15 @@ export default function Team() {
     },
   });
 
+  const updateMember = trpc.teamMembers.update.useMutation({
+    onSuccess: () => {
+      utils.teamMembers.list.invalidate();
+      setEditingTitle(false);
+      toast.success("Role updated");
+    },
+    onError: (err) => toast.error(err.message || "Failed to update role"),
+  });
+
   const memberStats = useMemo(() => {
     if (!teamMembers || !allTasks) return [];
     return teamMembers.map((m) => {
@@ -212,6 +230,15 @@ export default function Team() {
     if (!selectedMemberId || !allTasks) return [];
     return allTasks.filter((t) => t.assigneeId === selectedMemberId);
   }, [selectedMemberId, allTasks]);
+
+  const activeMemberTasks = useMemo(
+    () => selectedMemberTasks.filter((t) => t.status !== "done"),
+    [selectedMemberTasks]
+  );
+  const archivedMemberTasks = useMemo(
+    () => selectedMemberTasks.filter((t) => t.status === "done"),
+    [selectedMemberTasks]
+  );
 
   const selectedMemberProjects = useMemo(() => {
     if (!selectedMemberId || !allTasks || !projects) return [];
@@ -300,7 +327,51 @@ export default function Team() {
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{selectedMember.title ?? "Team Member"}</p>
+            {isAdmin && editingTitle ? (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Input
+                  className="h-7 text-sm w-64"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  placeholder="e.g. Designer, PM, Production"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") updateMember.mutate({ id: selectedMember.id, title: titleDraft.trim() || null });
+                    if (e.key === "Escape") setEditingTitle(false);
+                  }}
+                  autoFocus
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-emerald-600 hover:text-emerald-700"
+                  disabled={updateMember.isPending}
+                  onClick={() => updateMember.mutate({ id: selectedMember.id, title: titleDraft.trim() || null })}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={() => setEditingTitle(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 group/title mt-0.5">
+                <p className="text-sm text-muted-foreground">{selectedMember.title || "No title set"}</p>
+                {isAdmin && (
+                  <button
+                    className="opacity-0 group-hover/title:opacity-100 transition-opacity"
+                    onClick={() => { setTitleDraft(selectedMember.title ?? ""); setEditingTitle(true); }}
+                    title="Edit role/title"
+                  >
+                    <Pencil className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {isAdmin && (
             <div className="ml-auto flex items-center gap-2">
@@ -424,35 +495,68 @@ export default function Team() {
           {/* Tasks */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Tasks ({selectedMemberTasks.length})</CardTitle>
+              <CardTitle className="text-base font-semibold">Tasks ({activeMemberTasks.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {selectedMemberTasks.length === 0 ? (
+              {activeMemberTasks.length === 0 && archivedMemberTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No tasks assigned</p>
               ) : (
-                <div className="divide-y">
-                  {selectedMemberTasks.map((t) => {
-                    const isOverdue = t.deadline && new Date(t.deadline) < new Date() && t.status !== "done";
-                    return (
-                      <div key={t.id} className="flex items-center gap-3 px-5 py-3">
-                        {t.status === "done" ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                        ) : isOverdue ? (
-                          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-                        ) : (
-                          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate ${t.status === "done" ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {projects?.find((p) => p.id === t.projectId)?.name ?? ""}
-                          </p>
+                <>
+                  <div className="divide-y">
+                    {activeMemberTasks.map((t) => {
+                      const today = new Date(); today.setHours(0,0,0,0);
+                      const isOverdue = t.deadline && new Date(t.deadline) < today && t.status !== "done";
+                      return (
+                        <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                          {isOverdue ? (
+                            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{t.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {projects?.find((p) => p.id === t.projectId)?.name ?? ""}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">P{t.priority}</Badge>
                         </div>
-                        <Badge variant="outline" className="text-[10px]">P{t.priority}</Badge>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Archived (done) tasks */}
+                  {archivedMemberTasks.length > 0 && (
+                    <div className="border-t">
+                      <button
+                        className="flex items-center gap-2 w-full px-5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => setArchivedTasksExpanded((v) => !v)}
+                      >
+                        {archivedTasksExpanded
+                          ? <ChevronDown className="h-3.5 w-3.5" />
+                          : <ChevronRight className="h-3.5 w-3.5" />}
+                        <Archive className="h-3.5 w-3.5" />
+                        Archived ({archivedMemberTasks.length})
+                      </button>
+                      {archivedTasksExpanded && (
+                        <div className="divide-y opacity-70">
+                          {archivedMemberTasks.map((t) => (
+                            <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm truncate line-through text-muted-foreground">{t.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {projects?.find((p) => p.id === t.projectId)?.name ?? ""}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px]">P{t.priority}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
