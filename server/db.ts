@@ -26,7 +26,12 @@ let _db: ReturnType<typeof drizzle> | null = null;
 function isMissingTableError(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const maybeError = error as { code?: string; message?: string };
-  return maybeError.code === "ER_NO_SUCH_TABLE" || maybeError.message?.includes("doesn't exist") === true;
+  return (
+    maybeError.code === "ER_NO_SUCH_TABLE" ||
+    maybeError.code === "ER_BAD_FIELD_ERROR" ||
+    maybeError.message?.includes("doesn't exist") === true ||
+    maybeError.message?.includes("Unknown column") === true
+  );
 }
 
 export async function getDb() {
@@ -1779,17 +1784,52 @@ export async function countWaitlistSignups(): Promise<number> {
 }
 
 // ── Subscriptions ──────────────────────────────────────────────────
+// NOTE: stripeCustomerId is NOT in the Drizzle users schema (it's added by migration).
+// We use raw SQL for these billing-specific functions so non-billing queries are unaffected.
 export async function updateUserStripeCustomerId(userId: number, stripeCustomerId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(users).set({ stripeCustomerId }).where(eq(users.id, userId));
+  try {
+    await db.execute(sql`UPDATE \`users\` SET \`stripeCustomerId\` = ${stripeCustomerId} WHERE \`id\` = ${userId}`);
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] stripeCustomerId column not found yet; skipping update");
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function getUserStripeCustomerId(userId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const result = await db.execute(sql`SELECT \`stripeCustomerId\` FROM \`users\` WHERE \`id\` = ${userId} LIMIT 1`);
+    const rows = result[0] as unknown as any[];
+    return rows.length > 0 ? (rows[0].stripeCustomerId ?? null) : null;
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] stripeCustomerId column not found yet; returning null");
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function getUserByStripeCustomerId(stripeCustomerId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.stripeCustomerId, stripeCustomerId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  try {
+    const result = await db.execute(sql`SELECT * FROM \`users\` WHERE \`stripeCustomerId\` = ${stripeCustomerId} LIMIT 1`);
+    const rows = result[0] as unknown as any[];
+    return rows.length > 0 ? rows[0] as (typeof users.$inferSelect & { stripeCustomerId: string }) : undefined;
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] stripeCustomerId column not found yet; returning undefined");
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 export async function getActiveSubscription(userId: number): Promise<Subscription | undefined> {

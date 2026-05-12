@@ -50,8 +50,8 @@ export const subscriptionRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "You already have an active subscription. Please manage it from the billing page." });
       }
 
-      // Get or create Stripe customer
-      let customerId = ctx.user.stripeCustomerId;
+      // Get or create Stripe customer — fetch stripeCustomerId via raw SQL
+      let customerId = await db.getUserStripeCustomerId(ctx.user.id);
       if (!customerId) {
         const customer = await stripe.customers.create({
           email: ctx.user.email ?? undefined,
@@ -83,7 +83,7 @@ export const subscriptionRouter = router({
   // Create a Stripe Customer Portal session (for managing subscription)
   createPortalSession: protectedProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
-    const customerId = ctx.user.stripeCustomerId;
+    const customerId = await db.getUserStripeCustomerId(ctx.user.id);
     if (!customerId) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No billing account found. Please subscribe to a plan first." });
     }
