@@ -70,14 +70,14 @@ export const appRouter = router({
 
   // ── Team Members ─────────────────────────────────────────────
   teamMembers: router({
-    list: protectedProcedure.query(() => db.listTeamMembers()),
+    list: protectedProcedure.query(({ ctx }) => db.listTeamMembers(ctx.organizationId)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMember(input.id)),
     create: adminProcedure.input(z.object({
       name: z.string().min(1),
       email: z.string().email().optional(),
       title: z.string().optional(),
       avatarColor: z.string().optional(),
-    })).mutation(({ input }) => db.createTeamMember(input)),
+    })).mutation(({ input, ctx }) => db.createTeamMember(input, ctx.organizationId)),
     update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
@@ -103,7 +103,7 @@ export const appRouter = router({
       await db.updateUserRole(input.userId, input.role);
       return { success: true };
     }),
-    listUsers: adminProcedure.query(() => db.listUsers()),
+    listUsers: adminProcedure.query(({ ctx }) => db.listUsers(ctx.organizationId)),
     resetPassword: adminProcedure.input(z.object({
       userId: z.number(),
       newPassword: z.string().min(6, "Password must be at least 6 characters"),
@@ -137,7 +137,7 @@ export const appRouter = router({
         ...input,
         email: normalizedEmail,
         role,
-      });
+      }, ctx.organizationId);
 
       const inviteToken = await createInviteToken({
         email: normalizedEmail,
@@ -183,7 +183,7 @@ export const appRouter = router({
       teamMemberId: z.number().optional(),
       startDate: z.date().optional(),
       endDate: z.date().optional(),
-    }).optional()).query(({ input }) => db.listTeamAbsences(input ?? undefined)),
+    }).optional()).query(({ input, ctx }) => db.listTeamAbsences(input ?? undefined, ctx.organizationId)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamAbsence(input.id)),
     create: protectedProcedure.input(teamAbsenceSchema).mutation(({ input, ctx }) =>
       db.createTeamAbsence({
@@ -192,7 +192,7 @@ export const appRouter = router({
         startTimeMinutes: input.startTimeMinutes ?? null,
         endTimeMinutes: input.endTimeMinutes ?? null,
         createdById: ctx.user.id,
-      })
+      }, ctx.organizationId)
     ),
     update: protectedProcedure.input(teamAbsenceSchema.safeExtend({ id: z.number() })).mutation(({ input }) => {
       const { id, ...data } = input;
@@ -212,7 +212,7 @@ export const appRouter = router({
       status: z.string().optional(),
       phase: z.string().optional(),
       managerId: z.number().optional(),
-    }).optional()).query(({ input }) => db.listProjects(input ?? undefined)),
+    }).optional()).query(({ input, ctx }) => db.listProjects(input ?? undefined, ctx.organizationId)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getProject(input.id)),
     financialSummary: adminOrPmProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       const project = await db.getProject(input.id);
@@ -249,7 +249,7 @@ export const appRouter = router({
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
       driveFolderUrl: z.string().optional().nullable(),
-    })).mutation(({ input }) => db.createProject(input)),
+    })).mutation(({ input, ctx }) => db.createProject(input, ctx.organizationId)),
     update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
@@ -327,7 +327,7 @@ export const appRouter = router({
       projectId: z.number().optional(),
       assigneeId: z.number().optional(),
       status: z.string().optional(),
-    }).optional()).query(({ input }) => db.listTasks(input ?? undefined)),
+    }).optional()).query(({ input, ctx }) => db.listTasks(input ?? undefined, ctx.organizationId)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTask(input.id)),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
@@ -338,7 +338,7 @@ export const appRouter = router({
       priority: z.number().min(1).max(20).optional(),
       sortOrder: z.number().optional(),
       deadline: z.date().optional().nullable(),
-    })).mutation(({ input }) => db.createTask(input)),
+    })).mutation(({ input, ctx }) => db.createTask(input, ctx.organizationId)),
     update: protectedProcedure.input(z.object({
       id: z.number(),
       assigneeId: z.number().optional().nullable(),
@@ -435,7 +435,7 @@ export const appRouter = router({
       invoiceDate: z.date().optional(),
       dueDate: z.date().optional().nullable(),
       paidDate: z.date().optional().nullable(),
-    })).mutation(({ input }) => db.createInvoice(input)),
+    })).mutation(({ input, ctx }) => db.createInvoice(input, ctx.organizationId)),
     update: adminProcedure.input(z.object({
       id: z.number(),
       amount: z.number().min(0).optional(),
@@ -454,19 +454,19 @@ export const appRouter = router({
 
   // ── Financial Overview ──────────────────────────────────────
   financials: router({
-    overview: adminProcedure.query(() => db.getFinancialOverview()),
+    overview: adminProcedure.query(({ ctx }) => db.getFinancialOverview(ctx.organizationId)),
   }),
 
   // ── Exports ─────────────────────────────────────────────────
   exports: router({
-    projectsSummary: protectedProcedure.query(() => db.getExportProjectsSummary()),
-    tasksList: protectedProcedure.query(() => db.getExportTasksList()),
-    teamWorkload: protectedProcedure.query(() => db.getExportTeamWorkload()),
+    projectsSummary: protectedProcedure.query(({ ctx }) => db.getExportProjectsSummary(ctx.organizationId)),
+    tasksList: protectedProcedure.query(({ ctx }) => db.getExportTasksList(ctx.organizationId)),
+    teamWorkload: protectedProcedure.query(({ ctx }) => db.getExportTeamWorkload(ctx.organizationId)),
   }),
 
   // ── Notifications ────────────────────────────────────────────
   notifications: router({
-    list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.id)),
+    list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.id, 50, ctx.organizationId)),
     unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id)),
     markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.markNotificationRead(input.id)),
     markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id)),
@@ -474,10 +474,10 @@ export const appRouter = router({
 
   // ── Billing Department Emails ────────────────────────────────
   billingEmails: router({
-    list: adminProcedure.query(() => db.listBillingDepartmentEmails()),
+    list: adminProcedure.query(({ ctx }) => db.listBillingDepartmentEmails(ctx.organizationId)),
     add: adminProcedure.input(z.object({
       emailAddress: z.string().email(),
-    })).mutation(({ input }) => db.addBillingDepartmentEmail(input.emailAddress)),
+    })).mutation(({ input, ctx }) => db.addBillingDepartmentEmail(input.emailAddress, ctx.organizationId)),
     remove: adminProcedure.input(z.object({
       id: z.number(),
     })).mutation(({ input }) => db.removeBillingDepartmentEmail(input.id)),
@@ -566,7 +566,7 @@ export const appRouter = router({
 
   // ── Gantt Timeline ──────────────────────────────────────────
   gantt: router({
-    data: protectedProcedure.query(() => db.getGanttData()),
+    data: protectedProcedure.query(({ ctx }) => db.getGanttData(ctx.organizationId)),
   }),
 
   // ── Consultant Contracts ─────────────────────────────────────
@@ -609,7 +609,7 @@ export const appRouter = router({
   // ── Net Income ──────────────────────────────────────────────
   netIncome: router({
     project: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectNetIncome(input.projectId)),
-    studio: adminProcedure.query(() => db.getStudioNetIncome()),
+    studio: adminProcedure.query(({ ctx }) => db.getStudioNetIncome(ctx.organizationId)),
   }),
 
   // ── Time Tracking ────────────────────────────────────────────
@@ -620,7 +620,7 @@ export const appRouter = router({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
       billable: z.boolean().optional(),
-    }).optional()).query(({ input }) => db.listTimeEntries(input ?? undefined)),
+    }).optional()).query(({ input, ctx }) => db.listTimeEntries(input ?? undefined, ctx.organizationId)),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
       taskId: z.number().optional().nullable(),
@@ -630,7 +630,7 @@ export const appRouter = router({
       durationMinutes: z.number().min(0).optional(),
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
-    })).mutation(({ input, ctx }) => db.createTimeEntry({ ...input, userId: ctx.user.id })),
+    })).mutation(({ input, ctx }) => db.createTimeEntry({ ...input, userId: ctx.user.id }, ctx.organizationId)),
     update: protectedProcedure.input(z.object({
       id: z.number(),
       projectId: z.number().optional(),
@@ -664,7 +664,7 @@ export const appRouter = router({
         durationMinutes: 0,
         billable: input.billable ?? true,
         phase: input.phase,
-      });
+      }, ctx.organizationId);
     }),
     stopTimer: protectedProcedure
       .input(z.object({ id: z.number() }).optional())
@@ -676,12 +676,12 @@ export const appRouter = router({
     projectBreakdown: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectTimeBreakdown(input.projectId)),
     projectLaborCost: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectLaborCost(input.projectId)),
     projectBurnRate: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectBurnRate(input.projectId)),
-    allProjectsBudgetSummary: protectedProcedure.query(() => db.getAllProjectsBudgetSummary()),
+    allProjectsBudgetSummary: protectedProcedure.query(({ ctx }) => db.getAllProjectsBudgetSummary(ctx.organizationId)),
     firmUtilization: adminProcedure.input(z.object({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
-    }).optional()).query(({ input }) => db.getFirmUtilization(input?.startDate, input?.endDate)),
-    trueProfitability: adminProcedure.query(() => db.getTrueProfitability()),
+    }).optional()).query(({ input, ctx }) => db.getFirmUtilization(input?.startDate, input?.endDate, ctx.organizationId)),
+    trueProfitability: adminProcedure.query(({ ctx }) => db.getTrueProfitability(ctx.organizationId)),
     timesheet: protectedProcedure.input(z.object({
       userId: z.number(),
       weekStart: z.date(),
@@ -689,12 +689,12 @@ export const appRouter = router({
     teamTimeReport: adminProcedure.input(z.object({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
-    }).optional()).query(({ input }) => db.getTeamTimeReport(input?.startDate, input?.endDate)),
+    }).optional()).query(({ input, ctx }) => db.getTeamTimeReport(input?.startDate, input?.endDate, ctx.organizationId)),
   }),
 
   // ── Dashboard ────────────────────────────────────────────────
   dashboard: router({
-    stats: protectedProcedure.query(() => db.getDashboardStats()),
+    stats: protectedProcedure.query(({ ctx }) => db.getDashboardStats(ctx.organizationId)),
     seed: protectedProcedure.mutation(() => db.seedDemoData()),
   }),
 

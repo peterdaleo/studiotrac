@@ -2,6 +2,7 @@ import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users,
+  organizations, InsertOrganization, Organization,
   projects, InsertProject, Project,
   tasks, InsertTask, Task,
   teamMembers, InsertTeamMember, TeamMember,
@@ -46,6 +47,42 @@ export async function getDb() {
   return _db;
 }
 
+// ── Organizations ─────────────────────────────────────────────────
+export async function createOrganization(data: InsertOrganization): Promise<{ id: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(organizations).values(data);
+  return { id: result[0].insertId };
+}
+export async function getOrganization(id: number): Promise<Organization | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
+  return result[0];
+}
+export async function getOrganizationBySlug(slug: string): Promise<Organization | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(organizations).where(eq(organizations.slug, slug)).limit(1);
+  return result[0];
+}
+export async function updateOrganization(id: number, data: Partial<InsertOrganization>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(organizations).set(data).where(eq(organizations.id, id));
+}
+export async function updateOrganizationStripeCustomerId(orgId: number, stripeCustomerId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(organizations).set({ stripeCustomerId }).where(eq(organizations.id, orgId));
+}
+export async function getOrganizationByStripeCustomerId(stripeCustomerId: string): Promise<Organization | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(organizations).where(eq(organizations.stripeCustomerId, stripeCustomerId)).limit(1);
+  return result[0];
+}
+
 // ── Users ──────────────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -88,10 +125,12 @@ export async function getUserByEmail(email: string) {
 }
 
 // ── Team Members ───────────────────────────────────────────────────
-export async function listTeamMembers() {
+export async function listTeamMembers(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(teamMembers).where(eq(teamMembers.isActive, true)).orderBy(asc(teamMembers.name));
+  const conditions = [eq(teamMembers.isActive, true)];
+  if (orgId) conditions.push(eq(teamMembers.organizationId, orgId));
+  return db.select().from(teamMembers).where(and(...conditions)).orderBy(asc(teamMembers.name));
 }
 
 export async function getTeamMember(id: number) {
@@ -101,10 +140,11 @@ export async function getTeamMember(id: number) {
   return result[0];
 }
 
-export async function createTeamMember(data: InsertTeamMember) {
+export async function createTeamMember(data: InsertTeamMember, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(teamMembers).values(data);
+  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const result = await db.insert(teamMembers).values(values);
   return { id: result[0].insertId };
 }
 
@@ -132,10 +172,11 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 }
 
-export async function listUsers() {
+export async function listUsers(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt }).from(users).orderBy(asc(users.name));
+  const conditions = orgId ? [eq(users.organizationId, orgId)] : [];
+  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole }).from(users).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(asc(users.name));
 }
 
 export async function getUserById(id: number) {
@@ -145,7 +186,7 @@ export async function getUserById(id: number) {
   return result[0];
 }
 
-export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "pm" | "admin" }) {
+export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "pm" | "admin" }, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const normalizedEmail = data.email.trim().toLowerCase();
@@ -155,6 +196,7 @@ export async function inviteTeamMember(data: { name: string; email: string; titl
     email: normalizedEmail,
     title: data.title ?? null,
     isActive: true,
+    ...(orgId ? { organizationId: orgId } : {}),
   });
   return { id: result[0].insertId };
 }
@@ -184,11 +226,11 @@ export async function linkUserToInvitedTeamMember(data: { teamMemberId: number; 
 }
 
 // ── Team Absences ──────────────────────────────────────────────────
-export async function listTeamAbsences(filters?: { teamMemberId?: number; startDate?: Date; endDate?: Date }) {
+export async function listTeamAbsences(filters?: { teamMemberId?: number; startDate?: Date; endDate?: Date }, orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-
   const conditions = [];
+  if (orgId) conditions.push(eq(teamAbsences.organizationId, orgId));
   if (filters?.teamMemberId) conditions.push(eq(teamAbsences.teamMemberId, filters.teamMemberId));
   if (filters?.startDate) conditions.push(gte(teamAbsences.endDate, filters.startDate));
   if (filters?.endDate) conditions.push(lte(teamAbsences.startDate, filters.endDate));
@@ -265,11 +307,12 @@ export async function getTeamAbsence(id: number) {
   }
 }
 
-export async function createTeamAbsence(data: InsertTeamAbsence) {
+export async function createTeamAbsence(data: InsertTeamAbsence, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
-    const result = await db.insert(teamAbsences).values(data);
+    const values = orgId ? { ...data, organizationId: orgId } : data;
+    const result = await db.insert(teamAbsences).values(values);
     return { id: result[0].insertId };
   } catch (error) {
     if (isMissingTableError(error)) {
@@ -306,10 +349,11 @@ export async function deleteTeamAbsence(id: number) {
 }
 
 // ── Projects ───────────────────────────────────────────────────────
-export async function listProjects(filters?: { status?: string; phase?: string; managerId?: number }) {
+export async function listProjects(filters?: { status?: string; phase?: string; managerId?: number }, orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
+  if (orgId) conditions.push(eq(projects.organizationId, orgId));
   if (filters?.status) conditions.push(eq(projects.status, filters.status as any));
   if (filters?.phase) conditions.push(eq(projects.phase, filters.phase as any));
   if (filters?.managerId) conditions.push(eq(projects.projectManagerId, filters.managerId));
@@ -324,10 +368,11 @@ export async function getProject(id: number) {
   return result[0];
 }
 
-export async function createProject(data: InsertProject) {
+export async function createProject(data: InsertProject, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(projects).values(data);
+  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const result = await db.insert(projects).values(values);
   return { id: result[0].insertId };
 }
 
@@ -388,10 +433,11 @@ export async function deleteProject(id: number) {
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────
-export async function listTasks(filters?: { projectId?: number; assigneeId?: number; status?: string }) {
+export async function listTasks(filters?: { projectId?: number; assigneeId?: number; status?: string }, orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
+  if (orgId) conditions.push(eq(tasks.organizationId, orgId));
   if (filters?.projectId) conditions.push(eq(tasks.projectId, filters.projectId));
   if (filters?.assigneeId) conditions.push(eq(tasks.assigneeId, filters.assigneeId));
   if (filters?.status) conditions.push(eq(tasks.status, filters.status as any));
@@ -406,10 +452,11 @@ export async function getTask(id: number) {
   return result[0];
 }
 
-export async function createTask(data: InsertTask) {
+export async function createTask(data: InsertTask, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(tasks).values(data);
+  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const result = await db.insert(tasks).values(values);
   return { id: result[0].insertId };
 }
 
@@ -460,19 +507,20 @@ export async function deleteProjectNote(id: number) {
 }
 
 // ── Notifications ──────────────────────────────────────────────────
-export async function listNotifications(userId?: number, limit = 50) {
+export async function listNotifications(userId?: number, limit = 50, orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
+  if (orgId) conditions.push(eq(notifications.organizationId, orgId));
   if (userId) conditions.push(or(eq(notifications.userId, userId), isNull(notifications.userId)));
   else conditions.push(isNull(notifications.userId));
   return db.select().from(notifications).where(and(...conditions)).orderBy(desc(notifications.createdAt)).limit(limit);
 }
-
-export async function createNotification(data: InsertNotification) {
+export async function createNotification(data: InsertNotification, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(notifications).values(data);
+  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const result = await db.insert(notifications).values(values);
   return { id: result[0].insertId };
 }
 
@@ -614,12 +662,16 @@ export async function getUpcomingDeadlineProjects(daysAhead: number) {
 }
 
 // ── Gantt Data ────────────────────────────────────────────────────
-export async function getGanttData() {
+export async function getGanttData(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { projects: [], tasks: [], members: [] };
-  const allProjects = await db.select().from(projects).where(ne(projects.status, 'completed')).orderBy(asc(projects.startDate));
-  const allTasks = await db.select().from(tasks).where(ne(tasks.status, 'done')).orderBy(asc(tasks.deadline));
-  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true));
+  const pConds = [ne(projects.status, 'completed')];
+  const tConds = [ne(tasks.status, 'done')];
+  const mConds = [eq(teamMembers.isActive, true)];
+  if (orgId) { pConds.push(eq(projects.organizationId, orgId)); tConds.push(eq(tasks.organizationId, orgId)); mConds.push(eq(teamMembers.organizationId, orgId)); }
+  const allProjects = await db.select().from(projects).where(and(...pConds)).orderBy(asc(projects.startDate));
+  const allTasks = await db.select().from(tasks).where(and(...tConds)).orderBy(asc(tasks.deadline));
+  const allMembers = await db.select().from(teamMembers).where(and(...mConds));
   return { projects: allProjects, tasks: allTasks, members: allMembers };
 }
 
@@ -630,10 +682,11 @@ export async function listInvoices(projectId: number) {
   return db.select().from(invoices).where(eq(invoices.projectId, projectId)).orderBy(desc(invoices.invoiceDate));
 }
 
-export async function createInvoice(data: InsertInvoice) {
+export async function createInvoice(data: InsertInvoice, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(invoices).values(data);
+  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const result = await db.insert(invoices).values(values);
   // Recalculate project invoiced amount
   await recalcProjectInvoiced(data.projectId);
   return { id: result[0].insertId };
@@ -668,10 +721,11 @@ async function recalcProjectInvoiced(projectId: number) {
 }
 
 // ── Financial Overview ────────────────────────────────────────────
-export async function getFinancialOverview() {
+export async function getFinancialOverview(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { projects: [], totals: { contracted: 0, invoiced: 0, outstanding: 0, paid: 0, consultantPaid: 0, netIncome: 0 } };
-  const allProjects = await db.select().from(projects).orderBy(desc(projects.updatedAt));
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
+  const allProjects = await db.select().from(projects).where(pWhere).orderBy(desc(projects.updatedAt));
   const allInvoices = await db.select().from(invoices).orderBy(desc(invoices.invoiceDate));
   const allContracts = await db.select().from(consultantContracts);
   const allPayments = await db.select().from(consultantPayments);
@@ -728,10 +782,11 @@ export async function getFinancialOverview() {
 }
 
 // ── Export Data Helpers ──────────────────────────────────────────
-export async function getExportProjectsSummary() {
+export async function getExportProjectsSummary(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  const allProjects = await db.select().from(projects).orderBy(asc(projects.name));
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
+  const allProjects = await db.select().from(projects).where(pWhere).orderBy(asc(projects.name));
   const allMembers = await db.select().from(teamMembers);
   return allProjects.map(p => {
     const manager = allMembers.find(m => m.id === p.projectManagerId);
@@ -750,10 +805,11 @@ export async function getExportProjectsSummary() {
   });
 }
 
-export async function getExportTasksList() {
+export async function getExportTasksList(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  const allTasks = await db.select().from(tasks).orderBy(asc(tasks.priority));
+  const tWhere = orgId ? eq(tasks.organizationId, orgId) : undefined;
+  const allTasks = await db.select().from(tasks).where(tWhere).orderBy(asc(tasks.priority));
   const allMembers = await db.select().from(teamMembers);
   const allProjects = await db.select().from(projects);
   return allTasks.map(t => {
@@ -771,11 +827,14 @@ export async function getExportTasksList() {
   });
 }
 
-export async function getExportTeamWorkload() {
+export async function getExportTeamWorkload(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true));
-  const allTasks = await db.select().from(tasks);
+  const mConds = [eq(teamMembers.isActive, true)];
+  if (orgId) mConds.push(eq(teamMembers.organizationId, orgId));
+  const allMembers = await db.select().from(teamMembers).where(and(...mConds));
+  const tWhere = orgId ? eq(tasks.organizationId, orgId) : undefined;
+  const allTasks = await db.select().from(tasks).where(tWhere);
   return allMembers.map(m => {
     const memberTasks = allTasks.filter(t => t.assigneeId === m.id);
     const completed = memberTasks.filter(t => t.status === 'done').length;
@@ -795,23 +854,23 @@ export async function getExportTeamWorkload() {
 }
 
 // ── Dashboard Stats ────────────────────────────────────────────────
-export async function getDashboardStats() {
+export async function getDashboardStats(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { totalProjects: 0, onTrack: 0, delayed: 0, onHold: 0, completed: 0, totalTasks: 0, overdueTasks: 0, completedTasks: 0 };
-
+  const projectWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
+  const taskWhere = orgId ? eq(tasks.organizationId, orgId) : undefined;
   const projectStats = await db.select({
     total: sql<number>`count(*)`,
     onTrack: sql<number>`sum(case when status = 'on_track' then 1 else 0 end)`,
     delayed: sql<number>`sum(case when status = 'delayed' then 1 else 0 end)`,
     onHold: sql<number>`sum(case when status = 'on_hold' then 1 else 0 end)`,
     completed: sql<number>`sum(case when status = 'completed' then 1 else 0 end)`,
-  }).from(projects);
-
+  }).from(projects).where(projectWhere);
   const taskStats = await db.select({
     total: sql<number>`count(*)`,
     overdue: sql<number>`sum(case when status = 'overdue' then 1 else 0 end)`,
     completed: sql<number>`sum(case when status = 'done' then 1 else 0 end)`,
-  }).from(tasks);
+  }).from(tasks).where(taskWhere);
 
   return {
     totalProjects: Number(projectStats[0]?.total ?? 0),
@@ -998,11 +1057,11 @@ export async function getProjectNetIncome(projectId: number) {
   };
 }
 
-export async function getStudioNetIncome() {
+export async function getStudioNetIncome(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { totalFeesCollected: 0, totalConsultantPayments: 0, totalNetIncome: 0, projectBreakdown: [] as any[] };
-  
-  const allProjects = await db.select().from(projects);
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
+  const allProjects = await db.select().from(projects).where(pWhere);
   const allInvoices = await db.select().from(invoices);
   const allContracts = await db.select().from(consultantContracts);
   const allPayments = await db.select().from(consultantPayments);
@@ -1047,10 +1106,11 @@ export async function getStudioNetIncome() {
 }
 
 // ── Time Entries ──────────────────────────────────────────────────
-export async function listTimeEntries(filters?: { userId?: number; projectId?: number; startDate?: Date; endDate?: Date; billable?: boolean }) {
+export async function listTimeEntries(filters?: { userId?: number; projectId?: number; startDate?: Date; endDate?: Date; billable?: boolean }, orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
+  if (orgId) conditions.push(eq(timeEntries.organizationId, orgId));
   if (filters?.userId) conditions.push(eq(timeEntries.userId, filters.userId));
   if (filters?.projectId) conditions.push(eq(timeEntries.projectId, filters.projectId));
   if (filters?.startDate) conditions.push(gte(timeEntries.startTime, filters.startDate));
@@ -1059,11 +1119,11 @@ export async function listTimeEntries(filters?: { userId?: number; projectId?: n
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(timeEntries).where(where).orderBy(desc(timeEntries.startTime));
 }
-
-export async function createTimeEntry(data: InsertTimeEntry) {
+export async function createTimeEntry(data: InsertTimeEntry, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(timeEntries).values(data);
+  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const result = await db.insert(timeEntries).values(values);
   return { id: result[0].insertId };
 }
 
@@ -1244,12 +1304,14 @@ export async function getProjectBurnRate(projectId: number) {
   return { budgetConsumedPercent, timelineElapsedPercent, laborCost: totalLaborCost, consultantCost, contractedFee: project[0].contractedFee || 0 };
 }
 
-export async function getFirmUtilization(startDate?: Date, endDate?: Date) {
+export async function getFirmUtilization(startDate?: Date, endDate?: Date, orgId?: number | null) {
   const db = await getDb();
   if (!db) return { members: [] as any[], firmBillableHours: 0, firmTotalHours: 0, firmUtilizationRate: 0 };
-  
-  const members = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true));
+  const mConds = [eq(teamMembers.isActive, true)];
+  if (orgId) mConds.push(eq(teamMembers.organizationId, orgId));
+  const members = await db.select().from(teamMembers).where(and(...mConds));
   const conditions = [sql`${timeEntries.endTime} IS NOT NULL`];
+  if (orgId) conditions.push(eq(timeEntries.organizationId, orgId));
   if (startDate) conditions.push(gte(timeEntries.startTime, startDate));
   if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
   const entries = await db.select().from(timeEntries).where(and(...conditions));
@@ -1298,11 +1360,11 @@ export async function getFirmUtilization(startDate?: Date, endDate?: Date) {
   };
 }
 
-export async function getTrueProfitability() {
+export async function getTrueProfitability(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { projects: [] as any[], firmTotal: { feesCollected: 0, laborCost: 0, consultantCost: 0, netProfit: 0 } };
-  
-  const allProjects = await db.select().from(projects);
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
+  const allProjects = await db.select().from(projects).where(pWhere);
   const allInvoices = await db.select().from(invoices);
   const allContracts = await db.select().from(consultantContracts);
   const allPayments = await db.select().from(consultantPayments);
@@ -1597,14 +1659,16 @@ export async function seedDemoData() {
 }
 
 
-export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
+export async function getTeamTimeReport(startDate?: Date, endDate?: Date, orgId?: number | null) {
   const db = await getDb();
   if (!db) return { rows: [] as any[], members: [] as any[], projects: [] as any[] };
-
-  const members = await db.select().from(teamMembers).where(eq(teamMembers.isActive, true)).orderBy(asc(teamMembers.name));
-  const allProjects = await db.select({ id: projects.id, name: projects.name }).from(projects).orderBy(asc(projects.name));
-
+  const mConds = [eq(teamMembers.isActive, true)];
+  if (orgId) mConds.push(eq(teamMembers.organizationId, orgId));
+  const members = await db.select().from(teamMembers).where(and(...mConds)).orderBy(asc(teamMembers.name));
+  const pConds = orgId ? [eq(projects.organizationId, orgId)] : [];
+  const allProjects = await db.select({ id: projects.id, name: projects.name }).from(projects).where(pConds.length > 0 ? and(...pConds) : undefined).orderBy(asc(projects.name));
   const conditions = [sql`${timeEntries.endTime} IS NOT NULL`];
+  if (orgId) conditions.push(eq(timeEntries.organizationId, orgId));
   if (startDate) conditions.push(gte(timeEntries.startTime, startDate));
   if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
   const entries = await db.select().from(timeEntries).where(and(...conditions));
@@ -1659,11 +1723,12 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date) {
 }
 
 // ── Billing Department Emails ─────────────────────────────────────
-export async function listBillingDepartmentEmails() {
+export async function listBillingDepartmentEmails(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   try {
-    return await db.select().from(billingDepartmentEmails).orderBy(asc(billingDepartmentEmails.id));
+    const where = orgId ? eq(billingDepartmentEmails.organizationId, orgId) : undefined;
+    return await db.select().from(billingDepartmentEmails).where(where).orderBy(asc(billingDepartmentEmails.id));
   } catch (error) {
     if (isMissingTableError(error)) {
       console.warn("[Database] billing_department_emails table not found yet; returning empty list");
@@ -1672,12 +1737,11 @@ export async function listBillingDepartmentEmails() {
     throw error;
   }
 }
-
-export async function addBillingDepartmentEmail(emailAddress: string) {
+export async function addBillingDepartmentEmail(emailAddress: string, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
-    const result = await db.insert(billingDepartmentEmails).values({ emailAddress });
+    const result = await db.insert(billingDepartmentEmails).values({ emailAddress, ...(orgId ? { organizationId: orgId } : {}) });
     return { id: result[0].insertId };
   } catch (error) {
     if (isMissingTableError(error)) {
@@ -1698,16 +1762,16 @@ export async function removeBillingDepartmentEmail(id: number) {
  * Returns a lightweight budget summary for every project in one pass.
  * Used by the Projects list page to render BudgetBar without N+1 queries.
  */
-export async function getAllProjectsBudgetSummary(): Promise<
+export async function getAllProjectsBudgetSummary(orgId?: number | null): Promise<
   Array<{ projectId: number; contractedFee: number; totalCost: number }>
 > {
   const db = await getDb();
   if (!db) return [];
-
   // 1. All projects (id + contractedFee)
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db
     .select({ id: projects.id, contractedFee: projects.contractedFee })
-    .from(projects);
+    .from(projects).where(pWhere);
 
   if (allProjects.length === 0) return [];
 
@@ -1827,7 +1891,31 @@ export async function getActiveSubscription(userId: number): Promise<Subscriptio
   }
 }
 
+export async function getActiveSubscriptionByOrg(orgId: number): Promise<Subscription | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db
+      .select()
+      .from(subscriptions)
+      .where(and(
+        eq(subscriptions.organizationId, orgId),
+        ne(subscriptions.status, "canceled"),
+      ))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+    return result[0];
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[Database] subscriptions table not found yet; returning undefined");
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 export async function upsertSubscription(data: {
+  organizationId?: number | null;
   userId: number;
   stripeSubscriptionId: string;
   stripeCustomerId: string;

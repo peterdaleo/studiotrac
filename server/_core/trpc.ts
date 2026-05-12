@@ -21,6 +21,7 @@ const requireUser = t.middleware(async opts => {
     ctx: {
       ...ctx,
       user: ctx.user,
+      organizationId: ctx.user.organizationId ?? null,
     },
   });
 });
@@ -39,6 +40,7 @@ export const adminProcedure = t.procedure.use(
       ctx: {
         ...ctx,
         user: ctx.user,
+        organizationId: ctx.user.organizationId ?? null,
       },
     });
   }),
@@ -56,6 +58,7 @@ export const adminOrPmProcedure = t.procedure.use(
       ctx: {
         ...ctx,
         user: ctx.user,
+        organizationId: ctx.user.organizationId ?? null,
       },
     });
   }),

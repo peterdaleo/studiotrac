@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { getStripe, STRIPE_PLANS, type StripePlanTier } from "./config";
 import * as db from "../db";
 
@@ -20,9 +20,10 @@ export const subscriptionRouter = router({
     }));
   }),
 
-  // Get current user's subscription
+  // Get current organization's subscription
   current: protectedProcedure.query(async ({ ctx }) => {
-    const subscription = await db.getActiveSubscription(ctx.user.id);
+    if (!ctx.organizationId) return null;
+    const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
     if (!subscription) return null;
     return {
       id: subscription.id,
@@ -34,8 +35,8 @@ export const subscriptionRouter = router({
     };
   }),
 
-  // Create a Stripe Checkout session
-  createCheckout: protectedProcedure
+  // Create a Stripe Checkout session (admin only — billing is org-level)
+  createCheckout: adminProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
       const stripe = getStripe();
@@ -44,22 +45,27 @@ export const subscriptionRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "This plan does not support self-serve checkout" });
       }
 
-      // Check if user already has an active subscription
-      const existing = await db.getActiveSubscription(ctx.user.id);
-      if (existing && existing.status === "active") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "You already have an active subscription. Please manage it from the billing page." });
+      if (!ctx.organizationId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You must belong to an organization to subscribe" });
       }
 
-      // Get or create Stripe customer — fetch stripeCustomerId via raw SQL
-      let customerId = await db.getUserStripeCustomerId(ctx.user.id);
+      // Check if org already has an active subscription
+      const existing = await db.getActiveSubscriptionByOrg(ctx.organizationId);
+      if (existing && existing.status === "active") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Your organization already has an active subscription. Please manage it from the billing page." });
+      }
+
+      // Get or create Stripe customer at the org level
+      const org = await db.getOrganization(ctx.organizationId);
+      let customerId = org?.stripeCustomerId ?? null;
       if (!customerId) {
         const customer = await stripe.customers.create({
           email: ctx.user.email ?? undefined,
-          name: (ctx.user.name as string) ?? undefined,
-          metadata: { userId: ctx.user.id.toString() },
+          name: org?.name ?? (ctx.user.name as string) ?? undefined,
+          metadata: { organizationId: ctx.organizationId.toString() },
         });
         customerId = customer.id;
-        await db.updateUserStripeCustomerId(ctx.user.id, customerId);
+        await db.updateOrganizationStripeCustomerId(ctx.organizationId, customerId);
       }
 
       const origin = process.env.APP_URL || "https://studiotrac-production.up.railway.app";
@@ -71,9 +77,9 @@ export const subscriptionRouter = router({
         line_items: [{ price: planConfig.priceId, quantity: 1 }],
         success_url: `${origin}/billing?checkout=success`,
         cancel_url: `${origin}/billing?checkout=canceled`,
-        metadata: { userId: ctx.user.id.toString(), plan: input.plan },
+        metadata: { organizationId: ctx.organizationId.toString(), plan: input.plan },
         subscription_data: {
-          metadata: { userId: ctx.user.id.toString(), plan: input.plan },
+          metadata: { organizationId: ctx.organizationId.toString(), plan: input.plan },
         },
       });
 
@@ -81,9 +87,13 @@ export const subscriptionRouter = router({
     }),
 
   // Create a Stripe Customer Portal session (for managing subscription)
-  createPortalSession: protectedProcedure.mutation(async ({ ctx }) => {
+  createPortalSession: adminProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
-    const customerId = await db.getUserStripeCustomerId(ctx.user.id);
+    if (!ctx.organizationId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
+    }
+    const org = await db.getOrganization(ctx.organizationId);
+    const customerId = org?.stripeCustomerId ?? null;
     if (!customerId) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No billing account found. Please subscribe to a plan first." });
     }
@@ -99,9 +109,12 @@ export const subscriptionRouter = router({
   }),
 
   // Cancel subscription (at period end)
-  cancel: protectedProcedure.mutation(async ({ ctx }) => {
+  cancel: adminProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
-    const subscription = await db.getActiveSubscription(ctx.user.id);
+    if (!ctx.organizationId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
+    }
+    const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
     if (!subscription) {
       throw new TRPCError({ code: "NOT_FOUND", message: "No active subscription found" });
     }
@@ -116,9 +129,12 @@ export const subscriptionRouter = router({
   }),
 
   // Resume a canceled subscription (undo cancel_at_period_end)
-  resume: protectedProcedure.mutation(async ({ ctx }) => {
+  resume: adminProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
-    const subscription = await db.getActiveSubscription(ctx.user.id);
+    if (!ctx.organizationId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
+    }
+    const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
     if (!subscription) {
       throw new TRPCError({ code: "NOT_FOUND", message: "No active subscription found" });
     }
@@ -137,11 +153,14 @@ export const subscriptionRouter = router({
   }),
 
   // Change plan (upgrade/downgrade)
-  changePlan: protectedProcedure
+  changePlan: adminProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
       const stripe = getStripe();
-      const subscription = await db.getActiveSubscription(ctx.user.id);
+      if (!ctx.organizationId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
+      }
+      const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
       if (!subscription) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No active subscription found" });
       }

@@ -10,7 +10,7 @@ export function registerOAuthRoutes(app: Express) {
   // ── Sign Up ────────────────────────────────────────────────────
   app.post("/api/auth/signup", async (req: Request, res: Response) => {
     try {
-      const { email, password, name, inviteToken } = req.body;
+      const { email, password, name, inviteToken, firmName } = req.body;
 
       if (!email || !password) {
         res.status(400).json({ error: "Email and password are required" });
@@ -54,6 +54,28 @@ export function registerOAuthRoutes(app: Express) {
       const openId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const displayName = String(name || invite?.name || normalizedEmail.split("@")[0]).trim();
 
+      // Determine organization: invited users join the inviter's org, new users create one
+      let organizationId: number | null = null;
+      let orgRole: "owner" | "admin" | "member" = "member";
+
+      if (invite) {
+        // For invited users, find the inviter's org from the team member record
+        const teamMember = await db.getTeamMember(invite.teamMemberId);
+        if (teamMember && teamMember.organizationId) {
+          organizationId = teamMember.organizationId;
+          orgRole = invite.role === "admin" ? "admin" : "member";
+        }
+      } else {
+        // New user creating their own firm/workspace
+        const orgName = String(firmName || `${displayName}'s Firm`).trim();
+        const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        const org = await db.createOrganization({ name: orgName, slug: `${slug}-${Date.now().toString(36)}` });
+        if (org) {
+          organizationId = org.id;
+          orgRole = "owner";
+        }
+      }
+
       await db.upsertUser({
         openId,
         name: displayName,
@@ -61,7 +83,9 @@ export function registerOAuthRoutes(app: Express) {
         passwordHash,
         loginMethod: "email",
         lastSignedIn: new Date(),
-        role: invite?.role,
+        role: invite?.role ?? "admin", // org creators are admin by default
+        organizationId,
+        orgRole,
       });
 
       const createdUser = await db.getUserByEmail(normalizedEmail);
