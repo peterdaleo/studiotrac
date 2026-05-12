@@ -286,8 +286,8 @@ function DashboardLayoutContent({
               })}
             </SidebarMenu>
 
-            <div className="mt-auto pt-4">
-              <SidebarMenu>
+            <div className="mt-auto pt-2 border-t border-sidebar-border/40">
+              <SidebarMenu className="pt-2">
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     isActive={location === "/notifications"}
