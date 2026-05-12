@@ -8,14 +8,12 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "pm", "admin"]).default("user").notNull(),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 export type User = typeof users.$inferSelect;
-// stripeCustomerId is stored in the DB but excluded from the Drizzle schema
-// so that the app works before the migration column is added.
-// Billing functions access it via raw SQL.
 export type InsertUser = typeof users.$inferInsert;
 // ── Team Members ───────────────────────────────────────────────────
 export const teamMembers = mysqlTable("team_members", {
