@@ -50,7 +50,7 @@ import {
   Archive,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { TASK_STATUSES } from "@shared/constants";
+import { TASK_STATUSES, TASK_STATUS_FILTERS, isTaskOverdue } from "@shared/constants";
 import { toast } from "sonner";
 
 const taskStatusColors: Record<string, string> = {
@@ -128,7 +128,12 @@ export default function Tasks() {
   const filtered = useMemo(() => {
     if (!allTasks) return [];
     let result = allTasks.filter((t) => {
-      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (statusFilter === "overdue") {
+        // Pseudo-filter: computed overdue
+        if (!isTaskOverdue(t.status, t.deadline)) return false;
+      } else if (statusFilter !== "all" && t.status !== statusFilter) {
+        return false;
+      }
       if (projectFilter !== "all" && t.projectId !== Number(projectFilter)) return false;
       if (assigneeFilter !== "all" && t.assigneeId !== Number(assigneeFilter)) return false;
       if (search) {
@@ -207,13 +212,13 @@ export default function Tasks() {
       todo: allTasks.filter((t) => t.status === "todo").length,
       inProgress: allTasks.filter((t) => t.status === "in_progress").length,
       done: allTasks.filter((t) => t.status === "done").length,
-      overdue: allTasks.filter((t) => t.status === "overdue").length,
+      overdue: allTasks.filter((t) => isTaskOverdue(t.status, t.deadline)).length,
     };
   }, [allTasks]);
 
   // Reusable task row renderer
   const renderTaskRow = (task: typeof filtered[0], isDraggable = true) => {
-    const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
+    const isOverdue = isTaskOverdue(task.status, task.deadline);
     return (
       <div
         key={task.id}
@@ -266,6 +271,9 @@ export default function Tasks() {
         <div className={`h-6 w-8 rounded text-[10px] font-bold flex items-center justify-center shrink-0 ${priorityColor(task.priority)}`}>
           {task.priority}
         </div>
+        {isOverdue && (
+          <span className="shrink-0 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">Overdue</span>
+        )}
         <Select
           value={task.status}
           onValueChange={(v) => updateTask.mutate({
@@ -274,7 +282,7 @@ export default function Tasks() {
             completedAt: v === "done" ? new Date() : null,
           })}
         >
-          <SelectTrigger className={`w-[110px] h-7 text-[10px] border ${taskStatusColors[task.status] ?? ""}`}>
+          <SelectTrigger className={`w-[110px] h-7 text-[10px] border ${isOverdue ? "bg-red-50 text-red-700 border-red-200" : (taskStatusColors[task.status] ?? "")}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -435,7 +443,7 @@ export default function Tasks() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
-            {TASK_STATUSES.map((s) => (
+            {TASK_STATUS_FILTERS.map((s) => (
               <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
             ))}
           </SelectContent>

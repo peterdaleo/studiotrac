@@ -322,7 +322,7 @@ export default function Timeline() {
                             const taskDay = (new Date(task.deadline!).getTime() - startDate.getTime()) / 86400000;
                             if (taskDay < 0 || taskDay > totalDays) return null;
                             const taskLeft = `${(taskDay / totalDays) * 100}%`;
-                            const isOverdue = task.status === "overdue";
+                            const isOverdue = task.status !== "done" && new Date(task.deadline!) < new Date();
                             return (
                               <Tooltip key={task.id}>
                                 <TooltipTrigger asChild>
@@ -390,7 +390,8 @@ export default function Timeline() {
                 const memberTasks = ganttData.tasks.filter(t => t.assigneeId === member.id);
                 const memberProjectIds = Array.from(new Set(memberTasks.map(t => t.projectId)));
                 const memberProjects = ganttData.projects.filter(p => memberProjectIds.includes(p.id));
-                const overdueTasks = memberTasks.filter(t => t.status === "overdue");
+                const now = new Date();
+                const overdueTasks = memberTasks.filter(t => t.status !== "done" && t.deadline != null && new Date(t.deadline) < now);
 
                 return (
                   <div key={member.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">

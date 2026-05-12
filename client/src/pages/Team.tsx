@@ -184,7 +184,8 @@ export default function Team() {
     return teamMembers.map((m) => {
       const memberTasks = allTasks.filter((t) => t.assigneeId === m.id);
       const completed = memberTasks.filter((t) => t.status === "done").length;
-      const overdue = memberTasks.filter((t) => t.status === "overdue").length;
+      const now = new Date();
+      const overdue = memberTasks.filter((t) => t.status !== "done" && t.deadline != null && new Date(t.deadline) < now).length;
       const inProgress = memberTasks.filter((t) => t.status === "in_progress").length;
       const total = memberTasks.length;
       const missedRate = total > 0 ? Math.round((overdue / total) * 100) : 0;

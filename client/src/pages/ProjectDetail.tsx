@@ -97,7 +97,6 @@ const taskStatusOptions = [
   { value: "todo", label: "To Do" },
   { value: "in_progress", label: "In Progress" },
   { value: "done", label: "Done" },
-  { value: "overdue", label: "Overdue" },
 ];
 
 export default function ProjectDetail() {
@@ -790,9 +789,15 @@ export default function ProjectDetail() {
                         <Badge variant="outline" className="text-[10px] shrink-0">
                           P{task.priority}
                         </Badge>
-                        <Badge className={`text-[10px] shrink-0 border-0 ${taskStatusColors[task.status] ?? ""}`}>
-                          {task.status === "in_progress" ? "In Progress" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-                        </Badge>
+                        {isOverdue ? (
+                          <Badge className="text-[10px] shrink-0 border bg-red-50 text-red-700 border-red-200">
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge className={`text-[10px] shrink-0 border-0 ${taskStatusColors[task.status] ?? ""}`}>
+                            {task.status === "in_progress" ? "In Progress" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                          </Badge>
+                        )}
                         {/* Edit & Delete buttons - ALWAYS VISIBLE */}
                         <div className="flex items-center gap-0.5 shrink-0">
                           <Button

@@ -81,7 +81,7 @@ export default function Home() {
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
     .slice(0, 5) ?? [];
 
-  const overdueTasks = allTasks?.filter((t) => t.status === "overdue") ?? [];
+  const overdueTasks = allTasks?.filter((t) => t.status !== "done" && t.deadline && new Date(t.deadline) < new Date()) ?? [];
 
   if (statsLoading || projectsLoading) {
     return (

@@ -107,14 +107,15 @@ export default function Reports() {
     try {
       const result = await teamQuery.refetch();
       if (result.data) {
-        const headers = ["Team Member", "Role", "Active Tasks", "Completed Tasks", "Overdue Tasks", "Projects Assigned"];
+        const headers = ["Team Member", "Title", "Total Tasks", "Completed Tasks", "In Progress", "Overdue Tasks", "Completion Rate"];
         const rows = result.data.map((m: any) => [
           escapeCSV(m.name),
-          escapeCSV(m.role),
-          m.activeTasks,
-          m.completedTasks,
-          m.overdueTasks,
-          m.projectCount,
+          escapeCSV(m.title || ""),
+          m.totalTasks,
+          m.completed,
+          m.inProgress,
+          m.overdue,
+          `${m.completionRate}%`,
         ]);
         const csv = [headers.join(","), ...rows.map((r: any[]) => r.join(","))].join("\n");
         downloadCSV(`studiotrac-team-workload-${new Date().toISOString().split("T")[0]}.csv`, csv);

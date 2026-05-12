@@ -16,7 +16,15 @@ export const PROJECT_STATUSES = [
   { value: "completed", label: "Completed", color: "muted" },
 ] as const;
 
+// Selectable statuses — "overdue" is NOT a selectable status; it is computed
 export const TASK_STATUSES = [
+  { value: "todo", label: "To Do" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+] as const;
+
+// Filter options include the computed "overdue" pseudo-status for filtering
+export const TASK_STATUS_FILTERS = [
   { value: "todo", label: "To Do" },
   { value: "in_progress", label: "In Progress" },
   { value: "done", label: "Done" },
@@ -25,7 +33,14 @@ export const TASK_STATUSES = [
 
 export type ProjectPhase = (typeof PROJECT_PHASES)[number]["value"];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]["value"];
-export type TaskStatus = (typeof TASK_STATUSES)[number]["value"];
+export type TaskStatus = "todo" | "in_progress" | "done" | "overdue";
+
+/** Returns true if a task is overdue: not done and deadline is in the past */
+export function isTaskOverdue(status: string, deadline: Date | string | null | undefined): boolean {
+  if (status === "done") return false;
+  if (!deadline) return false;
+  return new Date(deadline) < new Date();
+}
 
 export function getPhaseLabel(phase: string): string {
   return PROJECT_PHASES.find((p) => p.value === phase)?.label ?? phase;

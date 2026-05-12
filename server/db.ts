@@ -638,7 +638,6 @@ export async function getUpcomingDeadlineTasks(daysAhead: number) {
   return db.select().from(tasks)
     .where(and(
       ne(tasks.status, 'done'),
-      ne(tasks.status, 'overdue'),
       lte(tasks.deadline, future),
       gte(tasks.deadline, now)
     ))
@@ -648,8 +647,9 @@ export async function getUpcomingDeadlineTasks(daysAhead: number) {
 export async function getOverdueTasks() {
   const db = await getDb();
   if (!db) return [];
+  const now = new Date();
   return db.select().from(tasks)
-    .where(eq(tasks.status, 'overdue'))
+    .where(and(ne(tasks.status, 'done'), lte(tasks.deadline, now)))
     .orderBy(asc(tasks.deadline));
 }
 
@@ -843,8 +843,9 @@ export async function getExportTeamWorkload(orgId?: number | null) {
   const allTasks = await db.select().from(tasks).where(tWhere);
   return allMembers.map(m => {
     const memberTasks = allTasks.filter(t => t.assigneeId === m.id);
+    const now = new Date();
     const completed = memberTasks.filter(t => t.status === 'done').length;
-    const overdue = memberTasks.filter(t => t.status === 'overdue').length;
+    const overdue = memberTasks.filter(t => t.status !== 'done' && t.deadline != null && new Date(t.deadline) < now).length;
     const inProgress = memberTasks.filter(t => t.status === 'in_progress').length;
     return {
       name: m.name,
@@ -874,7 +875,7 @@ export async function getDashboardStats(orgId?: number | null) {
   }).from(projects).where(projectWhere);
   const taskStats = await db.select({
     total: sql<number>`count(*)`,
-    overdue: sql<number>`sum(case when status = 'overdue' then 1 else 0 end)`,
+    overdue: sql<number>`sum(case when status != 'done' and deadline is not null and deadline < now() then 1 else 0 end)`,
     completed: sql<number>`sum(case when status = 'done' then 1 else 0 end)`,
   }).from(tasks).where(taskWhere);
 
@@ -898,7 +899,7 @@ export async function getTeamMemberStats(memberId: number) {
   const taskResult = await db.select({
     assigned: sql<number>`count(*)`,
     completed: sql<number>`sum(case when status = 'done' then 1 else 0 end)`,
-    overdue: sql<number>`sum(case when status = 'overdue' then 1 else 0 end)`,
+    overdue: sql<number>`sum(case when status != 'done' and deadline is not null and deadline < now() then 1 else 0 end)`,
   }).from(tasks).where(eq(tasks.assigneeId, memberId));
 
   const projectResult = await db.select({
