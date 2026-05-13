@@ -180,6 +180,8 @@ function DashboardLayoutContent({
   const isAdmin = useEffectiveAdmin(user?.role);
   const isSuperAdmin = (user?.isSuperAdmin ?? false) && !isStaffPreview;
   const { canAccessFinancials, isLockedOut, isTrialActive, trialDaysLeft } = useSubscription();
+  // Super-admin should never see any trial UI
+  const showTrialUI = !isSuperAdmin;
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
     if ("adminOnly" in item && item.adminOnly) {
@@ -225,8 +227,8 @@ function DashboardLayoutContent({
     };
   }, [isResizing, setSidebarWidth]);
 
-  // Show lockout screen if trial expired and no paid subscription
-  if (isLockedOut) {
+  // Show lockout screen if trial expired and no paid subscription (never for super-admin)
+  if (showTrialUI && isLockedOut) {
     return <TrialExpiredScreen />;
   }
 
@@ -323,7 +325,7 @@ function DashboardLayoutContent({
           {/* Footer: avatar + name on left, notification bell + settings gear on right */}
           <SidebarFooter className="border-t border-sidebar-border/40 p-3">
             {/* Trial countdown in sidebar (always visible, not just last 7 days) */}
-            {isTrialActive && trialDaysLeft !== null && (
+            {showTrialUI && isTrialActive && trialDaysLeft !== null && (
               <button
                 onClick={() => setLocation("/billing")}
                 className="group-data-[collapsible=icon]:hidden w-full mb-2 rounded-lg bg-primary/8 hover:bg-primary/12 border border-primary/20 px-3 py-2 text-left transition-colors"
@@ -455,7 +457,7 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         {/* Trial Countdown Banner */}
-        {isTrialActive && trialDaysLeft !== null && trialDaysLeft <= 7 && (
+        {showTrialUI && isTrialActive && trialDaysLeft !== null && trialDaysLeft <= 7 && (
           <TrialBanner daysLeft={trialDaysLeft} />
         )}
         {/* Staff Preview Banner */}

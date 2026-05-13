@@ -23,6 +23,24 @@ export const subscriptionRouter = router({
   // Get current organization's subscription (or trial status)
   current: protectedProcedure.query(async ({ ctx }) => {
     if (!ctx.organizationId) return null;
+
+    // Super-admins have permanent, unlimited access — skip all trial/subscription logic
+    if (ctx.user?.isSuperAdmin) {
+      return {
+        id: null as null,
+        plan: "enterprise" as const,
+        status: "active" as const,
+        currentPeriodEnd: null as null,
+        cancelAtPeriodEnd: false,
+        canceledAt: null as null,
+        trialStartedAt: null as null,
+        trialExpiresAt: null as null,
+        trialDaysLeft: null as null,
+        isTrialActive: false,
+        isTrialExpired: false,
+      };
+    }
+
     const org = await db.getOrganization(ctx.organizationId);
     const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
 
