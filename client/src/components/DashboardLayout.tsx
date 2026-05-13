@@ -49,6 +49,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { trpc } from "@/lib/trpc";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -176,9 +177,15 @@ function DashboardLayoutContent({
   const realAdmin = user?.role === "admin";
   const isAdmin = useEffectiveAdmin(user?.role);
   const isSuperAdmin = (user?.isSuperAdmin ?? false) && !isStaffPreview;
+  const { canAccessFinancials } = useSubscription();
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
-    if ("adminOnly" in item && item.adminOnly) return isAdmin;
+    if ("adminOnly" in item && item.adminOnly) {
+      if (!isAdmin) return false;
+      // Hide Financials from sidebar if plan doesn't include it
+      if (item.path === "/financials" && !canAccessFinancials) return false;
+      return true;
+    }
     return true;
   });
 

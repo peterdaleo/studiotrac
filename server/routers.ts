@@ -13,6 +13,27 @@ import { notifyOwner } from "./_core/notification";
 import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 import bcrypt from "bcryptjs";
+import { getPlanLimits, type PlanTier } from "@shared/subscription";
+
+/**
+ * Helper: resolve the current org's plan limits.
+ * Super-admins bypass all gates.
+ */
+async function getOrgPlanLimits(ctx: { user: { isSuperAdmin: boolean }; organizationId: number | null }) {
+  if (ctx.user.isSuperAdmin) return getPlanLimits("enterprise");
+  if (!ctx.organizationId) return getPlanLimits(null);
+  const sub = await db.getActiveSubscriptionByOrg(ctx.organizationId);
+  return getPlanLimits((sub?.plan as PlanTier) ?? null);
+}
+
+function requireFeature(has: boolean, featureName: string) {
+  if (!has) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Upgrade your plan to access ${featureName}.`,
+    });
+  }
+}
 
 const absenceTypeSchema = z.enum(["full_day", "partial_day", "work_from_home"]);
 
@@ -78,7 +99,17 @@ export const appRouter = router({
       email: z.string().email().optional(),
       title: z.string().optional(),
       avatarColor: z.string().optional(),
-    })).mutation(({ input, ctx }) => db.createTeamMember(input, ctx.organizationId)),
+    })).mutation(async ({ input, ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      const existing = await db.listTeamMembers(ctx.organizationId);
+      if (existing.length >= limits.maxTeamMembers) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Your plan allows up to ${limits.maxTeamMembers} team members. Upgrade to add more.`,
+        });
+      }
+      return db.createTeamMember(input, ctx.organizationId);
+    }),
     update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
@@ -132,6 +163,15 @@ export const appRouter = router({
       role: z.enum(["user", "pm", "admin"]).optional(),
       origin: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
+      // Enforce team member limit
+      const limits = await getOrgPlanLimits(ctx);
+      const existing = await db.listTeamMembers(ctx.organizationId);
+      if (existing.length >= limits.maxTeamMembers) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Your plan allows up to ${limits.maxTeamMembers} team members. Upgrade to add more.`,
+        });
+      }
       const normalizedEmail = input.email.trim().toLowerCase();
       const role = input.role ?? "user";
       const result = await db.inviteTeamMember({
@@ -250,7 +290,18 @@ export const appRouter = router({
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
       driveFolderUrl: z.string().optional().nullable(),
-    })).mutation(({ input, ctx }) => db.createProject(input, ctx.organizationId)),
+    })).mutation(async ({ input, ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      const allProjects = await db.listProjects(undefined, ctx.organizationId);
+      const activeProjects = allProjects.filter((p: any) => p.status !== "completed");
+      if (activeProjects.length >= limits.maxProjects) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Your plan allows up to ${limits.maxProjects} active projects. Upgrade to add more.`,
+        });
+      }
+      return db.createProject(input, ctx.organizationId);
+    }),
     update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
@@ -457,14 +508,30 @@ export const appRouter = router({
 
   // ── Financial Overview ──────────────────────────────────────
   financials: router({
-    overview: adminProcedure.query(({ ctx }) => db.getFinancialOverview(ctx.organizationId)),
+    overview: adminProcedure.query(async ({ ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasFinancials, "Financials");
+      return db.getFinancialOverview(ctx.organizationId);
+    }),
   }),
 
   // ── Exports ─────────────────────────────────────────────────
   exports: router({
-    projectsSummary: protectedProcedure.query(({ ctx }) => db.getExportProjectsSummary(ctx.organizationId)),
-    tasksList: protectedProcedure.query(({ ctx }) => db.getExportTasksList(ctx.organizationId)),
-    teamWorkload: protectedProcedure.query(({ ctx }) => db.getExportTeamWorkload(ctx.organizationId)),
+    projectsSummary: protectedProcedure.query(async ({ ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasAdvancedReports, "CSV Exports");
+      return db.getExportProjectsSummary(ctx.organizationId);
+    }),
+    tasksList: protectedProcedure.query(async ({ ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasAdvancedReports, "CSV Exports");
+      return db.getExportTasksList(ctx.organizationId);
+    }),
+    teamWorkload: protectedProcedure.query(async ({ ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasAdvancedReports, "CSV Exports");
+      return db.getExportTeamWorkload(ctx.organizationId);
+    }),
   }),
 
   // ── Notifications ────────────────────────────────────────────
@@ -574,7 +641,11 @@ export const appRouter = router({
 
   // ── Consultant Contracts ─────────────────────────────────────
   consultants: router({
-    list: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listConsultantContracts(input.projectId)),
+    list: adminProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasConsultantManagement, "Consultant Management");
+      return db.listConsultantContracts(input.projectId);
+    }),
     create: adminProcedure.input(z.object({
       projectId: z.number(),
       name: z.string().min(1),
@@ -582,7 +653,11 @@ export const appRouter = router({
       contractAmount: z.number().min(0),
       status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
       notes: z.string().optional(),
-    })).mutation(({ input }) => db.createConsultantContract(input)),
+    })).mutation(async ({ input, ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasConsultantManagement, "Consultant Management");
+      return db.createConsultantContract(input);
+    }),
     update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
@@ -692,7 +767,11 @@ export const appRouter = router({
     teamTimeReport: adminProcedure.input(z.object({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
-    }).optional()).query(({ input, ctx }) => db.getTeamTimeReport(input?.startDate, input?.endDate, ctx.organizationId)),
+    }).optional()).query(async ({ input, ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasTeamReport, "Team Reports");
+      return db.getTeamTimeReport(input?.startDate, input?.endDate, ctx.organizationId);
+    }),
   }),
 
   // ── Dashboard ────────────────────────────────────────────────

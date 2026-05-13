@@ -2,6 +2,8 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,7 @@ export default function Reports() {
   const [loadingReport, setLoadingReport] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
+  const { canAccessAdvancedReports } = useSubscription();
 
   const projectsQuery = trpc.exports.projectsSummary.useQuery(undefined, { enabled: false });
   const tasksQuery = trpc.exports.tasksList.useQuery(undefined, { enabled: false });
@@ -159,6 +162,20 @@ export default function Reports() {
       handler: handleExportTeam,
     },
   ];
+
+  if (!canAccessAdvancedReports) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Reports & Exports</h1>
+          <p className="text-muted-foreground mt-1">
+            Download project data as CSV files for presentations, reviews, and analysis.
+          </p>
+        </div>
+        <UpgradePrompt feature="Custom Reports & CSV Exports" requiredPlan="Professional" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { BudgetBar } from "@/components/BudgetBar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,12 +100,19 @@ export default function Projects() {
 
   const utils = trpc.useUtils();
 
+  const { maxProjects } = useSubscription();
+  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed").length;
+  const atProjectLimit = activeProjectCount >= maxProjects;
+
   const createProject = trpc.projects.create.useMutation({
     onSuccess: () => {
       utils.projects.list.invalidate();
       utils.dashboard.stats.invalidate();
       setDialogOpen(false);
       toast.success("Project created successfully");
+    },
+    onError: (err) => {
+      if (err.message.includes("Upgrade")) toast.error(err.message);
     },
   });
 
@@ -348,7 +356,7 @@ export default function Projects() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={atProjectLimit} title={atProjectLimit ? `Your plan allows up to ${maxProjects} active projects` : undefined}>
               <Plus className="h-4 w-4 mr-2" /> New Project
             </Button>
           </DialogTrigger>

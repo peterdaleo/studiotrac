@@ -11,8 +11,8 @@ export interface PlanLimits {
   hasFinancials: boolean;
   hasConsultantManagement: boolean;
   hasAdvancedReports: boolean;
-  hasClientPortal: boolean;
-  hasTimeTracking: boolean;
+  hasClientPortalFileSharing: boolean;
+  hasTeamReport: boolean;
 }
 
 export const PLAN_LIMITS: Record<NonNullable<PlanTier>, PlanLimits> = {
@@ -22,17 +22,17 @@ export const PLAN_LIMITS: Record<NonNullable<PlanTier>, PlanLimits> = {
     hasFinancials: false,
     hasConsultantManagement: false,
     hasAdvancedReports: false,
-    hasClientPortal: true,
-    hasTimeTracking: true,
+    hasClientPortalFileSharing: false,
+    hasTeamReport: false,
   },
   professional: {
     maxProjects: Infinity,
-    maxTeamMembers: Infinity,
+    maxTeamMembers: 25,
     hasFinancials: true,
     hasConsultantManagement: true,
     hasAdvancedReports: true,
-    hasClientPortal: true,
-    hasTimeTracking: true,
+    hasClientPortalFileSharing: true,
+    hasTeamReport: true,
   },
   enterprise: {
     maxProjects: Infinity,
@@ -40,23 +40,35 @@ export const PLAN_LIMITS: Record<NonNullable<PlanTier>, PlanLimits> = {
     hasFinancials: true,
     hasConsultantManagement: true,
     hasAdvancedReports: true,
-    hasClientPortal: true,
-    hasTimeTracking: true,
+    hasClientPortalFileSharing: true,
+    hasTeamReport: true,
   },
 };
 
-/** Free tier limits (no subscription) */
-export const FREE_LIMITS: PlanLimits = {
-  maxProjects: 3,
-  maxTeamMembers: 2,
-  hasFinancials: false,
-  hasConsultantManagement: false,
-  hasAdvancedReports: false,
-  hasClientPortal: false,
-  hasTimeTracking: true,
-};
+/**
+ * Users without a subscription get Starter-level access.
+ * This ensures the app is usable immediately while still enforcing limits.
+ */
+export const DEFAULT_LIMITS: PlanLimits = PLAN_LIMITS.starter;
 
 export function getPlanLimits(plan: PlanTier): PlanLimits {
-  if (!plan) return FREE_LIMITS;
+  if (!plan) return DEFAULT_LIMITS;
   return PLAN_LIMITS[plan];
+}
+
+/** Human-readable plan names for UI display */
+export const PLAN_DISPLAY_NAMES: Record<NonNullable<PlanTier>, string> = {
+  starter: "Starter",
+  professional: "Professional",
+  enterprise: "Enterprise",
+};
+
+/**
+ * Returns the minimum plan required to unlock a given feature.
+ * Useful for upgrade prompts.
+ */
+export function getRequiredPlan(feature: keyof Omit<PlanLimits, "maxProjects" | "maxTeamMembers">): NonNullable<PlanTier> {
+  if (PLAN_LIMITS.starter[feature]) return "starter";
+  if (PLAN_LIMITS.professional[feature]) return "professional";
+  return "enterprise";
 }

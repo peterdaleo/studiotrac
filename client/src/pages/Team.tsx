@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +122,7 @@ export default function Team() {
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
+  const { maxTeamMembers } = useSubscription();
 
   const { data: teamMembers, isLoading } = trpc.teamMembers.list.useQuery();
   const { data: allTasks } = trpc.tasks.list.useQuery({});
@@ -128,12 +130,17 @@ export default function Team() {
   const { data: registeredUsers } = trpc.teamMembers.listUsers.useQuery(undefined, { enabled: isAdmin });
   const utils = trpc.useUtils();
 
+  const atMemberLimit = (teamMembers?.length ?? 0) >= maxTeamMembers;
+
   const createMember = trpc.teamMembers.create.useMutation({
     onSuccess: () => {
       utils.teamMembers.list.invalidate();
       utils.dashboard.stats.invalidate();
       setDialogOpen(false);
       toast.success("Team member added");
+    },
+    onError: (err) => {
+      if (err.message.includes("Upgrade")) toast.error(err.message);
     },
   });
 
@@ -661,7 +668,7 @@ export default function Team() {
           {isAdmin && (
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" disabled={atMemberLimit} title={atMemberLimit ? `Your plan allows up to ${maxTeamMembers} team members` : undefined}>
                   <UserPlus className="h-4 w-4" /> Invite User
                 </Button>
               </DialogTrigger>
@@ -711,7 +718,7 @@ export default function Team() {
           )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={atMemberLimit} title={atMemberLimit ? `Your plan allows up to ${maxTeamMembers} team members` : undefined}>
                 <Plus className="h-4 w-4 mr-2" /> Add Member
               </Button>
             </DialogTrigger>

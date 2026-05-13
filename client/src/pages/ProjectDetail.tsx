@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BudgetBar } from "@/components/BudgetBar";
 import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,7 @@ export default function ProjectDetail() {
   const { user } = useAuth();
   const effectiveRole = useEffectiveRole(user?.role);
   const isAdmin = useEffectiveAdmin(user?.role);
+  const { canAccessConsultants } = useSubscription();
   const canViewProjectFinancials = effectiveRole === "admin" || effectiveRole === "pm";
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
@@ -1407,8 +1409,8 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
-          {/* Consultant Contracts & Payments — admin only */}
-          {isAdmin && 
+          {/* Consultant Contracts & Payments — admin only, Professional+ */}
+          {isAdmin && canAccessConsultants && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">

@@ -1,6 +1,8 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +48,8 @@ export default function Financials() {
     toast.success("Financial report exported");
   };
 
+  const { canAccessFinancials } = useSubscription();
+
   if (!isAdmin) {
     return (
       <div className="p-6">
@@ -60,6 +64,14 @@ export default function Financials() {
             </div>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (!canAccessFinancials) {
+    return (
+      <div className="p-6">
+        <UpgradePrompt feature="Financial Dashboard" requiredPlan="Professional" />
       </div>
     );
   }

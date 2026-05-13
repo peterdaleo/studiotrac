@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +52,7 @@ function toDateString(date: Date): string {
 export default function TimeTracking() {
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
+  const { canAccessTeamReport } = useSubscription();
   const utils = trpc.useUtils();
 
   const [activeTab, setActiveTab] = useState("timer");
@@ -476,7 +479,7 @@ export default function TimeTracking() {
         <TabsList>
           <TabsTrigger value="timer"><Timer className="h-4 w-4 mr-1" /> Timer</TabsTrigger>
           <TabsTrigger value="timesheet"><Calendar className="h-4 w-4 mr-1" /> Timesheet</TabsTrigger>
-          {isAdmin && <TabsTrigger value="teamreport"><FileSpreadsheet className="h-4 w-4 mr-1" /> Team Report</TabsTrigger>}
+          {isAdmin && canAccessTeamReport && <TabsTrigger value="teamreport"><FileSpreadsheet className="h-4 w-4 mr-1" /> Team Report</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="timer" className="space-y-6">
