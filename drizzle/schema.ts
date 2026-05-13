@@ -8,6 +8,7 @@ export const organizations = mysqlTable("organizations", {
   logoUrl: varchar("logoUrl", { length: 512 }),
   firmSize: varchar("firmSize", { length: 50 }),
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
+  trialStartedAt: timestamp("trialStartedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -69,7 +69,7 @@ export function registerOAuthRoutes(app: Express) {
         // New user creating their own firm/workspace
         const orgName = String(firmName || `${displayName}'s Firm`).trim();
         const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-        const org = await db.createOrganization({ name: orgName, slug: `${slug}-${Date.now().toString(36)}` });
+        const org = await db.createOrganization({ name: orgName, slug: `${slug}-${Date.now().toString(36)}`, trialStartedAt: new Date() });
         if (org) {
           organizationId = org.id;
           orgRole = "owner";

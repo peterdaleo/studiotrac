@@ -50,6 +50,8 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { trpc } from "@/lib/trpc";
 import { useSubscription } from "@/hooks/useSubscription";
+import TrialBanner from "@/components/TrialBanner";
+import TrialExpiredScreen from "@/components/TrialExpiredScreen";
 
 const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -177,7 +179,7 @@ function DashboardLayoutContent({
   const realAdmin = user?.role === "admin";
   const isAdmin = useEffectiveAdmin(user?.role);
   const isSuperAdmin = (user?.isSuperAdmin ?? false) && !isStaffPreview;
-  const { canAccessFinancials } = useSubscription();
+  const { canAccessFinancials, isLockedOut, isTrialActive, trialDaysLeft } = useSubscription();
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
     if ("adminOnly" in item && item.adminOnly) {
@@ -222,6 +224,11 @@ function DashboardLayoutContent({
       document.body.style.userSelect = "";
     };
   }, [isResizing, setSidebarWidth]);
+
+  // Show lockout screen if trial expired and no paid subscription
+  if (isLockedOut) {
+    return <TrialExpiredScreen />;
+  }
 
   return (
     <>
@@ -315,6 +322,26 @@ function DashboardLayoutContent({
 
           {/* Footer: avatar + name on left, notification bell + settings gear on right */}
           <SidebarFooter className="border-t border-sidebar-border/40 p-3">
+            {/* Trial countdown in sidebar (always visible, not just last 7 days) */}
+            {isTrialActive && trialDaysLeft !== null && (
+              <button
+                onClick={() => setLocation("/billing")}
+                className="group-data-[collapsible=icon]:hidden w-full mb-2 rounded-lg bg-primary/8 hover:bg-primary/12 border border-primary/20 px-3 py-2 text-left transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-primary">
+                    {trialDaysLeft === 0 ? "Trial expires today" : `${trialDaysLeft}d left in trial`}
+                  </span>
+                  <span className="text-[10px] text-primary/70 font-medium">Subscribe →</span>
+                </div>
+                <div className="mt-1.5 h-1 rounded-full bg-primary/15 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.max(5, Math.round((trialDaysLeft / 14) * 100))}%` }}
+                  />
+                </div>
+              </button>
+            )}
             <TooltipProvider delayDuration={300}>
               <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
                 {/* Avatar + user info — opens profile/sign-out dropdown */}
@@ -427,6 +454,10 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
+        {/* Trial Countdown Banner */}
+        {isTrialActive && trialDaysLeft !== null && trialDaysLeft <= 7 && (
+          <TrialBanner daysLeft={trialDaysLeft} />
+        )}
         {/* Staff Preview Banner */}
         {isStaffPreview && (
           <div className="bg-amber-100 border-b border-amber-300 px-4 py-2 flex items-center justify-between">

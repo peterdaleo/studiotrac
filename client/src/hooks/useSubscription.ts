@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getPlanLimits, type PlanTier, type PlanLimits } from "@shared/subscription";
+import { getPlanLimits, PLAN_LIMITS, type PlanTier, type PlanLimits } from "@shared/subscription";
 
 export function useSubscription() {
   const { user } = useAuth();
@@ -12,29 +12,54 @@ export function useSubscription() {
     staleTime: 60_000, // Cache for 1 minute
   });
 
-  const plan: PlanTier = subscription?.plan ?? null;
-  const limits: PlanLimits = getPlanLimits(plan);
-  const isActive = subscription?.status === "active" || subscription?.status === "trialing";
-  const hasSubscription = !!subscription && isActive;
-
   // Super admins bypass all gates
   const bypass = isSuperAdmin;
+
+  // Trial state from backend
+  const isTrialActive = subscription?.isTrialActive ?? false;
+  const isTrialExpired = subscription?.isTrialExpired ?? false;
+  const trialDaysLeft = subscription?.trialDaysLeft ?? null;
+  const trialExpiresAt = subscription?.trialExpiresAt ?? null;
+
+  // Paid subscription state
+  const hasPaidSubscription =
+    !!subscription?.plan &&
+    (subscription?.status === "active" || subscription?.status === "trialing");
+
+  const plan: PlanTier = subscription?.plan ?? null;
+
+  // During active trial: grant full Professional limits
+  // After trial expires with no paid sub: use Starter limits (will be locked out anyway)
+  const effectiveLimits: PlanLimits =
+    bypass || isTrialActive ? PLAN_LIMITS.professional : getPlanLimits(plan);
+
+  const isActive = hasPaidSubscription || isTrialActive;
+
+  // Locked out = trial expired AND no paid subscription AND not super admin
+  const isLockedOut = !bypass && !isActive && isTrialExpired;
 
   return {
     subscription,
     plan,
-    limits,
+    limits: effectiveLimits,
     isActive,
-    hasSubscription,
+    hasSubscription: hasPaidSubscription,
     isLoading,
     isSuperAdmin: bypass,
-    // Convenience checks (super admin bypasses all)
-    canAccessFinancials: bypass || limits.hasFinancials,
-    canAccessConsultants: bypass || limits.hasConsultantManagement,
-    canAccessAdvancedReports: bypass || limits.hasAdvancedReports,
-    canAccessTeamReport: bypass || limits.hasTeamReport,
-    canAccessClientPortalFileSharing: bypass || limits.hasClientPortalFileSharing,
-    maxProjects: bypass ? Infinity : limits.maxProjects,
-    maxTeamMembers: bypass ? Infinity : limits.maxTeamMembers,
+    // Trial info
+    isTrialActive,
+    isTrialExpired,
+    trialDaysLeft,
+    trialExpiresAt,
+    isLockedOut,
+    // Convenience checks (super admin and active trial bypass all)
+    canAccessFinancials: bypass || isTrialActive || effectiveLimits.hasFinancials,
+    canAccessConsultants: bypass || isTrialActive || effectiveLimits.hasConsultantManagement,
+    canAccessAdvancedReports: bypass || isTrialActive || effectiveLimits.hasAdvancedReports,
+    canAccessTeamReport: bypass || isTrialActive || effectiveLimits.hasTeamReport,
+    canAccessClientPortalFileSharing:
+      bypass || isTrialActive || effectiveLimits.hasClientPortalFileSharing,
+    maxProjects: bypass || isTrialActive ? Infinity : effectiveLimits.maxProjects,
+    maxTeamMembers: bypass || isTrialActive ? Infinity : effectiveLimits.maxTeamMembers,
   };
 }

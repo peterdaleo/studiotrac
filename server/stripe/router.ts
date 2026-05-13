@@ -20,11 +20,42 @@ export const subscriptionRouter = router({
     }));
   }),
 
-  // Get current organization's subscription
+  // Get current organization's subscription (or trial status)
   current: protectedProcedure.query(async ({ ctx }) => {
     if (!ctx.organizationId) return null;
+    const org = await db.getOrganization(ctx.organizationId);
     const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
-    if (!subscription) return null;
+
+    // Compute trial status
+    const TRIAL_DAYS = 14;
+    const trialStartedAt = org?.trialStartedAt ?? null;
+    const trialExpiresAt = trialStartedAt
+      ? new Date(trialStartedAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+      : null;
+    const now = new Date();
+    const trialDaysLeft = trialExpiresAt
+      ? Math.max(0, Math.ceil((trialExpiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+      : null;
+    const isTrialActive = trialDaysLeft !== null && trialDaysLeft > 0;
+    const isTrialExpired = trialExpiresAt !== null && now >= trialExpiresAt;
+
+    if (!subscription) {
+      // No paid subscription — return trial info only
+      return {
+        id: null as null,
+        plan: null as null,
+        status: isTrialActive ? ("trialing" as const) : ("expired" as const),
+        currentPeriodEnd: null as null,
+        cancelAtPeriodEnd: false,
+        canceledAt: null as null,
+        trialStartedAt: trialStartedAt?.toISOString() ?? null,
+        trialExpiresAt: trialExpiresAt?.toISOString() ?? null,
+        trialDaysLeft,
+        isTrialActive,
+        isTrialExpired,
+      };
+    }
+
     return {
       id: subscription.id,
       plan: subscription.plan,
@@ -32,6 +63,11 @@ export const subscriptionRouter = router({
       currentPeriodEnd: subscription.currentPeriodEnd,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       canceledAt: subscription.canceledAt,
+      trialStartedAt: trialStartedAt?.toISOString() ?? null,
+      trialExpiresAt: trialExpiresAt?.toISOString() ?? null,
+      trialDaysLeft,
+      isTrialActive: false, // paid subscription supersedes trial
+      isTrialExpired: false,
     };
   }),
 
