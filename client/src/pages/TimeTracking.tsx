@@ -236,6 +236,10 @@ export default function TimeTracking() {
   };
 
   const handleStopTimer = () => {
+    // Immediately reset the display so the timer stops visually
+    // before the mutation round-trip and cache invalidation complete.
+    setTimerElapsed(0);
+    utils.timeEntries.activeTimer.setData(undefined, () => undefined);
     stopTimer.mutate(activeTimer.data ? { id: activeTimer.data.id } : undefined);
   };
 
@@ -509,7 +513,7 @@ export default function TimeTracking() {
                   {!displayedActiveTimer && (
                     <>
                       <Select value={timerProjectId} onValueChange={setTimerProjectId}>
-                        <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+                        <SelectTrigger className="w-full"><SelectValue placeholder="Select project" /></SelectTrigger>
                         <SelectContent>
                           {projects.data?.map((p: { id: number; name: string }) => (
                             <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
@@ -518,7 +522,7 @@ export default function TimeTracking() {
                       </Select>
                       <Input value={timerDescription} onChange={e => setTimerDescription(e.target.value)} placeholder="What are you working on?" />
                       <Select value={timerPhase} onValueChange={(v) => setTimerPhase(v as ProjectPhase)}>
-                        <SelectTrigger><SelectValue placeholder="Phase (optional)" /></SelectTrigger>
+                        <SelectTrigger className="w-full"><SelectValue placeholder="Phase (optional)" /></SelectTrigger>
                         <SelectContent>
                           {PROJECT_PHASES.map((p: { value: string; label: string }) => (
                             <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
