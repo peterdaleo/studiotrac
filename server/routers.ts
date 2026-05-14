@@ -807,6 +807,8 @@ export const appRouter = router({
   // ── Onboarding ─────────────────────────────────────────────────
   onboarding: router({
     status: protectedProcedure.query(async ({ ctx }) => {
+      // Invited members (non-owner) always skip onboarding — they're joining an existing firm
+      if (ctx.user?.orgRole && ctx.user.orgRole !== "owner") return { completed: true, orgName: null };
       if (!ctx.organizationId) return { completed: false, orgName: null };
       const org = await db.getOrganization(ctx.organizationId);
       return { completed: org?.onboardingCompleted ?? false, orgName: org?.name ?? null };

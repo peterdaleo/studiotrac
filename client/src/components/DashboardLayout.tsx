@@ -99,7 +99,9 @@ export default function DashboardLayout({
     return <DashboardLayoutSkeleton />;
   }
 
-  if (user && onboardingQuery.data && !onboardingQuery.data.completed) {
+  // Only org owners should ever see the onboarding wizard — invited members skip it entirely
+  const isOrgOwner = !user?.orgRole || user.orgRole === "owner";
+  if (user && isOrgOwner && onboardingQuery.data && !onboardingQuery.data.completed) {
     window.location.href = "/onboarding";
     return <DashboardLayoutSkeleton />;
   }
