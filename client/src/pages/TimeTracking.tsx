@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
@@ -61,6 +61,10 @@ export default function TimeTracking() {
 
   // Timer state
   const [timerElapsed, setTimerElapsed] = useState(0);
+  // Ref to the running setInterval so we can clear it imperatively from
+  // the stopTimer onSuccess handler (the useEffect cleanup alone is not
+  // enough because the cache update and re-render happen asynchronously).
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerProjectId, setTimerProjectId] = useState<string>("");
   const [timerDescription, setTimerDescription] = useState("");
   const [timerBillable, setTimerBillable] = useState(true);
@@ -143,10 +147,20 @@ export default function TimeTracking() {
 
   const stopTimer = trpc.timeEntries.stopTimer.useMutation({
     onSuccess: async () => {
-      resetTimerForm();
-      // Immediately clear the cached timer so the UI shows stopped before
-      // the invalidation re-fetch completes.
+      // 1. Imperatively stop the interval — this is the critical step.
+      //    The useEffect cleanup alone is async (waits for a re-render)
+      //    so the interval keeps ticking until React processes the cache
+      //    update. Clearing it here stops the display immediately.
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      // 2. Reset the elapsed display to 00:00:00 right away.
+      setTimerElapsed(0);
+      // 3. Clear the cached active timer so displayedActiveTimer goes
+      //    falsy before the invalidation re-fetch completes.
       utils.timeEntries.activeTimer.setData(undefined, () => undefined);
+      resetTimerForm();
       toast.success("Timer stopped");
       await Promise.all([
         utils.timeEntries.activeTimer.invalidate(),
@@ -205,6 +219,11 @@ export default function TimeTracking() {
   // torn down and recreated on every 1-second refetch of activeTimer.
   const activeTimerStartTime = displayedActiveTimer?.startTime ?? null;
   useEffect(() => {
+    // Clear any existing interval first
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
     if (!activeTimerStartTime) {
       setTimerElapsed(0);
       return;
@@ -212,10 +231,15 @@ export default function TimeTracking() {
     // Set immediately so there's no 1-second delay on mount
     const start = new Date(activeTimerStartTime).getTime();
     setTimerElapsed(Math.floor((Date.now() - start) / 1000));
-    const interval = setInterval(() => {
+    timerIntervalRef.current = setInterval(() => {
       setTimerElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
-    return () => clearInterval(interval);
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
   }, [activeTimerStartTime]);
 
   const timerHours = Math.floor(timerElapsed / 3600);
