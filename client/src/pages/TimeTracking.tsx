@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Play, Square, Clock, Plus, Calendar, ChevronLeft, ChevronRight, Timer, Trash2, Edit2, Check, X, Pencil, Download, Users, FileSpreadsheet } from "lucide-react";
-import { PROJECT_PHASES, type ProjectPhase } from "@shared/constants";
+import { PROJECT_PHASES, type ProjectPhase, getPhaseLabel } from "@shared/constants";
 import { toast } from "sonner";
 
 function formatDuration(minutes: number): string {
@@ -97,10 +97,10 @@ export default function TimeTracking() {
   const projects = trpc.projects.list.useQuery();
   const teamMembers = trpc.teamMembers.list.useQuery();
   const activeTimer = trpc.timeEntries.activeTimer.useQuery(undefined, {
-    refetchInterval: 1000,
-    // Always fetch fresh data from the server on mount — never use stale cache.
-    // This ensures that if the timer was stopped on another page/session,
-    // the component reflects the true server state immediately on mount.
+    // Pause the 1-second poll while a stop is in-flight so the server
+    // doesn't immediately re-fetch the running timer and overwrite the
+    // cleared cache before onSuccess has a chance to run.
+    refetchInterval: (query) => (query.state.fetchStatus === "idle" ? 1000 : false),
     staleTime: 0,
     refetchOnMount: "always",
   });
@@ -236,11 +236,10 @@ export default function TimeTracking() {
   };
 
   const handleStopTimer = () => {
-    // Immediately reset the display so the timer stops visually
-    // before the mutation round-trip and cache invalidation complete.
-    setTimerElapsed(0);
-    utils.timeEntries.activeTimer.setData(undefined, () => undefined);
-    stopTimer.mutate(activeTimer.data ? { id: activeTimer.data.id } : undefined);
+    // Capture the id BEFORE any state/cache changes.
+    const timerId = activeTimer.data?.id;
+    if (!timerId) return; // no active timer — nothing to stop
+    stopTimer.mutate({ id: timerId });
   };
 
   const handleManualEntry = () => {
@@ -394,7 +393,13 @@ export default function TimeTracking() {
             <span className="font-medium text-sm truncate">{entry.projectName}</span>
             {entry.billable && <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300">{compact ? "Billable" : "B"}</Badge>}
           </div>
-          {entry.description && <p className="text-xs text-muted-foreground truncate">{entry.description}</p>}
+          {(entry.description || entry.phase) && (
+            <p className="text-xs text-muted-foreground truncate">
+              {entry.phase && <span className="font-medium text-primary/70">{getPhaseLabel(entry.phase)}</span>}
+              {entry.phase && entry.description && " · "}
+              {entry.description}
+            </p>
+          )}
         </div>
         <div className="text-sm text-muted-foreground">
           {formatTime(entry.startTime)}{entry.endTime ? ` – ${formatTime(entry.endTime)}` : ""}
