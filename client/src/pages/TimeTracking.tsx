@@ -201,18 +201,22 @@ export default function TimeTracking() {
 
   const displayedActiveTimer = activeTimer.data;
 
-  // Timer tick
+  // Timer tick — depend only on startTime string so the interval isn't
+  // torn down and recreated on every 1-second refetch of activeTimer.
+  const activeTimerStartTime = displayedActiveTimer?.startTime ?? null;
   useEffect(() => {
-    if (!displayedActiveTimer) {
+    if (!activeTimerStartTime) {
       setTimerElapsed(0);
       return;
     }
+    // Set immediately so there's no 1-second delay on mount
+    const start = new Date(activeTimerStartTime).getTime();
+    setTimerElapsed(Math.floor((Date.now() - start) / 1000));
     const interval = setInterval(() => {
-      const start = new Date(displayedActiveTimer.startTime).getTime();
       setTimerElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, [displayedActiveTimer]);
+  }, [activeTimerStartTime]);
 
   const timerHours = Math.floor(timerElapsed / 3600);
   const timerMinutes = Math.floor((timerElapsed % 3600) / 60);

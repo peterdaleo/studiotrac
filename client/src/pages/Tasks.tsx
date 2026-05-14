@@ -136,9 +136,7 @@ export default function Tasks() {
       }
       if (projectFilter !== "all" && t.projectId !== Number(projectFilter)) return false;
       if (assigneeFilter !== "all" && t.assigneeId !== Number(assigneeFilter)) return false;
-      if (search) {
-        return t.title.toLowerCase().includes(search.toLowerCase());
-      }
+      if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
     if (prioritySort === "asc") {

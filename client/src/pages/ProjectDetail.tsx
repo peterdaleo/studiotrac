@@ -120,6 +120,7 @@ export default function ProjectDetail() {
   const [editingFee, setEditingFee] = useState(false);
   const [editFeeValue, setEditFeeValue] = useState("");
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [consultantDialogOpen, setConsultantDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState<number | null>(null);
   const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
@@ -269,7 +270,9 @@ export default function ProjectDetail() {
       utils.invoices.list.invalidate({ projectId });
       utils.projects.get.invalidate({ id: projectId });
       utils.financials.overview.invalidate();
+      utils.netIncome.project.invalidate({ projectId });
       setInvoiceDialogOpen(false);
+      setEditingInvoiceId(null);
       toast.success("Invoice created");
     },
   });
@@ -279,6 +282,8 @@ export default function ProjectDetail() {
       utils.invoices.list.invalidate({ projectId });
       utils.projects.get.invalidate({ id: projectId });
       utils.financials.overview.invalidate();
+      utils.netIncome.project.invalidate({ projectId });
+      setEditingInvoiceId(null);
       toast.success("Invoice updated");
     },
   });
@@ -288,6 +293,7 @@ export default function ProjectDetail() {
       utils.invoices.list.invalidate({ projectId });
       utils.projects.get.invalidate({ id: projectId });
       utils.financials.overview.invalidate();
+      utils.netIncome.project.invalidate({ projectId });
       toast.success("Invoice deleted");
     },
   });
@@ -1387,6 +1393,53 @@ export default function ProjectDetail() {
                   </Dialog>
                 )}
               </div>
+
+              {/* Edit Invoice Dialog */}
+              {isAdmin && editingInvoiceId !== null && (() => {
+                const inv = projectInvoices?.find((i: any) => i.id === editingInvoiceId);
+                if (!inv) return null;
+                return (
+                  <Dialog open={editingInvoiceId !== null} onOpenChange={(open) => { if (!open) setEditingInvoiceId(null); }}>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle>Edit Invoice</DialogTitle></DialogHeader>
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const fd = new FormData(e.currentTarget);
+                        updateInvoice.mutate({
+                          id: editingInvoiceId,
+                          amount: Math.round(Number(fd.get("amount")) * 100),
+                          invoiceNumber: (fd.get("invoiceNumber") as string) || undefined,
+                          description: (fd.get("description") as string) || undefined,
+                          status: (fd.get("status") as any) || "draft",
+                          invoiceDate: fd.get("invoiceDate") ? new Date(fd.get("invoiceDate") as string) : undefined,
+                          dueDate: fd.get("dueDate") ? new Date(fd.get("dueDate") as string) : null,
+                          paidDate: fd.get("status") === "paid" && !inv.paidDate ? new Date() : inv.paidDate ? new Date(inv.paidDate) : null,
+                        });
+                      }} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2"><Label>Amount ($)</Label><Input name="amount" type="number" min={0} step={0.01} required defaultValue={(inv.amount / 100).toFixed(2)} /></div>
+                          <div className="space-y-2"><Label>Invoice #</Label><Input name="invoiceNumber" placeholder="INV-001" defaultValue={inv.invoiceNumber ?? ""} /></div>
+                        </div>
+                        <div className="space-y-2"><Label>Description</Label><Input name="description" placeholder="25% milestone payment" defaultValue={inv.description ?? ""} /></div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-2"><Label>Status</Label>
+                            <select name="status" defaultValue={inv.status} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                              <option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2"><Label>Date</Label><Input name="invoiceDate" type="date" defaultValue={inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} /></div>
+                          <div className="space-y-2"><Label>Due Date</Label><Input name="dueDate" type="date" defaultValue={inv.dueDate ? new Date(inv.dueDate).toISOString().split('T')[0] : ""} /></div>
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setEditingInvoiceId(null)}>Cancel</Button>
+                          <Button type="submit" disabled={updateInvoice.isPending}>{updateInvoice.isPending ? "Saving..." : "Save Changes"}</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                );
+              })()}
+
               {!projectInvoices || projectInvoices.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-2">No invoices yet</p>
               ) : (
@@ -1400,6 +1453,7 @@ export default function ProjectDetail() {
                           <p className="text-[10px] text-muted-foreground truncate">{inv.invoiceNumber && `${inv.invoiceNumber} \u00b7 `}{inv.description || "No description"}</p>
                         </div>
                         {isAdmin && inv.status !== "paid" && <Button variant="ghost" size="sm" className="h-6 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600" onClick={() => updateInvoice.mutate({ id: inv.id, status: "paid", paidDate: new Date() })}>Mark Paid</Button>}
+                        {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit invoice" onClick={() => setEditingInvoiceId(inv.id)}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
                         {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteInvoice.mutate({ id: inv.id })}><Trash2 className="h-3 w-3 text-muted-foreground" /></Button>}
                       </div>
                     );

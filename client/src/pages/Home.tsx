@@ -75,13 +75,22 @@ export default function Home() {
     onSuccess: () => window.location.reload(),
   });
 
-  const recentProjects = projects?.slice(0, 5) ?? [];
+  // Most recently updated active projects first
+  const recentProjects = projects
+    ?.filter((p) => p.status !== "completed")
+    .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
+    .slice(0, 5) ?? [];
   const upcomingDeadlines = allTasks
     ?.filter((t) => t.deadline && t.status !== "done" && new Date(t.deadline) > new Date())
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
     .slice(0, 5) ?? [];
 
-  const overdueTasks = allTasks?.filter((t) => t.status !== "done" && t.deadline && new Date(t.deadline) < new Date()) ?? [];
+  // Overdue: not done AND deadline strictly before start of today
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const overdueTasks = allTasks
+    ?.filter((t) => t.status !== "done" && t.deadline && new Date(t.deadline) < todayStart)
+    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()) ?? [];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -519,14 +528,19 @@ export default function Home() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {overdueTasks.slice(0, 3).map((task) => (
+                {overdueTasks.slice(0, 10).map((task) => (
                   <div key={task.id} className="text-sm">
                     <p className="truncate">{task.title}</p>
                     <p className="text-xs text-red-500">
-                      {Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000))} days overdue
+                      {Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000))} day{Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000)) !== 1 ? 's' : ''} overdue
                     </p>
                   </div>
                 ))}
+                {overdueTasks.length > 10 && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    +{overdueTasks.length - 10} more — <a href="/tasks" className="underline text-red-500">view all in Tasks</a>
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
