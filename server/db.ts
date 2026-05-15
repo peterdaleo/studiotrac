@@ -183,8 +183,31 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
 export async function listUsers(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = orgId ? [eq(users.organizationId, orgId)] : [];
-  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole }).from(users).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(asc(users.name));
+  // Return all users who either:
+  // 1. Belong to this org (organizationId matches), OR
+  // 2. Have an email that matches a team member in this org (covers manually-added members who registered without an org link)
+  if (orgId) {
+    const members = await db.select({ email: teamMembers.email, userId: teamMembers.userId })
+      .from(teamMembers)
+      .where(and(eq(teamMembers.organizationId, orgId), eq(teamMembers.isActive, true)));
+    const memberEmails = members.map(m => m.email).filter(Boolean) as string[];
+    const memberUserIds = members.map(m => m.userId).filter(Boolean) as number[];
+    if (memberEmails.length === 0 && memberUserIds.length === 0) {
+      return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole })
+        .from(users).where(eq(users.organizationId, orgId)).orderBy(asc(users.name));
+    }
+    // Build OR conditions: org members + email matches + userId matches
+    const orConditions = [eq(users.organizationId, orgId)];
+    if (memberEmails.length > 0) {
+      orConditions.push(...memberEmails.map(e => eq(users.email, e)));
+    }
+    if (memberUserIds.length > 0) {
+      orConditions.push(...memberUserIds.map(uid => eq(users.id, uid)));
+    }
+    return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole })
+      .from(users).where(or(...orConditions)).orderBy(asc(users.name));
+  }
+  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole }).from(users).orderBy(asc(users.name));
 }
 
 export async function getUserById(id: number) {

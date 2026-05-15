@@ -119,6 +119,7 @@ export default function Team() {
   const [archivedTasksExpanded, setArchivedTasksExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [userRolesExpanded, setUserRolesExpanded] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -767,38 +768,67 @@ export default function Team() {
       {/* Registered Users & Roles (Admin Only) */}
       {isAdmin && memberStats && memberStats.length > 0 && (
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <button
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors rounded-t-xl"
+            onClick={() => setUserRolesExpanded((v) => !v)}
+          >
+            <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-muted-foreground" />
-              User Roles
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y">
-              {memberStats.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                      {(m.name ?? m.email ?? "?").charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{m.name ?? "Unnamed"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{m.email ?? "No email"}</p>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {m.userId === user?.id ? (
-                      <Badge variant="outline" className="text-[10px]">You</Badge>
-                    ) : (
-                      <>
-                        {m.registeredUser ? (
+              <span className="text-base font-semibold">User Roles</span>
+              <Badge variant="secondary" className="text-[10px] ml-1">{memberStats.length}</Badge>
+            </div>
+            {userRolesExpanded
+              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {userRolesExpanded && (
+            <CardContent className="pt-0">
+              <div className="divide-y">
+                {memberStats.map((m) => {
+                  const isCurrentUser = m.registeredUser?.id === user?.id || (m.email && m.email === user?.email);
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback
+                          className="text-xs font-semibold"
+                          style={{
+                            backgroundColor: (m.avatarColor ?? "#6366f1") + "20",
+                            color: m.avatarColor ?? "#6366f1",
+                          }}
+                        >
+                          {(m.name ?? m.email ?? "?").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{m.name ?? "Unnamed"}</p>
+                          {isCurrentUser && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">You</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{m.email ?? "No email"}</p>
+                      </div>
+
+                      {/* Status indicator */}
+                      {m.registeredUser ? (
+                        <Badge className="text-[9px] px-1.5 py-0 h-4 shrink-0 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                          Registered
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0 text-amber-600 border-amber-200 bg-amber-50">
+                          Roster Only
+                        </Badge>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5">
+                        {!isCurrentUser && m.registeredUser && (
                           <>
                             {m.registeredUser.loginMethod === "email" && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1"
+                                className="h-7 px-2 text-muted-foreground hover:text-foreground gap-1"
                                 title="Reset password"
                                 onClick={() => {
                                   setResetPasswordValue("");
@@ -807,15 +837,14 @@ export default function Team() {
                                   setResetPasswordDialogUserId(m.registeredUser!.id);
                                 }}
                               >
-                                <KeyRound className="h-3.5 w-3.5" />
-                                <span className="text-xs">Reset PW</span>
+                                <KeyRound className="h-3 w-3" />
                               </Button>
                             )}
                             <Select
                               value={m.registeredUser.role}
                               onValueChange={(val) => handleRoleChange(m.registeredUser!.id, val as "user" | "pm" | "admin")}
                             >
-                              <SelectTrigger className="w-[110px]" size="sm">
+                              <SelectTrigger className="w-[120px] h-7 text-xs">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -826,8 +855,8 @@ export default function Team() {
                             </Select>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600">
-                                  <Trash2 className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600">
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
@@ -839,7 +868,7 @@ export default function Team() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
+                                  <AlertDialogAction
                                     className="bg-red-600 hover:bg-red-700"
                                     onClick={() => removeUser.mutate({ userId: m.registeredUser!.id })}
                                   >
@@ -849,42 +878,40 @@ export default function Team() {
                               </AlertDialogContent>
                             </AlertDialog>
                           </>
-                        ) : (
-                          <>
-                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">Pending</Badge>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remove from Roster</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to remove <strong>{m.name}</strong> from the team roster?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    className="bg-red-600 hover:bg-red-700"
-                                    onClick={() => deleteMember.mutate({ id: m.id })}
-                                  >
-                                    Remove
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </>
                         )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
+                        {!isCurrentUser && !m.registeredUser && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove from Roster</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove <strong>{m.name}</strong> from the team roster?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-red-600 hover:bg-red-700"
+                                  onClick={() => deleteMember.mutate({ id: m.id })}
+                                >
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 
