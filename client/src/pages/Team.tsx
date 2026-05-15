@@ -56,6 +56,8 @@ import {
   Pencil,
   Check,
   X,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { getPhaseShortLabel } from "@shared/constants";
@@ -120,6 +122,7 @@ export default function Team() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [userRolesExpanded, setUserRolesExpanded] = useState(false);
+  const [teamView, setTeamView] = useState<"grid" | "list">("grid");
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -938,7 +941,7 @@ export default function Team() {
         </Card>
       )}
 
-      {/* Team Grid */}
+      {/* Team Grid / List */}
       {memberStats.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
           <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
@@ -946,62 +949,161 @@ export default function Team() {
           <p className="text-sm text-muted-foreground mt-1">Add your first team member to get started</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {memberStats.map((member) => (
-            <Card
-              key={member.id}
-              className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-              onClick={() => setLocation(`/team/${member.id}`)}
-            >
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <Avatar className="h-10 w-10 border-2" style={{ borderColor: member.avatarColor ?? "#6366f1" }}>
-                    <AvatarFallback className="font-semibold" style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}>
-                      {member.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{member.name}</p>
-                      {member.registeredUser && (
-                        <Badge variant={getRoleBadgeVariant(member.registeredUser.role)} className="text-[9px] px-1.5 py-0 h-4 shrink-0">
-                          {getRoleLabel(member.registeredUser.role)}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{member.title ?? "Team Member"}</p>
-                  </div>
-                </div>
+        <div className="space-y-3">
+          {/* View toggle */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">{memberStats.length} member{memberStats.length !== 1 ? "s" : ""}</p>
+            <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-muted/40">
+              <Button
+                variant={teamView === "grid" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-7 w-7"
+                title="Grid view"
+                onClick={() => setTeamView("grid")}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant={teamView === "list" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-7 w-7"
+                title="List view"
+                onClick={() => setTeamView("list")}
+              >
+                <List className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
 
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div>
-                    <p className="text-lg font-bold">{member.totalTasks}</p>
-                    <p className="text-[10px] text-muted-foreground">Tasks</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-emerald-600">{member.activeProjects}</p>
-                    <p className="text-[10px] text-muted-foreground">Projects</p>
-                  </div>
-                  <div>
-                    <p className={`text-lg font-bold ${member.missedRate > 20 ? "text-red-600" : member.missedRate > 10 ? "text-amber-600" : "text-emerald-600"}`}>
-                      {member.missedRate}%
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Missed</p>
-                  </div>
-                </div>
-
-                {member.totalTasks > 0 && (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                      <span>Completion</span>
-                      <span>{member.totalTasks > 0 ? Math.round((member.completed / member.totalTasks) * 100) : 0}%</span>
+          {/* Grid view */}
+          {teamView === "grid" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {memberStats.map((member) => (
+                <Card
+                  key={member.id}
+                  className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                  onClick={() => setLocation(`/team/${member.id}`)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Avatar className="h-10 w-10 border-2" style={{ borderColor: member.avatarColor ?? "#6366f1" }}>
+                        <AvatarFallback className="font-semibold" style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}>
+                          {member.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{member.name}</p>
+                          {member.registeredUser && (
+                            <Badge variant={getRoleBadgeVariant(member.registeredUser.role)} className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                              {getRoleLabel(member.registeredUser.role)}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{member.title ?? "Team Member"}</p>
+                      </div>
                     </div>
-                    <Progress value={member.totalTasks > 0 ? (member.completed / member.totalTasks) * 100 : 0} className="h-1.5" />
-                  </div>
-                )}
-              </CardContent>
+
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <p className="text-lg font-bold">{member.totalTasks}</p>
+                        <p className="text-[10px] text-muted-foreground">Tasks</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-emerald-600">{member.activeProjects}</p>
+                        <p className="text-[10px] text-muted-foreground">Projects</p>
+                      </div>
+                      <div>
+                        <p className={`text-lg font-bold ${member.missedRate > 20 ? "text-red-600" : member.missedRate > 10 ? "text-amber-600" : "text-emerald-600"}`}>
+                          {member.missedRate}%
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Missed</p>
+                      </div>
+                    </div>
+
+                    {member.totalTasks > 0 && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                          <span>Completion</span>
+                          <span>{member.totalTasks > 0 ? Math.round((member.completed / member.totalTasks) * 100) : 0}%</span>
+                        </div>
+                        <Progress value={member.totalTasks > 0 ? (member.completed / member.totalTasks) * 100 : 0} className="h-1.5" />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* List view */}
+          {teamView === "list" && (
+            <Card className="border-0 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40">
+                      <th className="text-left px-4 py-2.5 font-medium text-xs text-muted-foreground">Member</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-xs text-muted-foreground">Role</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-xs text-muted-foreground">Tasks</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-xs text-muted-foreground">Projects</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-xs text-muted-foreground">Missed %</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-xs text-muted-foreground">Completion %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {memberStats.map((member) => {
+                      const completionPct = member.totalTasks > 0 ? Math.round((member.completed / member.totalTasks) * 100) : 0;
+                      return (
+                        <tr
+                          key={member.id}
+                          className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                          onClick={() => setLocation(`/team/${member.id}`)}
+                        >
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <Avatar className="h-7 w-7 shrink-0">
+                                <AvatarFallback
+                                  className="text-xs font-semibold"
+                                  style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}
+                                >
+                                  {member.name.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium group-hover:text-primary transition-colors truncate max-w-[160px]">{member.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs text-muted-foreground truncate max-w-[120px]">{member.title ?? "Team Member"}</span>
+                              {member.registeredUser && (
+                                <Badge variant={getRoleBadgeVariant(member.registeredUser.role)} className="text-[9px] px-1.5 py-0 h-4 w-fit">
+                                  {getRoleLabel(member.registeredUser.role)}
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-semibold">{member.totalTasks}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-emerald-600">{member.activeProjects}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`font-semibold ${
+                              member.missedRate > 20 ? "text-red-600" : member.missedRate > 10 ? "text-amber-600" : "text-emerald-600"
+                            }`}>{member.missedRate}%</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2 justify-center">
+                              <Progress value={completionPct} className="h-1.5 w-16" />
+                              <span className="text-xs font-medium w-8 text-right">{completionPct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </Card>
-          ))}
+          )}
         </div>
       )}
 
