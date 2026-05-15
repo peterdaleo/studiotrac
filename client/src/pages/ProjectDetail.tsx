@@ -141,8 +141,8 @@ export default function ProjectDetail() {
     { enabled: canViewProjectFinancials },
   );
   const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: isAdmin });
-  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: isAdmin });
-  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: isAdmin });
+  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
+  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials });
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
   const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
   const utils = trpc.useUtils();
@@ -1463,8 +1463,8 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
-          {/* Consultant Contracts & Payments — admin only, Professional+ */}
-          {isAdmin && canAccessConsultants && 
+          {/* Consultant Contracts & Payments — admin and PM only, Professional+ */}
+          {canViewProjectFinancials && canAccessConsultants && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
