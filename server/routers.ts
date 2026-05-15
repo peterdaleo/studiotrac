@@ -136,6 +136,13 @@ export const appRouter = router({
       return { success: true };
     }),
     listUsers: adminProcedure.query(({ ctx }) => db.listUsers(ctx.organizationId)),
+    removeUser: adminProcedure.input(z.object({ userId: z.number() })).mutation(async ({ input, ctx }) => {
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself from the organization" });
+      }
+      await db.removeFromOrganization(input.userId);
+      return { success: true };
+    }),
     resetPassword: adminProcedure.input(z.object({
       userId: z.number(),
       newPassword: z.string().min(6, "Password must be at least 6 characters"),

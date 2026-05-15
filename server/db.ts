@@ -162,6 +162,12 @@ export async function deleteTeamMember(id: number) {
   await db.update(teamMembers).set({ isActive: false }).where(eq(teamMembers.id, id));
 }
 
+export async function removeFromOrganization(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ organizationId: null, orgRole: "member" }).where(eq(users.id, userId));
+}
+
 export async function updateUserRole(userId: number, role: "user" | "pm" | "admin") {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

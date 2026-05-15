@@ -195,6 +195,16 @@ export default function Team() {
     },
   });
 
+  const removeUser = trpc.teamMembers.removeUser.useMutation({
+    onSuccess: () => {
+      utils.teamMembers.listUsers.invalidate();
+      toast.success("User removed from organization");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to remove user");
+    },
+  });
+
   const updateMember = trpc.teamMembers.update.useMutation({
     onSuccess: () => {
       utils.teamMembers.list.invalidate();
@@ -669,7 +679,7 @@ export default function Team() {
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2" disabled={atMemberLimit} title={atMemberLimit ? `Your plan allows up to ${maxTeamMembers} team members` : undefined}>
-                  <UserPlus className="h-4 w-4" /> Invite User
+                  <UserPlus className="h-4 w-4" /> Invite to App
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -719,7 +729,7 @@ export default function Team() {
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button disabled={atMemberLimit} title={atMemberLimit ? `Your plan allows up to ${maxTeamMembers} team members` : undefined}>
-                <Plus className="h-4 w-4 mr-2" /> Add Member
+                <Plus className="h-4 w-4 mr-2" /> Add to Roster
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -755,7 +765,7 @@ export default function Team() {
       </div>
 
       {/* Registered Users & Roles (Admin Only) */}
-      {isAdmin && registeredUsers && registeredUsers.length > 0 && (
+      {isAdmin && memberStats && memberStats.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -765,53 +775,112 @@ export default function Team() {
           </CardHeader>
           <CardContent>
             <div className="divide-y">
-              {registeredUsers.map((u) => (
-                <div key={u.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              {memberStats.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                      {(u.name ?? u.email ?? "?").charAt(0).toUpperCase()}
+                      {(m.name ?? m.email ?? "?").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{u.name ?? "Unnamed"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{u.email ?? "No email"}</p>
+                    <p className="text-sm font-medium truncate">{m.name ?? "Unnamed"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{m.email ?? "No email"}</p>
                   </div>
-                  {u.id === user?.id ? (
-                    <Badge variant="outline" className="text-[10px]">You</Badge>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {u.loginMethod === "email" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1"
-                          title="Reset password"
-                          onClick={() => {
-                            setResetPasswordValue("");
-                            setResetPasswordConfirm("");
-                            setResetPasswordError("");
-                            setResetPasswordDialogUserId(u.id);
-                          }}
-                        >
-                          <KeyRound className="h-3.5 w-3.5" />
-                          <span className="text-xs">Reset PW</span>
-                        </Button>
-                      )}
-                      <Select
-                        value={u.role}
-                        onValueChange={(val) => handleRoleChange(u.id, val as "user" | "pm" | "admin")}
-                      >
-                        <SelectTrigger className="w-[110px]" size="sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="pm">Project Manager</SelectItem>
-                          <SelectItem value="user">Staff</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  
+                  <div className="flex items-center gap-2">
+                    {m.userId === user?.id ? (
+                      <Badge variant="outline" className="text-[10px]">You</Badge>
+                    ) : (
+                      <>
+                        {m.registeredUser ? (
+                          <>
+                            {m.registeredUser.loginMethod === "email" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1"
+                                title="Reset password"
+                                onClick={() => {
+                                  setResetPasswordValue("");
+                                  setResetPasswordConfirm("");
+                                  setResetPasswordError("");
+                                  setResetPasswordDialogUserId(m.registeredUser!.id);
+                                }}
+                              >
+                                <KeyRound className="h-3.5 w-3.5" />
+                                <span className="text-xs">Reset PW</span>
+                              </Button>
+                            )}
+                            <Select
+                              value={m.registeredUser.role}
+                              onValueChange={(val) => handleRoleChange(m.registeredUser!.id, val as "user" | "pm" | "admin")}
+                            >
+                              <SelectTrigger className="w-[110px]" size="sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="pm">Project Manager</SelectItem>
+                                <SelectItem value="user">Staff</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remove User</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to remove <strong>{m.name}</strong> from the organization? They will lose access to all projects and data.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    className="bg-red-600 hover:bg-red-700"
+                                    onClick={() => removeUser.mutate({ userId: m.registeredUser!.id })}
+                                  >
+                                    Remove User
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        ) : (
+                          <>
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">Pending</Badge>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remove from Roster</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to remove <strong>{m.name}</strong> from the team roster?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    className="bg-red-600 hover:bg-red-700"
+                                    onClick={() => deleteMember.mutate({ id: m.id })}
+                                  >
+                                    Remove
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
