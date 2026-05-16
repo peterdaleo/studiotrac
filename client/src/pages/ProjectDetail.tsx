@@ -1472,7 +1472,7 @@ export default function ProjectDetail() {
                   <User className="h-4 w-4 text-muted-foreground" />
                   Consultants
                 </CardTitle>
-                {isAdmin && (
+                {canViewProjectFinancials && (
                   <Dialog open={consultantDialogOpen} onOpenChange={setConsultantDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm" className="h-7 text-xs"><Plus className="h-3 w-3 mr-1" /> Add Consultant</Button>
@@ -1522,7 +1522,7 @@ export default function ProjectDetail() {
                           </div>
                         </div>
                         {isExpanded && (
-                          <ConsultantExpanded consultant={c} projectId={projectId} isAdmin={isAdmin} paymentDialogOpen={paymentDialogOpen} setPaymentDialogOpen={setPaymentDialogOpen} createPayment={createPayment} deletePayment={deletePayment} updateConsultant={updateConsultant} deleteConsultant={deleteConsultant} />
+                          <ConsultantExpanded consultant={c} projectId={projectId} isAdmin={canViewProjectFinancials} paymentDialogOpen={paymentDialogOpen} setPaymentDialogOpen={setPaymentDialogOpen} createPayment={createPayment} deletePayment={deletePayment} updateConsultant={updateConsultant} deleteConsultant={deleteConsultant} />
                         )}
                       </div>
                     );
