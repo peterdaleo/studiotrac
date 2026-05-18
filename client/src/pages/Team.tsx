@@ -768,8 +768,8 @@ export default function Team() {
         </div>
       </div>
 
-      {/* Registered Users & Roles (Admin Only) */}
-      {isAdmin && memberStats && memberStats.length > 0 && (
+      {/* User Roles (Admin Only) */}
+      {isAdmin && (
         <Card className="border-0 shadow-sm">
           <button
             className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors rounded-t-xl"
@@ -778,111 +778,148 @@ export default function Team() {
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-muted-foreground" />
               <span className="text-base font-semibold">User Roles</span>
-              <Badge variant="secondary" className="text-[10px] ml-1">{memberStats.length}</Badge>
+              <Badge variant="secondary" className="text-[10px] ml-1">
+                {(registeredUsers?.length ?? 0) + (memberStats?.filter(m => !registeredUsers?.some(u => (m.userId && u.id === m.userId) || (m.email && u.email === m.email))).length ?? 0)}
+              </Badge>
             </div>
             {userRolesExpanded
               ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
               : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           </button>
           {userRolesExpanded && (
-            <CardContent className="pt-0">
-              <div className="divide-y">
-                {memberStats.map((m) => {
-                  const isCurrentUser = m.registeredUser?.id === user?.id || (m.email && m.email === user?.email);
-                  return (
-                    <div key={m.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback
-                          className="text-xs font-semibold"
-                          style={{
-                            backgroundColor: (m.avatarColor ?? "#6366f1") + "20",
-                            color: m.avatarColor ?? "#6366f1",
-                          }}
-                        >
-                          {(m.name ?? m.email ?? "?").charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium truncate">{m.name ?? "Unnamed"}</p>
-                          {isCurrentUser && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">You</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{m.email ?? "No email"}</p>
-                      </div>
-
-                      {/* Status indicator */}
-                      {m.registeredUser ? (
-                        <Badge className="text-[9px] px-1.5 py-0 h-4 shrink-0 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                          Registered
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0 text-amber-600 border-amber-200 bg-amber-50">
-                          Roster Only
-                        </Badge>
-                      )}
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1.5">
-                        {!isCurrentUser && m.registeredUser && (
-                          <>
-                            {m.registeredUser.loginMethod === "email" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-muted-foreground hover:text-foreground gap-1"
-                                title="Reset password"
-                                onClick={() => {
-                                  setResetPasswordValue("");
-                                  setResetPasswordConfirm("");
-                                  setResetPasswordError("");
-                                  setResetPasswordDialogUserId(m.registeredUser!.id);
-                                }}
-                              >
-                                <KeyRound className="h-3 w-3" />
-                              </Button>
-                            )}
-                            <Select
-                              value={m.registeredUser.role}
-                              onValueChange={(val) => handleRoleChange(m.registeredUser!.id, val as "user" | "pm" | "admin")}
+            <CardContent className="pt-0 space-y-4">
+              {/* ── Registered Users ── */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                  Registered Users
+                </p>
+                {!registeredUsers || registeredUsers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-1 py-2">No registered users yet.</p>
+                ) : (
+                  <div className="divide-y rounded-lg border">
+                    {registeredUsers.map((ru) => {
+                      const isCurrentUser = ru.id === user?.id;
+                      return (
+                        <div key={ru.id} className="flex items-center gap-3 px-3 py-2.5 first:rounded-t-lg last:rounded-b-lg">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarFallback
+                              className="text-xs font-semibold"
+                              style={{ backgroundColor: "#6366f120", color: "#6366f1" }}
                             >
-                              <SelectTrigger className="w-[120px] h-7 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="pm">Project Manager</SelectItem>
-                                <SelectItem value="user">Staff</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remove User</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to remove <strong>{m.name}</strong> from the organization? They will lose access to all projects and data.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-red-600 hover:bg-red-700"
-                                    onClick={() => removeUser.mutate({ userId: m.registeredUser!.id })}
+                              {(ru.name ?? ru.email ?? "?").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-medium truncate">{ru.name ?? "Unnamed"}</p>
+                              {isCurrentUser && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0">You</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">{ru.email ?? "No email"}</p>
+                          </div>
+                          <Badge className="text-[9px] px-1.5 py-0 h-4 shrink-0 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                            Registered
+                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            {!isCurrentUser && (
+                              <>
+                                {ru.loginMethod === "email" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-muted-foreground hover:text-foreground gap-1"
+                                    title="Reset password"
+                                    onClick={() => {
+                                      setResetPasswordValue("");
+                                      setResetPasswordConfirm("");
+                                      setResetPasswordError("");
+                                      setResetPasswordDialogUserId(ru.id);
+                                    }}
                                   >
-                                    Remove User
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </>
-                        )}
-                        {!isCurrentUser && !m.registeredUser && (
+                                    <KeyRound className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                <Select
+                                  value={ru.role}
+                                  onValueChange={(val) => handleRoleChange(ru.id, val as "user" | "pm" | "admin")}
+                                >
+                                  <SelectTrigger className="w-[130px] h-7 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="pm">Project Manager</SelectItem>
+                                    <SelectItem value="user">Staff</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remove User</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to remove <strong>{ru.name}</strong> from the organization? They will lose access to all projects and data.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        className="bg-red-600 hover:bg-red-700"
+                                        onClick={() => removeUser.mutate({ userId: ru.id })}
+                                      >
+                                        Remove User
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* ── Roster-Only Members ── */}
+              {(() => {
+                const rosterOnly = (memberStats ?? []).filter(
+                  (m) => !registeredUsers?.some(
+                    (u) => (m.userId && u.id === m.userId) || (m.email && u.email === m.email)
+                  )
+                );
+                if (rosterOnly.length === 0) return null;
+                return (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                      Roster Members (No App Account)
+                    </p>
+                    <div className="divide-y rounded-lg border">
+                      {rosterOnly.map((m) => (
+                        <div key={m.id} className="flex items-center gap-3 px-3 py-2.5 first:rounded-t-lg last:rounded-b-lg">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarFallback
+                              className="text-xs font-semibold"
+                              style={{
+                                backgroundColor: (m.avatarColor ?? "#6366f1") + "20",
+                                color: m.avatarColor ?? "#6366f1",
+                              }}
+                            >
+                              {(m.name ?? m.email ?? "?").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{m.name ?? "Unnamed"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{m.email ?? "No email"}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 shrink-0 text-amber-600 border-amber-200 bg-amber-50">
+                            Roster Only
+                          </Badge>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600">
@@ -907,17 +944,16 @@ export default function Team() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        )}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           )}
         </Card>
       )}
-
       {/* Workload Chart */}
       {workloadChartData.length > 0 && (
         <Card className="border-0 shadow-sm">
