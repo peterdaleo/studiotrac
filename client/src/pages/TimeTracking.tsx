@@ -10,11 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Play, Square, Clock, Plus, Calendar, ChevronLeft, ChevronRight, Timer, Trash2, Edit2, Check, X, Pencil, Download, Users, FileSpreadsheet } from "lucide-react";
+import { Play, Square, Clock, Plus, Calendar, ChevronLeft, ChevronRight, Timer, Trash2, Edit2, Check, X, Pencil, Download, Users, FileSpreadsheet, ChevronsUpDown } from "lucide-react";
 import { PROJECT_PHASES, type ProjectPhase, getPhaseLabel } from "@shared/constants";
 import { toast } from "sonner";
 
@@ -61,11 +63,16 @@ export default function TimeTracking() {
 
   // Timer state
   const [timerElapsed, setTimerElapsed] = useState(0);
+  // Local flag to force the button back to "Start" immediately after stop,
+  // before the invalidated activeTimer query resolves.
+  const [isStopping, setIsStopping] = useState(false);
   // Ref to the running setInterval so we can clear it imperatively from
   // the stopTimer onSuccess handler (the useEffect cleanup alone is not
   // enough because the cache update and re-render happen asynchronously).
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerProjectId, setTimerProjectId] = useState<string>("");
+  const [timerProjectOpen, setTimerProjectOpen] = useState(false);
+  const [timerProjectSearch, setTimerProjectSearch] = useState("");
   const [timerDescription, setTimerDescription] = useState("");
   const [timerBillable, setTimerBillable] = useState(true);
   const [timerPhase, setTimerPhase] = useState<ProjectPhase | "">("");
@@ -73,6 +80,8 @@ export default function TimeTracking() {
   // Manual entry state
   const [manualOpen, setManualOpen] = useState(false);
   const [manualProjectId, setManualProjectId] = useState<string>("");
+  const [manualProjectOpen, setManualProjectOpen] = useState(false);
+  const [manualProjectSearch, setManualProjectSearch] = useState("");
   const [manualDescription, setManualDescription] = useState("");
   const [manualDate, setManualDate] = useState(new Date().toISOString().split("T")[0]);
   const [manualStartTime, setManualStartTime] = useState("09:00");
@@ -157,9 +166,10 @@ export default function TimeTracking() {
       }
       // 2. Reset the elapsed display to 00:00:00 right away.
       setTimerElapsed(0);
-      // 3. Clear the cached active timer so displayedActiveTimer goes
-      //    falsy before the invalidation re-fetch completes.
-      utils.timeEntries.activeTimer.setData(undefined, () => undefined);
+      // 3. Set isStopping so the button immediately switches back to Start
+      //    even before the cache invalidation resolves. setData(() => undefined)
+      //    is a no-op in react-query v5, so we use this local flag instead.
+      setIsStopping(true);
       resetTimerForm();
       toast.success("Timer stopped");
       await Promise.all([
@@ -168,6 +178,8 @@ export default function TimeTracking() {
         utils.timeAnalytics.teamTimeReport.invalidate(),
         utils.dashboard.stats.invalidate(),
       ]);
+      // 4. Clear the flag once the fresh data is in cache.
+      setIsStopping(false);
     },
   });
 
@@ -213,7 +225,7 @@ export default function TimeTracking() {
     },
   });
 
-  const displayedActiveTimer = activeTimer.data;
+  const displayedActiveTimer = isStopping ? null : activeTimer.data;
 
   // Timer tick — depend only on startTime string so the interval isn't
   // torn down and recreated on every 1-second refetch of activeTimer.
@@ -461,14 +473,55 @@ export default function TimeTracking() {
             <div className="space-y-4">
               <div>
                 <Label>Project</Label>
-                <Select value={manualProjectId} onValueChange={setManualProjectId}>
-                  <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
-                  <SelectContent>
-                    {projects.data?.map((p: { id: number; name: string }) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={manualProjectOpen} onOpenChange={setManualProjectOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={manualProjectOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      <span className="truncate">
+                        {manualProjectId
+                          ? projects.data?.find((p: any) => p.id.toString() === manualProjectId)?.name ?? "Select project"
+                          : "Select project"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search projects..."
+                        value={manualProjectSearch}
+                        onValueChange={setManualProjectSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No projects found.</CommandEmpty>
+                        <CommandGroup>
+                          {projects.data
+                            ?.filter((p: any) =>
+                              p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
+                            )
+                            .map((p: any) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => {
+                                  setManualProjectId(p.id.toString());
+                                  setManualProjectSearch("");
+                                  setManualProjectOpen(false);
+                                }}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${manualProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                {p.name}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label>Description</Label>
@@ -541,14 +594,55 @@ export default function TimeTracking() {
                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto">
                   {!displayedActiveTimer && (
                     <>
-                      <Select value={timerProjectId} onValueChange={setTimerProjectId}>
-                        <SelectTrigger className="w-full"><SelectValue placeholder="Select project" /></SelectTrigger>
-                        <SelectContent>
-                          {projects.data?.map((p: { id: number; name: string }) => (
-                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={timerProjectOpen} onOpenChange={setTimerProjectOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={timerProjectOpen}
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className="truncate">
+                              {timerProjectId
+                                ? projects.data?.find((p: any) => p.id.toString() === timerProjectId)?.name ?? "Select project"
+                                : "Select project"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                          <Command>
+                            <CommandInput
+                              placeholder="Search projects..."
+                              value={timerProjectSearch}
+                              onValueChange={setTimerProjectSearch}
+                            />
+                            <CommandList>
+                              <CommandEmpty>No projects found.</CommandEmpty>
+                              <CommandGroup>
+                                {projects.data
+                                  ?.filter((p: any) =>
+                                    p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
+                                  )
+                                  .map((p: any) => (
+                                    <CommandItem
+                                      key={p.id}
+                                      value={p.name}
+                                      onSelect={() => {
+                                        setTimerProjectId(p.id.toString());
+                                        setTimerProjectSearch("");
+                                        setTimerProjectOpen(false);
+                                      }}
+                                    >
+                                      <Check className={`mr-2 h-4 w-4 ${timerProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                      {p.name}
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <Input value={timerDescription} onChange={e => setTimerDescription(e.target.value)} placeholder="What are you working on?" />
                       <Select value={timerPhase} onValueChange={(v) => setTimerPhase(v as ProjectPhase)}>
                         <SelectTrigger className="w-full"><SelectValue placeholder="Phase (optional)" /></SelectTrigger>
@@ -566,12 +660,12 @@ export default function TimeTracking() {
                   )}
                 </div>
 
-                {displayedActiveTimer ? (
+                {displayedActiveTimer && !isStopping ? (
                   <Button size="lg" variant="destructive" onClick={handleStopTimer} disabled={stopTimer.isPending}>
                     <Square className="h-5 w-5 mr-2" /> Stop
                   </Button>
                 ) : (
-                  <Button size="lg" onClick={handleStartTimer} disabled={startTimer.isPending}>
+                  <Button size="lg" onClick={handleStartTimer} disabled={startTimer.isPending || isStopping}>
                     <Play className="h-5 w-5 mr-2" /> Start
                   </Button>
                 )}
