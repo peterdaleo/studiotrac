@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip as UITooltip,
+  TooltipContent as UITooltipContent,
+  TooltipTrigger as UITooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   FolderKanban,
   CheckCircle2,
@@ -193,10 +197,9 @@ export default function Home() {
       </div>
 
       {/* Project Stat Cards */}
-      <TooltipProvider delayDuration={300}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <UITooltip delayDuration={300}>
+          <UITooltipTrigger asChild>
             <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
@@ -214,14 +217,14 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[200px] text-center">
+          </UITooltipTrigger>
+          <UITooltipContent side="bottom" className="max-w-[200px] text-center">
             Projects currently in progress — excludes completed and archived projects
-          </TooltipContent>
-        </Tooltip>
+          </UITooltipContent>
+        </UITooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <UITooltip delayDuration={300}>
+          <UITooltipTrigger asChild>
             <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
@@ -236,14 +239,14 @@ export default function Home() {
                 <Progress value={stats.totalProjects > 0 ? (stats.onTrack / stats.totalProjects) * 100 : 0} className="mt-3 h-1.5" />
               </CardContent>
             </Card>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[200px] text-center">
+          </UITooltipTrigger>
+          <UITooltipContent side="bottom" className="max-w-[200px] text-center">
             Active projects with no overdue tasks or missed deadlines
-          </TooltipContent>
-        </Tooltip>
+          </UITooltipContent>
+        </UITooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <UITooltip delayDuration={300}>
+          <UITooltipTrigger asChild>
             <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
@@ -261,37 +264,36 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[200px] text-center">
+          </UITooltipTrigger>
+          <UITooltipContent side="bottom" className="max-w-[200px] text-center">
             Active projects whose deadline has passed without being marked complete
-          </TooltipContent>
-        </Tooltip>
+          </UITooltipContent>
+        </UITooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <UITooltip delayDuration={300}>
+          <UITooltipTrigger asChild>
             <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Task Completion</p>
-                <p className="text-3xl font-bold mt-1">
-                  {stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%
-                </p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Clock className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-            <Progress value={stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0} className="mt-3 h-1.5" />
-          </CardContent>
+                    <p className="text-3xl font-bold mt-1">
+                      {stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%
+                    </p>
+                  </div>
+                  <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-primary" />
+                  </div>
+                </div>
+                <Progress value={stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0} className="mt-3 h-1.5" />
+              </CardContent>
             </Card>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[200px] text-center">
+          </UITooltipTrigger>
+          <UITooltipContent side="bottom" className="max-w-[200px] text-center">
             Percentage of tasks marked complete across all active projects
-          </TooltipContent>
-        </Tooltip>
+          </UITooltipContent>
+        </UITooltip>
       </div>
-      </TooltipProvider>
 
       {/* Financial KPIs Row - Admin Only */}
       {isAdmin && <div>
@@ -304,10 +306,9 @@ export default function Home() {
             View Details <ArrowRight className="ml-1 h-3 w-3" />
           </Button>
         </div>
-        <TooltipProvider delayDuration={300}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <UITooltip delayDuration={300}>
+            <UITooltipTrigger asChild>
               <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
@@ -326,14 +327,14 @@ export default function Home() {
                   </p>
                 </CardContent>
               </Card>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+            </UITooltipTrigger>
+            <UITooltipContent side="bottom" className="max-w-[220px] text-center">
               Sum of all contracted fees across active projects
-            </TooltipContent>
-          </Tooltip>
+            </UITooltipContent>
+          </UITooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <UITooltip delayDuration={300}>
+            <UITooltipTrigger asChild>
               <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
@@ -358,14 +359,14 @@ export default function Home() {
                   </div>
                 </CardContent>
               </Card>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+            </UITooltipTrigger>
+            <UITooltipContent side="bottom" className="max-w-[220px] text-center">
               Total invoice payments received to date across all projects
-            </TooltipContent>
-          </Tooltip>
+            </UITooltipContent>
+          </UITooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <UITooltip delayDuration={300}>
+            <UITooltipTrigger asChild>
               <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
@@ -382,14 +383,14 @@ export default function Home() {
                   <p className="text-xs text-muted-foreground mt-2">Invoiced but unpaid</p>
                 </CardContent>
               </Card>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+            </UITooltipTrigger>
+            <UITooltipContent side="bottom" className="max-w-[220px] text-center">
               Invoiced amounts not yet paid — Total Contracted minus Total Collected
-            </TooltipContent>
-          </Tooltip>
+            </UITooltipContent>
+          </UITooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <UITooltip delayDuration={300}>
+            <UITooltipTrigger asChild>
               <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
@@ -416,13 +417,12 @@ export default function Home() {
                   </p>
                 </CardContent>
               </Card>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+            </UITooltipTrigger>
+            <UITooltipContent side="bottom" className="max-w-[220px] text-center">
               Total collected fees minus consultant costs paid out
-            </TooltipContent>
-          </Tooltip>
+            </UITooltipContent>
+          </UITooltip>
         </div>
-        </TooltipProvider>
       </div>}
 
       {/* Burn Rate for Staff */}
