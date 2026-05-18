@@ -178,8 +178,11 @@ export default function TimeTracking() {
         utils.timeAnalytics.teamTimeReport.invalidate(),
         utils.dashboard.stats.invalidate(),
       ]);
-      // 4. Clear the flag once the fresh data is in cache.
-      setIsStopping(false);
+      // isStopping is cleared automatically by the useEffect that watches
+      // activeTimer.data — once the fresh query returns no active timer,
+      // isStopping is set to false. This avoids a race where clearing it
+      // here (before the refetch resolves) would let the old cached value
+      // briefly re-create the interval.
     },
   });
 
@@ -227,10 +230,28 @@ export default function TimeTracking() {
 
   const displayedActiveTimer = isStopping ? null : activeTimer.data;
 
-  // Timer tick — depend only on startTime string so the interval isn't
-  // torn down and recreated on every 1-second refetch of activeTimer.
+  // Auto-clear isStopping once the fresh query confirms no active timer.
+  // This prevents the interval from being re-created between the time we
+  // call setIsStopping(false) and the invalidated query resolving.
+  useEffect(() => {
+    if (isStopping && !activeTimer.data) {
+      setIsStopping(false);
+    }
+  }, [isStopping, activeTimer.data]);
+
+  // Timer tick — depend on both startTime and isStopping so the interval
+  // is never re-created while a stop is in flight.
   const activeTimerStartTime = displayedActiveTimer?.startTime ?? null;
   useEffect(() => {
+    // If a stop is in flight, ensure the interval is cleared and stay idle.
+    if (isStopping) {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      setTimerElapsed(0);
+      return;
+    }
     // Clear any existing interval first
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -252,7 +273,7 @@ export default function TimeTracking() {
         timerIntervalRef.current = null;
       }
     };
-  }, [activeTimerStartTime]);
+  }, [activeTimerStartTime, isStopping]);
 
   const timerHours = Math.floor(timerElapsed / 3600);
   const timerMinutes = Math.floor((timerElapsed % 3600) / 60);
