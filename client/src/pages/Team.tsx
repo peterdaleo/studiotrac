@@ -229,6 +229,10 @@ export default function Team() {
       const total = memberTasks.length;
       const missedRate = total > 0 ? Math.round((overdue / total) * 100) : 0;
       const activeProjectIds = new Set(memberTasks.filter((t) => t.status !== "done").map((t) => t.projectId));
+      // Also count projects where this member is the assigned Project Manager
+      if (projects) {
+        projects.filter((p) => p.projectManagerId === m.id && p.status !== "completed").forEach((p) => activeProjectIds.add(p.id));
+      }
       // Find matching registered user by email or userId
       const matchedUser = registeredUsers?.find(
         (u) => (m.userId && u.id === m.userId) || (m.email && u.email === m.email)
@@ -244,7 +248,7 @@ export default function Team() {
         registeredUser: matchedUser ?? null,
       };
     });
-  }, [teamMembers, allTasks, registeredUsers]);
+  }, [teamMembers, allTasks, registeredUsers, projects]);
 
   const selectedMember = selectedMemberId ? memberStats.find((m) => m.id === selectedMemberId) : null;
   const selectedMemberTasks = useMemo(() => {
