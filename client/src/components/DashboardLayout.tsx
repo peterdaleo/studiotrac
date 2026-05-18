@@ -43,6 +43,7 @@ import {
   EyeOff,
   ClipboardList,
   Receipt,
+  UserCircle,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -177,6 +178,13 @@ function DashboardLayoutContent({
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
     refetchInterval: 30000,
   });
+
+  // Fetch team members to find the current user's own profile page
+  const { data: teamMembers } = trpc.teamMembers.list.useQuery();
+  const myTeamMember = teamMembers?.find(
+    (m) => (user?.id && m.userId === user.id) || (user?.email && m.email === user.email)
+  );
+  const myProfilePath = myTeamMember ? `/team/${myTeamMember.id}` : null;
 
   const realAdmin = user?.role === "admin";
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -375,6 +383,18 @@ function DashboardLayoutContent({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" side="top" className="w-48">
+                    {myProfilePath && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => setLocation(myProfilePath)}
+                          className="cursor-pointer"
+                        >
+                          <UserCircle className="mr-2 h-4 w-4" />
+                          <span>My Profile</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     {realAdmin && (
                       <>
                         <DropdownMenuItem
