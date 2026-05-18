@@ -125,6 +125,10 @@ export default function ProjectDetail() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState<number | null>(null);
   const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
   const [taskPrioritySort, setTaskPrioritySort] = useState<"none" | "asc" | "desc">("none");
+  const [editingProjectHeader, setEditingProjectHeader] = useState(false);
+  const [editHeaderName, setEditHeaderName] = useState("");
+  const [editHeaderClient, setEditHeaderClient] = useState("");
+  const [editHeaderAddress, setEditHeaderAddress] = useState("");
   const { user } = useAuth();
   const effectiveRole = useEffectiveRole(user?.role);
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -407,15 +411,89 @@ export default function ProjectDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
-              {project.clientName && <span>{project.clientName}</span>}
-              {project.address && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" /> {project.address}
-                </span>
-              )}
-            </div>
+            {editingProjectHeader && canViewProjectFinancials ? (
+              <div className="space-y-2">
+                <Input
+                  className="text-xl font-bold h-9 w-80 max-w-full"
+                  value={editHeaderName}
+                  onChange={(e) => setEditHeaderName(e.target.value)}
+                  placeholder="Project name"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Input
+                    className="h-7 text-sm w-44"
+                    value={editHeaderClient}
+                    onChange={(e) => setEditHeaderClient(e.target.value)}
+                    placeholder="Client name (optional)"
+                  />
+                  <Input
+                    className="h-7 text-sm w-52"
+                    value={editHeaderAddress}
+                    onChange={(e) => setEditHeaderAddress(e.target.value)}
+                    placeholder="Address (optional)"
+                  />
+                </div>
+                <div className="flex gap-1.5">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={!editHeaderName.trim() || updateProject.isPending}
+                    onClick={() => {
+                      updateProject.mutate({
+                        id: projectId,
+                        name: editHeaderName.trim(),
+                        clientName: editHeaderClient.trim() || null,
+                        address: editHeaderAddress.trim() || null,
+                      });
+                      setEditingProjectHeader(false);
+                    }}
+                  >
+                    <Check className="h-3 w-3 mr-1" /> Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => setEditingProjectHeader(false)}
+                  >
+                    <X className="h-3 w-3 mr-1" /> Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="group flex items-start gap-1">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+                  <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+                    {project.clientName && <span>{project.clientName}</span>}
+                    {project.address && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {project.address}
+                      </span>
+                    )}
+                    {!project.clientName && !project.address && canViewProjectFinancials && (
+                      <span className="text-xs text-muted-foreground/50 italic">No client or address set</span>
+                    )}
+                  </div>
+                </div>
+                {canViewProjectFinancials && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 mt-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    onClick={() => {
+                      setEditHeaderName(project.name);
+                      setEditHeaderClient(project.clientName ?? "");
+                      setEditHeaderAddress(project.address ?? "");
+                      setEditingProjectHeader(true);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
