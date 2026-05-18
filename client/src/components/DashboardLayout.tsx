@@ -190,8 +190,8 @@ function DashboardLayoutContent({
   const isAdmin = useEffectiveAdmin(user?.role);
   const isSuperAdmin = (user?.isSuperAdmin ?? false) && !isStaffPreview;
   const { canAccessFinancials, isLockedOut, isTrialActive, trialDaysLeft } = useSubscription();
-  // Super-admin should never see any trial UI
-  const showTrialUI = !isSuperAdmin;
+  // Only the org owner should ever see trial UI — super-admins and invited org members never should
+  const showTrialUI = !isSuperAdmin && user?.orgRole === "owner";
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
     if ("adminOnly" in item && item.adminOnly) {

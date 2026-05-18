@@ -263,8 +263,10 @@ export default function Team() {
 
   const selectedMemberProjects = useMemo(() => {
     if (!selectedMemberId || !allTasks || !projects) return [];
+    // Include projects where the member has an assigned task
     const projectIds = new Set(allTasks.filter((t) => t.assigneeId === selectedMemberId).map((t) => t.projectId));
-    return projects.filter((p) => projectIds.has(p.id));
+    // Also include projects where the member is the assigned Project Manager
+    return projects.filter((p) => projectIds.has(p.id) || p.projectManagerId === selectedMemberId);
   }, [selectedMemberId, allTasks, projects]);
 
   const workloadChartData = useMemo(() => {
