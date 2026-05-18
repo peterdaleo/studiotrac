@@ -279,7 +279,7 @@ export const appRouter = router({
         billing100: project.billing100,
       };
     }),
-    create: adminProcedure.input(z.object({
+    create: adminOrPmProcedure.input(z.object({
       name: z.string().min(1),
       clientName: z.string().optional(),
       address: z.string().optional(),
@@ -309,7 +309,7 @@ export const appRouter = router({
       }
       return db.createProject(input, ctx.organizationId);
     }),
-    update: adminProcedure.input(z.object({
+    update: adminOrPmProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
       clientName: z.string().optional().nullable(),
@@ -486,8 +486,8 @@ export const appRouter = router({
 
   // ── Invoices ────────────────────────────────────────────────
   invoices: router({
-    list: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listInvoices(input.projectId)),
-    create: adminProcedure.input(z.object({
+    list: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listInvoices(input.projectId)),
+    create: adminOrPmProcedure.input(z.object({
       projectId: z.number(),
       amount: z.number().min(0),
       description: z.string().optional(),
@@ -497,7 +497,7 @@ export const appRouter = router({
       dueDate: z.date().optional().nullable(),
       paidDate: z.date().optional().nullable(),
     })).mutation(({ input, ctx }) => db.createInvoice(input, ctx.organizationId)),
-    update: adminProcedure.input(z.object({
+    update: adminOrPmProcedure.input(z.object({
       id: z.number(),
       amount: z.number().min(0).optional(),
       description: z.string().optional().nullable(),
@@ -510,7 +510,7 @@ export const appRouter = router({
       const { id, ...data } = input;
       return db.updateInvoice(id, data);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteInvoice(input.id)),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteInvoice(input.id)),
   }),
 
   // ── Financial Overview ──────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { BudgetBar } from "@/components/BudgetBar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -87,6 +87,8 @@ export default function Projects() {
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
+  const effectiveRole = useEffectiveRole(user?.role);
+  const canViewFinancials = effectiveRole === "admin" || effectiveRole === "pm";
 
   const { data: projects, isLoading } = trpc.projects.list.useQuery({});
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
@@ -243,7 +245,7 @@ export default function Projects() {
                   <BudgetBar
                     contractedFee={b.contractedFee}
                     totalCost={b.totalCost}
-                    isAdmin={isAdmin}
+                    isAdmin={canViewFinancials}
                     compact
                   />
                 </div>
@@ -300,7 +302,7 @@ export default function Projects() {
               <BudgetBar
                 contractedFee={b.contractedFee}
                 totalCost={b.totalCost}
-                isAdmin={isAdmin}
+                isAdmin={canViewFinancials}
                 compact
               />
             </div>

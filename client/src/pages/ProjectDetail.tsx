@@ -140,7 +140,7 @@ export default function ProjectDetail() {
     { id: projectId },
     { enabled: canViewProjectFinancials },
   );
-  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: isAdmin });
+  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
   const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
   const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials });
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
@@ -1197,15 +1197,15 @@ export default function ProjectDetail() {
                   <BudgetBar
                     contractedFee={burnRate.contractedFee}
                     totalCost={burnRate.laborCost + burnRate.consultantCost}
-                    isAdmin={isAdmin}
+                    isAdmin={canViewProjectFinancials}
                   />
                 </>
               )}
             </CardContent>
           </Card>
 
-          {/* Project Financial Summary — admin and PM */}
-          {!isAdmin && canViewProjectFinancials && projectFinancialSummary && (
+          {/* Project Financial Summary — PM only (admin sees full Budget & Invoices card instead) */}
+          {effectiveRole === "pm" && projectFinancialSummary && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-3">
@@ -1283,7 +1283,7 @@ export default function ProjectDetail() {
           )}
 
           {/* Billing Milestones */}
-          {isAdmin && <Card className="border-0 shadow-sm">
+          {canViewProjectFinancials && <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -1332,8 +1332,8 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
-          {/* Budget & Invoices — admin only */}
-          {isAdmin && 
+          {/* Budget & Invoices — admin and PM */}
+          {canViewProjectFinancials && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -1344,7 +1344,7 @@ export default function ProjectDetail() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Contracted Fee</span>
-                {editingFee && isAdmin ? (
+                {editingFee && canViewProjectFinancials ? (
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">$</span>
                     <Input type="number" value={editFeeValue} onChange={(e) => setEditFeeValue(e.target.value)} className="w-28 h-8 text-xs" min={0} step={100} />
@@ -1354,7 +1354,7 @@ export default function ProjectDetail() {
                 ) : (
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-semibold">{project.contractedFee > 0 ? `$${(project.contractedFee / 100).toLocaleString()}` : "Not set"}</span>
-                    {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingFee(true); setEditFeeValue((project.contractedFee / 100).toString()); }}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
+                    {canViewProjectFinancials && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingFee(true); setEditFeeValue((project.contractedFee / 100).toString()); }}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
                   </div>
                 )}
               </div>
@@ -1366,7 +1366,7 @@ export default function ProjectDetail() {
               <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Invoices</span>
-                {isAdmin && (
+                {canViewProjectFinancials && (
                   <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm" className="h-7 text-xs"><Plus className="h-3 w-3 mr-1" /> New Invoice</Button>
@@ -1395,7 +1395,7 @@ export default function ProjectDetail() {
               </div>
 
               {/* Edit Invoice Dialog */}
-              {isAdmin && editingInvoiceId !== null && (() => {
+              {canViewProjectFinancials && editingInvoiceId !== null && (() => {
                 const inv = projectInvoices?.find((i: any) => i.id === editingInvoiceId);
                 if (!inv) return null;
                 return (
@@ -1452,9 +1452,9 @@ export default function ProjectDetail() {
                           <div className="flex items-center gap-2"><span className="text-sm font-medium">${(inv.amount / 100).toLocaleString()}</span><Badge className={`text-[10px] border-0 ${sc}`}>{inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}</Badge></div>
                           <p className="text-[10px] text-muted-foreground truncate">{inv.invoiceNumber && `${inv.invoiceNumber} \u00b7 `}{inv.description || "No description"}</p>
                         </div>
-                        {isAdmin && inv.status !== "paid" && <Button variant="ghost" size="sm" className="h-6 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600" onClick={() => updateInvoice.mutate({ id: inv.id, status: "paid", paidDate: new Date() })}>Mark Paid</Button>}
-                        {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit invoice" onClick={() => setEditingInvoiceId(inv.id)}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
-                        {isAdmin && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteInvoice.mutate({ id: inv.id })}><Trash2 className="h-3 w-3 text-muted-foreground" /></Button>}
+                        {canViewProjectFinancials && inv.status !== "paid" && <Button variant="ghost" size="sm" className="h-6 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600" onClick={() => updateInvoice.mutate({ id: inv.id, status: "paid", paidDate: new Date() })}>Mark Paid</Button>}
+                        {canViewProjectFinancials && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit invoice" onClick={() => setEditingInvoiceId(inv.id)}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
+                        {canViewProjectFinancials && <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteInvoice.mutate({ id: inv.id })}><Trash2 className="h-3 w-3 text-muted-foreground" /></Button>}
                       </div>
                     );
                   })}
