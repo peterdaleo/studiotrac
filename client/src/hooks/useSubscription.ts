@@ -13,7 +13,9 @@ export function useSubscription() {
   });
 
   // Super admins bypass all gates
-  const bypass = isSuperAdmin;
+  // Enterprise plan with active status also bypasses all gates (e.g. members of a superAdmin-owned org)
+  const isEnterprise = subscription?.plan === "enterprise" && subscription?.status === "active";
+  const bypass = isSuperAdmin || isEnterprise;
 
   // Trial state from backend
   const isTrialActive = subscription?.isTrialActive ?? false;
@@ -28,14 +30,14 @@ export function useSubscription() {
 
   const plan: PlanTier = subscription?.plan ?? null;
 
-  // During active trial: grant full Professional limits
+  // During active trial or enterprise: grant full limits
   // After trial expires with no paid sub: use Starter limits (will be locked out anyway)
   const effectiveLimits: PlanLimits =
-    bypass || isTrialActive ? PLAN_LIMITS.professional : getPlanLimits(plan);
+    bypass || isTrialActive ? PLAN_LIMITS.enterprise : getPlanLimits(plan);
 
   const isActive = hasPaidSubscription || isTrialActive;
 
-  // Locked out = trial expired AND no paid subscription AND not super admin
+  // Locked out = trial expired AND no paid subscription AND not super admin AND not enterprise
   const isLockedOut = !bypass && !isActive && isTrialExpired;
 
   return {

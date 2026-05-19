@@ -2043,3 +2043,27 @@ export async function updateSubscriptionPlan(stripeSubscriptionId: string, plan:
   if (!db) throw new Error("Database not available");
   await db.update(subscriptions).set({ plan, stripePriceId }).where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
 }
+
+/**
+ * Returns true if the organization has at least one superAdmin owner.
+ * Used to grant enterprise-level limits to all members of a superAdmin-owned org.
+ */
+export async function orgHasSuperAdminOwner(orgId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    const result = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(
+        eq(users.organizationId, orgId),
+        eq(users.orgRole, "owner"),
+        eq(users.isSuperAdmin, true),
+      ))
+      .limit(1);
+    return result.length > 0;
+  } catch (error) {
+    if (isMissingTableError(error)) return false;
+    throw error;
+  }
+}

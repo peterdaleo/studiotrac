@@ -41,6 +41,24 @@ export const subscriptionRouter = router({
       };
     }
 
+    // Members of a superAdmin-owned org also get enterprise limits — no plan restrictions
+    const ownerIsSuperAdmin = await db.orgHasSuperAdminOwner(ctx.organizationId);
+    if (ownerIsSuperAdmin) {
+      return {
+        id: null as null,
+        plan: "enterprise" as const,
+        status: "active" as const,
+        currentPeriodEnd: null as null,
+        cancelAtPeriodEnd: false,
+        canceledAt: null as null,
+        trialStartedAt: null as null,
+        trialExpiresAt: null as null,
+        trialDaysLeft: null as null,
+        isTrialActive: false,
+        isTrialExpired: false,
+      };
+    }
+
     const org = await db.getOrganization(ctx.organizationId);
     const subscription = await db.getActiveSubscriptionByOrg(ctx.organizationId);
 

@@ -18,10 +18,14 @@ import { getPlanLimits, type PlanTier } from "@shared/subscription";
 /**
  * Helper: resolve the current org's plan limits.
  * Super-admins bypass all gates.
+ * Members of a superAdmin-owned org also get enterprise limits (no plan restrictions).
  */
 async function getOrgPlanLimits(ctx: { user: { isSuperAdmin: boolean }; organizationId: number | null }) {
   if (ctx.user.isSuperAdmin) return getPlanLimits("enterprise");
   if (!ctx.organizationId) return getPlanLimits(null);
+  // If the org owner is a superAdmin, all org members get enterprise limits
+  const ownerIsSuperAdmin = await db.orgHasSuperAdminOwner(ctx.organizationId);
+  if (ownerIsSuperAdmin) return getPlanLimits("enterprise");
   const sub = await db.getActiveSubscriptionByOrg(ctx.organizationId);
   return getPlanLimits((sub?.plan as PlanTier) ?? null);
 }
