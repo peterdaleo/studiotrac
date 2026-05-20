@@ -534,7 +534,7 @@ export default function Team() {
                       const today = new Date(); today.setHours(0,0,0,0);
                       const isOverdue = t.deadline && new Date(t.deadline) < today && t.status !== "done";
                       return (
-                        <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                        <div key={t.id} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setLocation(`/projects/${t.projectId}`)}>
                           {isOverdue ? (
                             <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
                           ) : (
@@ -568,7 +568,7 @@ export default function Team() {
                       {archivedTasksExpanded && (
                         <div className="divide-y opacity-70">
                           {archivedMemberTasks.map((t) => (
-                            <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                            <div key={t.id} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setLocation(`/projects/${t.projectId}`)}>  
                               <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm truncate line-through text-muted-foreground">{t.title}</p>
