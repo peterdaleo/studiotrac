@@ -661,7 +661,10 @@ export default function TimeTracking() {
                                         setTimerProjectId(p.id.toString());
                                         setTimerProjectSearch("");
                                         setTimerProjectOpen(false);
-                                        window.location.reload();
+                                        // Do NOT touch isStopping here — it is only cleared by the
+                                        // useEffect that confirms activeTimer.data is undefined.
+                                        // Clearing it here while the cache still holds the just-stopped
+                                        // timer causes the UI to briefly show the old timer as running.
                                       }}
                                     >
                                       <Check className={`mr-2 h-4 w-4 ${timerProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
