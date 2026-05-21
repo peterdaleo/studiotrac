@@ -173,15 +173,18 @@ export default function TimeTracking() {
       setIsStopping(true);
       resetTimerForm();
       toast.success("Timer stopped");
-      // Invalidate background queries (fire-and-forget — no need to await).
+      // Immediately clear the activeTimer cache so displayedActiveTimer
+      // becomes null right away (no waiting for a round-trip).
+      utils.timeEntries.activeTimer.setData(undefined, undefined);
+      // Invalidate so a fresh fetch runs in the background to confirm.
+      // The useEffect at line ~237 will clear isStopping once the fresh
+      // query returns undefined, completing the state transition.
+      utils.timeEntries.activeTimer.invalidate();
+      // Invalidate background queries (fire-and-forget).
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
       utils.dashboard.stats.invalidate();
-      // Explicitly refetch activeTimer and wait for the fresh result.
-      // Once the server confirms no active timer exists, clear isStopping
-      // so the Start button re-enables immediately without a page refresh.
-      await utils.timeEntries.activeTimer.fetch();
-      setIsStopping(false);
+      // isStopping is cleared by the useEffect once activeTimer.data is gone.
     },
     onError: () => {
       // If the stop fails, clear the flag so the UI isn't permanently stuck.
