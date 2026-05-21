@@ -173,6 +173,7 @@ export default function TimeTracking() {
       setIsStopping(true);
       resetTimerForm();
       toast.success("Timer stopped");
+      window.location.reload();
       // Immediately clear the activeTimer cache so displayedActiveTimer
       // becomes null right away (no waiting for a round-trip).
       utils.timeEntries.activeTimer.setData(undefined, undefined);
