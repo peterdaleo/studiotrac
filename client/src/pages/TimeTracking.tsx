@@ -267,11 +267,13 @@ export default function TimeTracking() {
       setTimerElapsed(0);
       return;
     }
-    // Set immediately so there's no 1-second delay on mount
+    // Set immediately so there's no 1-second delay on mount.
+    // Clamp to 0 to prevent negative values if the server clock is
+    // slightly ahead of the client clock at the moment of first render.
     const start = new Date(activeTimerStartTime).getTime();
-    setTimerElapsed(Math.floor((Date.now() - start) / 1000));
+    setTimerElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
     timerIntervalRef.current = setInterval(() => {
-      setTimerElapsed(Math.floor((Date.now() - start) / 1000));
+      setTimerElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)));
     }, 1000);
     return () => {
       if (timerIntervalRef.current) {
@@ -659,9 +661,10 @@ export default function TimeTracking() {
                                         setTimerProjectId(p.id.toString());
                                         setTimerProjectSearch("");
                                         setTimerProjectOpen(false);
-                                        // Clear any stale stop-in-flight flag so the Start button
-                                        // is immediately enabled after switching projects.
-                                        setIsStopping(false);
+                                        // Do NOT touch isStopping here — it is only cleared by the
+                                        // useEffect that confirms activeTimer.data is undefined.
+                                        // Clearing it here while the cache still holds the just-stopped
+                                        // timer causes the UI to briefly show the old timer as running.
                                       }}
                                     >
                                       <Check className={`mr-2 h-4 w-4 ${timerProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
