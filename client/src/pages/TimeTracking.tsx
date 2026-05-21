@@ -176,15 +176,15 @@ export default function TimeTracking() {
       // Immediately clear the activeTimer cache so displayedActiveTimer
       // becomes null right away (no waiting for a round-trip).
       utils.timeEntries.activeTimer.setData(undefined, undefined);
-      // Await the invalidation so the background refetch completes before
-      // we clear isStopping. This prevents the race where the in-flight
-      // refetch briefly restores stale data and keeps isStopping stuck.
-      await utils.timeEntries.activeTimer.invalidate();
-      setIsStopping(false);
+      // Invalidate so a fresh fetch runs in the background to confirm.
+      // The useEffect at line ~237 will clear isStopping once the fresh
+      // query returns undefined, completing the state transition.
+      utils.timeEntries.activeTimer.invalidate();
       // Invalidate background queries (fire-and-forget).
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
       utils.dashboard.stats.invalidate();
+      // isStopping is cleared by the useEffect once activeTimer.data is gone.
     },
     onError: () => {
       // If the stop fails, clear the flag so the UI isn't permanently stuck.
