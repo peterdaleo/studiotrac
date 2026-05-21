@@ -93,6 +93,7 @@ export default function TimeTracking() {
   const [reportStartDate, setReportStartDate] = useState<string>("");
   const [reportEndDate, setReportEndDate] = useState<string>("");
   const [reportProjectFilter, setReportProjectFilter] = useState<string>("all"); // "all" = all projects
+  const [projectFilterOpen, setProjectFilterOpen] = useState(false);
   const [editingBillingRateMemberId, setEditingBillingRateMemberId] = useState<number | null>(null);
   const [billingRateInput, setBillingRateInput] = useState<string>("");
 
@@ -830,27 +831,53 @@ export default function TimeTracking() {
                     <Input type="date" className="w-[150px] h-8 text-xs" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} />
                   </div>
 
-                  {/* Project filter */}
+                  {/* Project filter — searchable combobox */}
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">Project</Label>
-                    <Select
-                      value={reportProjectFilter}
-                      onValueChange={setReportProjectFilter}
-                    >
-                      <SelectTrigger className="w-[200px] h-8 text-xs">
-                        <SelectValue placeholder="All projects" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All projects</SelectItem>
-                        {teamTimeReport.data?.projects.map((p: any) => (
-                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                        ))}
-                        {/* Also show projects from the projects list that may not yet have data */}
-                        {!teamTimeReport.data && projects.data?.map((p: any) => (
-                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={projectFilterOpen} onOpenChange={setProjectFilterOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={projectFilterOpen}
+                          className="w-[220px] h-8 text-xs justify-between font-normal"
+                        >
+                          <span className="truncate">
+                            {reportProjectFilter && reportProjectFilter !== "all"
+                              ? (teamTimeReport.data?.projects ?? projects.data ?? []).find((p: any) => String(p.id) === reportProjectFilter)?.name ?? "All projects"
+                              : "All projects"}
+                          </span>
+                          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search projects..." className="h-8 text-xs" />
+                          <CommandList>
+                            <CommandEmpty>No project found.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="all"
+                                onSelect={() => { setReportProjectFilter("all"); setProjectFilterOpen(false); }}
+                              >
+                                <Check className={`mr-2 h-3.5 w-3.5 ${(!reportProjectFilter || reportProjectFilter === "all") ? "opacity-100" : "opacity-0"}`} />
+                                All projects
+                              </CommandItem>
+                              {(teamTimeReport.data?.projects ?? projects.data ?? []).map((p: any) => (
+                                <CommandItem
+                                  key={p.id}
+                                  value={p.name}
+                                  onSelect={() => { setReportProjectFilter(String(p.id)); setProjectFilterOpen(false); }}
+                                >
+                                  <Check className={`mr-2 h-3.5 w-3.5 ${reportProjectFilter === String(p.id) ? "opacity-100" : "opacity-0"}`} />
+                                  {p.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Clear filters */}
