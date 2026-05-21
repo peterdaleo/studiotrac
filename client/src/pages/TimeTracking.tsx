@@ -659,7 +659,6 @@ export default function TimeTracking() {
                                         // Clear any stale stop-in-flight flag so the Start button
                                         // is immediately enabled after switching projects.
                                         setIsStopping(false);
-                                        utils.timeEntries.activeTimer.invalidate();
                                       }}
                                     >
                                       <Check className={`mr-2 h-4 w-4 ${timerProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
