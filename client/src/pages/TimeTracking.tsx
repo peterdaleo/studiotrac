@@ -173,17 +173,19 @@ export default function TimeTracking() {
       setIsStopping(true);
       resetTimerForm();
       toast.success("Timer stopped");
-      await Promise.all([
-        utils.timeEntries.activeTimer.invalidate(),
-        utils.timeAnalytics.timesheet.invalidate(),
-        utils.timeAnalytics.teamTimeReport.invalidate(),
-        utils.dashboard.stats.invalidate(),
-      ]);
-      // isStopping is cleared automatically by the useEffect that watches
-      // activeTimer.data — once the fresh query returns no active timer,
-      // isStopping is set to false. This avoids a race where clearing it
-      // here (before the refetch resolves) would let the old cached value
-      // briefly re-create the interval.
+      // Invalidate background queries (fire-and-forget — no need to await).
+      utils.timeAnalytics.timesheet.invalidate();
+      utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.dashboard.stats.invalidate();
+      // Explicitly refetch activeTimer and wait for the fresh result.
+      // Once the server confirms no active timer exists, clear isStopping
+      // so the Start button re-enables immediately without a page refresh.
+      await utils.timeEntries.activeTimer.fetch();
+      setIsStopping(false);
+    },
+    onError: () => {
+      // If the stop fails, clear the flag so the UI isn't permanently stuck.
+      setIsStopping(false);
     },
   });
 
