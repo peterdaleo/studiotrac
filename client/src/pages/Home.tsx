@@ -565,7 +565,7 @@ export default function Home() {
                     (new Date(task.deadline!).getTime() - Date.now()) / 86400000
                   );
                   return (
-                    <div key={task.id} className="flex items-start gap-3">
+                    <div key={task.id} className="flex items-start gap-3 -mx-3 px-3 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setLocation(`/projects/${task.projectId}`)}>
                       <div className={`h-1.5 w-1.5 rounded-full mt-1.5 shrink-0 ${daysLeft <= 3 ? "bg-red-500" : daysLeft <= 7 ? "bg-amber-500" : "bg-emerald-500"}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{task.title}</p>
@@ -590,7 +590,7 @@ export default function Home() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {overdueTasks.slice(0, 10).map((task) => (
-                  <div key={task.id} className="text-sm">
+                  <div key={task.id} className="text-sm -mx-3 px-3 py-1.5 rounded-md cursor-pointer hover:bg-red-50/60 dark:hover:bg-red-950/20 transition-colors" onClick={() => setLocation(`/projects/${task.projectId}`)}>
                     <p className="truncate">{task.title}</p>
                     <p className="text-xs text-red-500">
                       {Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000))} day{Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000)) !== 1 ? 's' : ''} overdue
