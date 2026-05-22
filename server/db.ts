@@ -985,13 +985,18 @@ export async function createShareToken(data: InsertClientShareToken) {
   const result = await db.insert(clientShareTokens).values(data);
   return { id: result[0].insertId };
 }
-
 export async function listShareTokens(projectId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(clientShareTokens).where(eq(clientShareTokens.projectId, projectId)).orderBy(desc(clientShareTokens.createdAt));
 }
-
+export async function listClientShareTokens(clientName: string, organizationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(clientShareTokens)
+    .where(and(eq(clientShareTokens.clientName, clientName), eq(clientShareTokens.organizationId, organizationId)))
+    .orderBy(desc(clientShareTokens.createdAt));
+}
 export async function getShareToken(token: string) {
   const db = await getDb();
   if (!db) return undefined;
@@ -1001,11 +1006,57 @@ export async function getShareToken(token: string) {
   if (result[0].expiresAt && result[0].expiresAt < new Date()) return undefined;
   return result[0];
 }
-
 export async function revokeShareToken(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(clientShareTokens).set({ isActive: false }).where(eq(clientShareTokens.id, id));
+}
+export async function getPublicClientData(clientName: string, organizationId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  // Get all active (non-completed) projects for this client in this org
+  const clientProjects = await db.select().from(projects)
+    .where(and(eq(projects.clientName, clientName), eq(projects.organizationId, organizationId)))
+    .orderBy(asc(projects.name));
+  if (!clientProjects.length) return null;
+  // For each project, get client-visible notes and files
+  const projectsData = await Promise.all(clientProjects.map(async (project) => {
+    const visibleNotes = await db.select().from(projectNotes)
+      .where(and(eq(projectNotes.projectId, project.id), eq(projectNotes.isClientVisible, true)))
+      .orderBy(desc(projectNotes.createdAt));
+    const files = await db.select().from(projectFiles)
+      .where(eq(projectFiles.projectId, project.id))
+      .orderBy(desc(projectFiles.createdAt));
+    let managerName = null;
+    if (project.projectManagerId) {
+      const manager = await db.select().from(teamMembers).where(eq(teamMembers.id, project.projectManagerId)).limit(1);
+      managerName = manager[0]?.name ?? null;
+    }
+    return {
+      project: {
+        id: project.id,
+        name: project.name,
+        clientName: project.clientName,
+        address: project.address,
+        status: project.status,
+        phase: project.phase,
+        completionPercentage: project.completionPercentage,
+        startDate: project.startDate,
+        deadline: project.deadline,
+        billing25: project.billing25,
+        billing50: project.billing50,
+        billing75: project.billing75,
+        billing100: project.billing100,
+        billingOk: project.billingOk,
+        description: project.description,
+        driveFolderUrl: project.driveFolderUrl,
+        managerName,
+      },
+      notes: visibleNotes,
+      files,
+    };
+  }));
+  return { clientName, projects: projectsData };
 }
 
 export async function getPublicProjectData(projectId: number) {

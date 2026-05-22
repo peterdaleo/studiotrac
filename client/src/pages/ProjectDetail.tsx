@@ -309,9 +309,22 @@ export default function ProjectDetail() {
     },
   });
 
+  const createClientLink = trpc.shareTokens.createClientLink.useMutation({
+    onSuccess: () => {
+      if (project?.clientName) utils.shareTokens.listForClient.invalidate({ clientName: project.clientName });
+      toast.success("Client portal link created");
+    },
+  });
+
+  const { data: clientShareTokens } = trpc.shareTokens.listForClient.useQuery(
+    { clientName: project?.clientName ?? "" },
+    { enabled: !!project?.clientName },
+  );
+
   const revokeShareToken = trpc.shareTokens.revoke.useMutation({
     onSuccess: () => {
       utils.shareTokens.list.invalidate({ projectId });
+      if (project?.clientName) utils.shareTokens.listForClient.invalidate({ clientName: project.clientName });
       toast.success("Share link revoked");
     },
   });
@@ -538,7 +551,7 @@ export default function ProjectDetail() {
                     No share links yet. Generate one above.
                   </p>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
                     {shareTokens.map((st: any) => (
                       <div key={st.id} className={`flex items-center gap-2 p-3 rounded-lg border ${st.isActive ? "bg-muted/30" : "bg-muted/10 opacity-50"}`}>
                         <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -592,6 +605,86 @@ export default function ProjectDetail() {
                       </div>
                     ))}
                   </div>
+                )}
+
+                {/* ── All-client portal section ── */}
+                {project.clientName && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium">Share All {project.clientName} Projects</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Generate a single link that shows every project for <span className="font-medium">{project.clientName}</span> in one portal view.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => createClientLink.mutate({ clientName: project.clientName! })}
+                          disabled={createClientLink.isPending}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          {createClientLink.isPending ? "Creating..." : "Generate Client Portal Link"}
+                        </Button>
+                      </div>
+                      {clientShareTokens && clientShareTokens.length > 0 && (
+                        <div className="space-y-2 max-h-36 overflow-y-auto">
+                          {clientShareTokens.map((st: any) => (
+                            <div key={st.id} className={`flex items-center gap-2 p-3 rounded-lg border ${st.isActive ? "bg-blue-50/50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900" : "bg-muted/10 opacity-50"}`}>
+                              <FolderOpen className="h-4 w-4 text-blue-500 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{st.label || `All ${project.clientName} Projects`}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                  <span>Created {new Date(st.createdAt).toLocaleDateString()}</span>
+                                  {st.expiresAt && (
+                                    <span className="text-amber-600">Expires {new Date(st.expiresAt).toLocaleDateString()}</span>
+                                  )}
+                                  {!st.isActive && <Badge variant="outline" className="text-[10px] text-red-500 border-red-200">Revoked</Badge>}
+                                </div>
+                              </div>
+                              {st.isActive && (
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyShareLink(st.token)}>
+                                        <Copy className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Copy link</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                                        <a href={`/portal/${st.token}`} target="_blank" rel="noopener noreferrer">
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                        </a>
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Open portal</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-red-500 hover:text-red-600"
+                                        onClick={() => revokeShareToken.mutate({ id: st.id })}
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Revoke link</TooltipContent>
+                                  </Tooltip>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </DialogContent>

@@ -622,6 +622,7 @@ export const appRouter = router({
   // ── Client Share Tokens ─────────────────────────────────────
   shareTokens: router({
     list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listShareTokens(input.projectId)),
+    listForClient: protectedProcedure.input(z.object({ clientName: z.string() })).query(({ input, ctx }) => db.listClientShareTokens(input.clientName, ctx.organizationId)),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
       label: z.string().optional(),
@@ -629,7 +630,16 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const token = nanoid(32);
       const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86400000) : null;
-      return db.createShareToken({ projectId: input.projectId, token, label: input.label || null, isActive: true, expiresAt, createdById: ctx.user.id });
+      return db.createShareToken({ projectId: input.projectId, token, label: input.label || null, isActive: true, expiresAt, createdById: ctx.user.id, organizationId: ctx.organizationId });
+    }),
+    createClientLink: protectedProcedure.input(z.object({
+      clientName: z.string().min(1),
+      label: z.string().optional(),
+      expiresInDays: z.number().min(1).max(365).optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const token = nanoid(32);
+      const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86400000) : null;
+      return db.createShareToken({ clientName: input.clientName, token, label: input.label || `All ${input.clientName} Projects`, isActive: true, expiresAt, createdById: ctx.user.id, organizationId: ctx.organizationId });
     }),
     revoke: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.revokeShareToken(input.id)),
   }),
@@ -638,10 +648,18 @@ export const appRouter = router({
   portal: router({
     getProject: publicProcedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
       const shareToken = await db.getShareToken(input.token);
-      if (!shareToken) return { error: "Invalid or expired link", data: null };
+      if (!shareToken) return { error: "Invalid or expired link", data: null, type: null };
+      // Client-level token (all projects for a client)
+      if (shareToken.clientName && shareToken.organizationId) {
+        const data = await db.getPublicClientData(shareToken.clientName, shareToken.organizationId);
+        if (!data) return { error: "No projects found for this client", data: null, type: null };
+        return { error: null, data, type: "client" as const };
+      }
+      // Single-project token
+      if (!shareToken.projectId) return { error: "Invalid link configuration", data: null, type: null };
       const data = await db.getPublicProjectData(shareToken.projectId);
-      if (!data) return { error: "Project not found", data: null };
-      return { error: null, data };
+      if (!data) return { error: "Project not found", data: null, type: null };
+      return { error: null, data, type: "project" as const };
     }),
   }),
 

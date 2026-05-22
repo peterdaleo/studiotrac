@@ -18,6 +18,7 @@ import {
   Building2,
   Clock,
   Shield,
+  Layers,
 } from "lucide-react";
 import { useParams } from "wouter";
 import { PROJECT_PHASES, getPhaseLabel } from "@shared/constants";
@@ -36,11 +37,226 @@ const statusLabelMap: Record<string, string> = {
   completed: "Completed",
 };
 
+// ── Single-project card (reused in both views) ──────────────────────
+function ProjectCard({ project, notes, files }: { project: any; notes: any[]; files: any[] }) {
+  const currentPhaseIndex = PROJECT_PHASES.findIndex((p) => p.value === project.phase);
+  const billingMilestones = [
+    { label: "25%", reached: project.billing25 },
+    { label: "50%", reached: project.billing50 },
+    { label: "75%", reached: project.billing75 },
+    { label: "100%", reached: project.billing100 },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Project Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">{project.name}</h2>
+          <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
+            {project.address && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" /> {project.address}
+              </span>
+            )}
+          </div>
+        </div>
+        <Badge className={`text-sm px-3 py-1 ${statusColorMap[project.status] ?? ""}`}>
+          {statusLabelMap[project.status] ?? project.status}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Phase Progression */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Project Phase</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-1 overflow-x-auto pb-2">
+                {PROJECT_PHASES.map((phase, i) => {
+                  const isCurrent = i === currentPhaseIndex;
+                  const isPast = i < currentPhaseIndex;
+                  return (
+                    <div
+                      key={phase.value}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                        isCurrent
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : isPast
+                          ? "bg-primary/10 text-primary"
+                          : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {isPast ? (
+                        <CheckCircle2 className="h-3 w-3" />
+                      ) : (
+                        <span className="h-4 w-4 rounded-full border-2 flex items-center justify-center text-[9px] shrink-0" style={{ borderColor: "currentColor" }}>
+                          {i + 1}
+                        </span>
+                      )}
+                      {phase.shortLabel}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-slate-500">Overall Completion</span>
+                  <span className="font-bold text-lg">{project.completionPercentage}%</span>
+                </div>
+                <Progress value={project.completionPercentage} className="h-3" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Project Folder */}
+          {project.driveFolderUrl && (
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-slate-400" />
+                  Project Folder
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Button asChild className="w-full h-9">
+                  <a href={project.driveFolderUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                    Open Project Folder
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Client-Visible Notes */}
+          {notes && notes.length > 0 && (
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-slate-400" />
+                  Project Updates ({notes.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {notes.map((note: any) => (
+                    <div key={note.id} className="bg-slate-50 rounded-lg p-4">
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                        <Clock className="h-3 w-3" />
+                        <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Project Details */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {project.managerName && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">Project Manager</span>
+                      <span className="text-sm font-medium">{project.managerName}</span>
+                    </div>
+                    <Separator />
+                  </>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Phase</span>
+                  <span className="text-sm font-medium">{getPhaseLabel(project.phase)}</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Start Date</span>
+                  <span className="text-sm">
+                    {project.startDate ? new Date(project.startDate).toLocaleDateString() : "TBD"}
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Target Completion</span>
+                  <span className="text-sm">
+                    {project.deadline ? new Date(project.deadline).toLocaleDateString() : "TBD"}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Billing Milestones */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-slate-400" />
+                  Billing Progress
+                </CardTitle>
+                <Badge
+                  variant={project.billingOk ? "default" : "outline"}
+                  className={project.billingOk ? "bg-emerald-500 text-white" : "text-amber-600 border-amber-300"}
+                >
+                  {project.billingOk ? "Current" : "Review Needed"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {billingMilestones.map((ms) => (
+                  <div key={ms.label} className="flex items-center gap-3 p-2">
+                    {ms.reached ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-slate-200 shrink-0" />
+                    )}
+                    <span className={`text-sm ${ms.reached ? "font-medium text-slate-900" : "text-slate-400"}`}>
+                      {ms.label} Milestone
+                    </span>
+                    <div className="flex-1" />
+                    <div className={`h-1.5 w-8 rounded-full ${ms.reached ? "bg-emerald-500" : "bg-slate-100"}`} />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Description */}
+          {project.description && (
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">About This Project</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-500 leading-relaxed">{project.description}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main portal component ───────────────────────────────────────────
 export default function ClientPortal() {
   const params = useParams<{ token: string }>();
   const token = params.token || "";
 
-  const { data, isLoading, error } = trpc.portal.getProject.useQuery(
+  const { data, isLoading } = trpc.portal.getProject.useQuery(
     { token },
     { enabled: !!token, retry: false }
   );
@@ -74,15 +290,7 @@ export default function ClientPortal() {
     );
   }
 
-  const { project, notes } = data.data;
-  const currentPhaseIndex = PROJECT_PHASES.findIndex((p) => p.value === project.phase);
-
-  const billingMilestones = [
-    { label: "25%", reached: project.billing25 },
-    { label: "50%", reached: project.billing50 },
-    { label: "75%", reached: project.billing75 },
-    { label: "100%", reached: project.billing100 },
-  ];
+  const isClientView = data.type === "client";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -100,208 +308,52 @@ export default function ClientPortal() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        {/* Project Header */}
-        <div>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">{project.name}</h1>
-              <div className="flex items-center gap-3 mt-2 text-sm text-slate-500 flex-wrap">
-                {project.clientName && <span className="font-medium text-slate-700">{project.clientName}</span>}
-                {project.address && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {project.address}
-                  </span>
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-10">
+        {isClientView ? (
+          // ── Multi-project client view ──────────────────────────
+          (() => {
+            const clientData = data.data as { clientName: string; projects: { project: any; notes: any[]; files: any[] }[] };
+            return (
+              <>
+                {/* Client header */}
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <Layers className="h-6 w-6 text-primary" />
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">{clientData.clientName}</h1>
+                  </div>
+                  <p className="text-slate-500 text-sm mt-1">
+                    {clientData.projects.length} project{clientData.projects.length !== 1 ? "s" : ""} — all project updates in one view
+                  </p>
+                </div>
+
+                {/* Project list */}
+                {clientData.projects.map(({ project, notes, files }, idx) => (
+                  <div key={project.id ?? idx}>
+                    {idx > 0 && <Separator className="my-8" />}
+                    <ProjectCard project={project} notes={notes} files={files} />
+                  </div>
+                ))}
+              </>
+            );
+          })()
+        ) : (
+          // ── Single-project view ────────────────────────────────
+          (() => {
+            const { project, notes, files } = data.data as { project: any; notes: any[]; files: any[] };
+            return (
+              <>
+                {/* Client name as page title for single-project view */}
+                {project.clientName && (
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Building2 className="h-4 w-4" />
+                    <span className="font-medium text-slate-700">{project.clientName}</span>
+                  </div>
                 )}
-              </div>
-            </div>
-            <Badge className={`text-sm px-3 py-1 ${statusColorMap[project.status] ?? ""}`}>
-              {statusLabelMap[project.status] ?? project.status}
-            </Badge>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Phase Progression */}
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Project Phase</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-1 overflow-x-auto pb-2">
-                  {PROJECT_PHASES.map((phase, i) => {
-                    const isCurrent = i === currentPhaseIndex;
-                    const isPast = i < currentPhaseIndex;
-                    return (
-                      <div
-                        key={phase.value}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                          isCurrent
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : isPast
-                            ? "bg-primary/10 text-primary"
-                            : "bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        {isPast ? (
-                          <CheckCircle2 className="h-3 w-3" />
-                        ) : (
-                          <span className="h-4 w-4 rounded-full border-2 flex items-center justify-center text-[9px] shrink-0" style={{ borderColor: "currentColor" }}>
-                            {i + 1}
-                          </span>
-                        )}
-                        {phase.shortLabel}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-slate-500">Overall Completion</span>
-                    <span className="font-bold text-lg">{project.completionPercentage}%</span>
-                  </div>
-                  <Progress value={project.completionPercentage} className="h-3" />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Project Folder */}
-            {project.driveFolderUrl && (
-              <Card className="border shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 text-slate-400" />
-                    Project Folder
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button asChild className="w-full h-9">
-                    <a href={project.driveFolderUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-3.5 w-3.5 mr-2" />
-                      Open Project Folder
-                    </a>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Client-Visible Notes */}
-            {notes && notes.length > 0 && (
-              <Card className="border shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-slate-400" />
-                    Project Updates ({notes.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {notes.map((note: any) => (
-                      <div key={note.id} className="bg-slate-50 rounded-lg p-4">
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{note.content}</p>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
-                          <Clock className="h-3 w-3" />
-                          <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Project Details */}
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  {project.managerName && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-slate-500">Project Manager</span>
-                        <span className="text-sm font-medium">{project.managerName}</span>
-                      </div>
-                      <Separator />
-                    </>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Phase</span>
-                    <span className="text-sm font-medium">{getPhaseLabel(project.phase)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Start Date</span>
-                    <span className="text-sm">
-                      {project.startDate ? new Date(project.startDate).toLocaleDateString() : "TBD"}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Target Completion</span>
-                    <span className="text-sm">
-                      {project.deadline ? new Date(project.deadline).toLocaleDateString() : "TBD"}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Billing Milestones */}
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-slate-400" />
-                    Billing Progress
-                  </CardTitle>
-                  <Badge
-                    variant={project.billingOk ? "default" : "outline"}
-                    className={project.billingOk ? "bg-emerald-500 text-white" : "text-amber-600 border-amber-300"}
-                  >
-                    {project.billingOk ? "Current" : "Review Needed"}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {billingMilestones.map((ms) => (
-                    <div key={ms.label} className="flex items-center gap-3 p-2">
-                      {ms.reached ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Circle className="h-5 w-5 text-slate-200 shrink-0" />
-                      )}
-                      <span className={`text-sm ${ms.reached ? "font-medium text-slate-900" : "text-slate-400"}`}>
-                        {ms.label} Milestone
-                      </span>
-                      <div className="flex-1" />
-                      <div className={`h-1.5 w-8 rounded-full ${ms.reached ? "bg-emerald-500" : "bg-slate-100"}`} />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Description */}
-            {project.description && (
-              <Card className="border shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold">About This Project</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-500 leading-relaxed">{project.description}</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
+                <ProjectCard project={project} notes={notes} files={files} />
+              </>
+            );
+          })()
+        )}
 
         {/* Footer */}
         <div className="border-t pt-6 mt-12 text-center">

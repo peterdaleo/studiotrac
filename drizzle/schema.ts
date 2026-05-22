@@ -213,9 +213,10 @@ export type InsertEmailLogEntry = typeof emailLog.$inferInsert;
 export const clientShareTokens = mysqlTable("client_share_tokens", {
   id: int("id").autoincrement().primaryKey(),
   organizationId: int("organizationId"),
-  projectId: int("projectId").notNull(),
+  projectId: int("projectId"),
   token: varchar("token", { length: 128 }).notNull().unique(),
   label: varchar("label", { length: 255 }),
+  clientName: varchar("clientName", { length: 500 }),
   isActive: boolean("isActive").default(true).notNull(),
   expiresAt: timestamp("expiresAt"),
   createdById: int("createdById"),
