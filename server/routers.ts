@@ -826,6 +826,21 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // Alias for the marketing site form
+    join: publicProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(255),
+          email: z.string().email().max(320),
+          firmName: z.string().min(1).max(255),
+          firmSize: z.string().min(1).max(64),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        await db.createWaitlistSignup(input);
+        return { success: true };
+      }),
+
     // Super-admin only: list all signups
     list: superAdminProcedure.query(() => db.listWaitlistSignups()),
 

@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe/webhooks";
+import cors from "cors";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,6 +40,12 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Enable CORS for the marketing site
+  app.use(cors({
+    origin: ["https://studiotrac.app", "http://localhost:5173"],
+    credentials: true,
+  }));
 
   // Serve uploaded files from /uploads
   const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
