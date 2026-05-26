@@ -63,6 +63,11 @@ import { useLocation, useParams } from "wouter";
 import { getPhaseShortLabel } from "@shared/constants";
 import { toast } from "sonner";
 import {
+  Tooltip as UITooltip,
+  TooltipContent as UITooltipContent,
+  TooltipTrigger as UITooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -132,7 +137,13 @@ export default function Team() {
   const { data: allTasks } = trpc.tasks.list.useQuery({});
   const { data: projects } = trpc.projects.list.useQuery({});
   const { data: registeredUsers } = trpc.teamMembers.listUsers.useQuery(undefined, { enabled: isAdmin });
+  const { data: allActiveTimers } = trpc.timeEntries.allActiveTimers.useQuery();
   const utils = trpc.useUtils();
+
+  const activeUserIds = useMemo(
+    () => new Set((allActiveTimers ?? []).map((t) => t.userId).filter((id): id is number => id != null)),
+    [allActiveTimers]
+  );
 
   const atMemberLimit = (teamMembers?.length ?? 0) >= maxTeamMembers;
 
@@ -1028,11 +1039,24 @@ export default function Team() {
                 >
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3 mb-4">
-                      <Avatar className="h-10 w-10 border-2" style={{ borderColor: member.avatarColor ?? "#6366f1" }}>
-                        <AvatarFallback className="font-semibold" style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}>
-                          {member.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative shrink-0">
+                        <Avatar className="h-10 w-10 border-2" style={{ borderColor: member.avatarColor ?? "#6366f1" }}>
+                          <AvatarFallback className="font-semibold" style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}>
+                            {member.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {member.userId != null && activeUserIds.has(member.userId) && (
+                          <UITooltip>
+                            <UITooltipTrigger asChild>
+                              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                              </span>
+                            </UITooltipTrigger>
+                            <UITooltipContent side="top">Currently tracking time</UITooltipContent>
+                          </UITooltip>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{member.name}</p>
@@ -1104,14 +1128,27 @@ export default function Team() {
                         >
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2.5">
-                              <Avatar className="h-7 w-7 shrink-0">
-                                <AvatarFallback
-                                  className="text-xs font-semibold"
-                                  style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}
-                                >
-                                  {member.name.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
+                              <div className="relative shrink-0">
+                                <Avatar className="h-7 w-7">
+                                  <AvatarFallback
+                                    className="text-xs font-semibold"
+                                    style={{ backgroundColor: (member.avatarColor ?? "#6366f1") + "20", color: member.avatarColor ?? "#6366f1" }}
+                                  >
+                                    {member.name.charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {member.userId != null && activeUserIds.has(member.userId) && (
+                                  <UITooltip>
+                                    <UITooltipTrigger asChild>
+                                      <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                      </span>
+                                    </UITooltipTrigger>
+                                    <UITooltipContent side="top">Currently tracking time</UITooltipContent>
+                                  </UITooltip>
+                                )}
+                              </div>
                               <span className="font-medium group-hover:text-primary transition-colors truncate max-w-[160px]">{member.name}</span>
                             </div>
                           </td>

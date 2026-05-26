@@ -2118,3 +2118,29 @@ export async function orgHasSuperAdminOwner(orgId: number): Promise<boolean> {
     throw error;
   }
 }
+
+/**
+ * Returns all currently-running timers (endTime IS NULL) for an organization.
+ * Used to show the "active timer" indicator on team member cards.
+ */
+export async function getAllActiveTimers(organizationId: number): Promise<{ userId: number; projectId: number; startTime: Date }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const result = await db
+      .select({
+        userId: timeEntries.userId,
+        projectId: timeEntries.projectId,
+        startTime: timeEntries.startTime,
+      })
+      .from(timeEntries)
+      .where(and(
+        eq(timeEntries.organizationId, organizationId),
+        isNull(timeEntries.endTime),
+      ));
+    return result;
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}

@@ -754,6 +754,7 @@ export const appRouter = router({
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTimeEntry(input.id)),
     activeTimer: protectedProcedure.query(({ ctx }) => db.getActiveTimer(ctx.user.id)),
+    allActiveTimers: protectedProcedure.query(({ ctx }) => db.getAllActiveTimers(ctx.organizationId)),
     startTimer: protectedProcedure.input(z.object({
       projectId: z.number(),
       taskId: z.number().optional().nullable(),
