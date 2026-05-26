@@ -124,6 +124,7 @@ export default function Team() {
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
   const [resetPasswordError, setResetPasswordError] = useState("");
   const [archivedTasksExpanded, setArchivedTasksExpanded] = useState(false);
+  const [archivedProjectsExpanded, setArchivedProjectsExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [userRolesExpanded, setUserRolesExpanded] = useState(false);
@@ -503,32 +504,76 @@ export default function Team() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Assigned Projects */}
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Assigned Projects ({selectedMemberProjects.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {selectedMemberProjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No projects assigned</p>
-              ) : (
-                <div className="divide-y">
-                  {selectedMemberProjects.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => setLocation(`/projects/${p.id}`)}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors text-left"
-                    >
-                      <div className={`h-2 w-2 rounded-full shrink-0 ${statusDotMap[p.status] ?? "bg-slate-400"}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">{getPhaseShortLabel(p.phase)} - {p.completionPercentage}%</p>
+          {(() => {
+            const activeProjects = selectedMemberProjects.filter((p) => p.status !== "completed");
+            const completedProjects = selectedMemberProjects.filter((p) => p.status === "completed");
+            return (
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">Assigned Projects ({activeProjects.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {selectedMemberProjects.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No projects assigned</p>
+                  ) : (
+                    <>
+                      <div className="divide-y">
+                        {activeProjects.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => setLocation(`/projects/${p.id}`)}
+                            className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors text-left"
+                          >
+                            <div className={`h-2 w-2 rounded-full shrink-0 ${statusDotMap[p.status] ?? "bg-slate-400"}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{p.name}</p>
+                              <p className="text-xs text-muted-foreground">{getPhaseShortLabel(p.phase)} - {p.completionPercentage}%</p>
+                            </div>
+                          </button>
+                        ))}
+                        {activeProjects.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-6">No active projects</p>
+                        )}
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                      {/* Archived (completed) projects */}
+                      {completedProjects.length > 0 && (
+                        <div className="border-t">
+                          <button
+                            className="flex items-center gap-2 w-full px-5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => setArchivedProjectsExpanded((v) => !v)}
+                          >
+                            {archivedProjectsExpanded
+                              ? <ChevronDown className="h-3.5 w-3.5" />
+                              : <ChevronRight className="h-3.5 w-3.5" />}
+                            <Archive className="h-3.5 w-3.5" />
+                            Archived ({completedProjects.length})
+                          </button>
+                          {archivedProjectsExpanded && (
+                            <div className="divide-y opacity-70">
+                              {completedProjects.map((p) => (
+                                <button
+                                  key={p.id}
+                                  onClick={() => setLocation(`/projects/${p.id}`)}
+                                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors text-left"
+                                >
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate line-through text-muted-foreground">{p.name}</p>
+                                    <p className="text-xs text-muted-foreground">{getPhaseShortLabel(p.phase)} - {p.completionPercentage}%</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Tasks */}
           <Card className="border-0 shadow-sm">
