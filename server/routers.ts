@@ -73,7 +73,16 @@ const teamAbsenceSchema = z.object({
       });
     }
 
-    if (value.startDate.toDateString() !== value.endDate.toDateString()) {
+    // Compare UTC date parts to avoid timezone-shift false positives
+    // (client sends local midnight/23:59 which can shift to a different UTC day on the server)
+    const sameUTCDay =
+      value.startDate.getUTCFullYear() === value.endDate.getUTCFullYear() &&
+      value.startDate.getUTCMonth() === value.endDate.getUTCMonth() &&
+      value.startDate.getUTCDate() === value.endDate.getUTCDate();
+    // Also allow end to be at most 23h59m ahead (covers T00:00:00 → T23:59:59 local → next UTC day)
+    const diffMs = value.endDate.getTime() - value.startDate.getTime();
+    const withinOneDay = diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000;
+    if (!sameUTCDay && !withinOneDay) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["endDate"],
