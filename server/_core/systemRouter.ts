@@ -102,11 +102,13 @@ export const systemRouter = router({
         content text NOT NULL,
         isUrgent boolean NOT NULL DEFAULT false,
         isAddressed boolean NOT NULL DEFAULT false,
+        isNotified boolean NOT NULL DEFAULT false,
         createdAt timestamp NOT NULL DEFAULT (now()),
         editedAt timestamp NULL,
         CONSTRAINT coordination_items_id PRIMARY KEY(id)
       )`);
       results.push("coordination_items table ensured");
+      await db.execute(sql`ALTER TABLE coordination_items ADD COLUMN IF NOT EXISTS isNotified boolean NOT NULL DEFAULT false`).catch(() => {});
 
       await db.execute(sql`CREATE TABLE IF NOT EXISTS coordination_attachments (
         id int AUTO_INCREMENT NOT NULL,
@@ -125,11 +127,13 @@ export const systemRouter = router({
         sheetId int NOT NULL,
         email varchar(255) NOT NULL,
         name varchar(255),
+        lastNotifiedAt timestamp NULL,
         createdAt timestamp NOT NULL DEFAULT (now()),
         CONSTRAINT coordination_subscribers_id PRIMARY KEY(id),
         CONSTRAINT coordination_subscribers_sheet_email_unique UNIQUE(sheetId, email)
       )`);
       results.push("coordination_subscribers table ensured");
+      await db.execute(sql`ALTER TABLE coordination_subscribers ADD COLUMN IF NOT EXISTS lastNotifiedAt timestamp NULL`).catch(() => {});
 
       return { success: true, results };
     } catch (e: any) {

@@ -42,3 +42,27 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
     url: `/uploads/${key}`,
   };
 }
+
+export async function storageDelete(relKey: string): Promise<void> {
+  const key = normalizeKey(relKey);
+  const filePath = path.join(UPLOAD_DIR, key);
+  try {
+    if (fs.existsSync(filePath)) {
+      await fs.promises.unlink(filePath);
+    }
+  } catch (e) {
+    console.error(`Failed to delete file ${key}:`, e);
+  }
+}
+
+export async function storageDeleteDir(relDir: string): Promise<void> {
+  const dir = normalizeKey(relDir);
+  const dirPath = path.join(UPLOAD_DIR, dir);
+  try {
+    if (fs.existsSync(dirPath)) {
+      await fs.promises.rm(dirPath, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.error(`Failed to delete directory ${dir}:`, e);
+  }
+}

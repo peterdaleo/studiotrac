@@ -716,19 +716,34 @@ export default function ProjectDetail() {
           {/* Coordination Sheet button */}
           {coordinationSheet ? (
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" onClick={copyCoordinationLink}>
-                <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Coordination
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => window.open(`/coordination/${coordinationSheet.token}`, '_blank')}
+                className="gap-1.5"
+              >
+                <MessageSquare className="h-3.5 w-3.5" /> Coordination
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-muted-foreground" 
+                onClick={copyCoordinationLink}
+                title="Copy public link"
+              >
+                <Link2 className="h-3.5 w-3.5" />
               </Button>
               {(isAdmin || effectiveRole === "pm") && (
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="px-2 text-muted-foreground hover:text-red-600"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-red-600"
                   onClick={() => {
                     if (window.confirm("Delete this coordination sheet? All items, images, and subscriber data will be permanently removed.")) {
                       deleteCoordinationSheet.mutate({ id: coordinationSheet.id });
                     }
                   }}
+                  title="Delete coordination sheet"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

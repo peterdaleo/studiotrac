@@ -936,16 +936,9 @@ export const appRouter = router({
 
     // Admin: delete sheet
     delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-      // Get file keys to delete from filesystem
-      const fileKeys = await db.getCoordinationSheetAttachmentKeys(input.id);
-      // Delete files from storage
-      const fs = await import("fs");
-      const path = await import("path");
-      const uploadDir = process.env.UPLOAD_DIR || path.default.resolve(process.cwd(), "uploads");
-      for (const key of fileKeys) {
-        const filePath = path.default.join(uploadDir, key);
-        try { fs.default.unlinkSync(filePath); } catch {}
-      }
+      const { storageDeleteDir } = await import("./storage");
+      // Delete all files in the sheet's directory
+      await storageDeleteDir(`coordination/${input.id}`);
       await db.deleteCoordinationSheet(input.id);
       return { success: true };
     }),
@@ -1090,37 +1083,69 @@ export const appRouter = router({
 // ── Coordination Sheet Email Notifications ──────────────────────
 async function sendCoordinationNotification(
   sheet: { id: number; token: string; projectName: string },
-  item: { authorName: string; authorType: string; content: string },
-  type: "new" | "reply"
+  _item: any,
+  _type: "new" | "reply"
 ) {
   const { Resend } = await import("resend");
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
+
   const subscribers = await db.listCoordinationSubscribers(sheet.id);
   if (subscribers.length === 0) return;
+
+  const now = new Date();
+  const THIRTY_MINUTES = 30 * 60 * 1000;
+
+  // Find subscribers who haven't been notified in the last 30 minutes
+  const eligibleSubscribers = subscribers.filter(sub => {
+    if (!sub.lastNotifiedAt) return true;
+    return (now.getTime() - new Date(sub.lastNotifiedAt).getTime()) > THIRTY_MINUTES;
+  });
+
+  if (eligibleSubscribers.length === 0) return;
+
+  // Get all unnotified items for this sheet to send as a digest
+  const unnotifiedItems = await db.listUnnotifiedCoordinationItems(sheet.id);
+  if (unnotifiedItems.length === 0) return;
+
   const resend = new Resend(apiKey);
   const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
   const sheetUrl = `${baseUrl}/coordination/${sheet.token}`;
-  const subject = type === "reply"
-    ? `[${sheet.projectName}] New reply from ${item.authorName}`
-    : `[${sheet.projectName}] New item from ${item.authorName}`;
-  const contentPreview = item.content.length > 200 ? item.content.slice(0, 200) + "..." : item.content;
+  
+  const subject = unnotifiedItems.length === 1 
+    ? `[${sheet.projectName}] New coordination item from ${unnotifiedItems[0].authorName}`
+    : `[${sheet.projectName}] ${unnotifiedItems.length} new coordination updates`;
+
+  const itemsHtml = unnotifiedItems.map(item => `
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+      <p style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #0f172a;">
+        ${item.authorName} 
+        <span style="font-weight: 400; color: #64748b;">(${item.authorType.replace(/_/g, " ")})</span>
+        ${item.isUrgent ? '<span style="margin-left: 8px; color: #b45309; font-size: 11px; background: #fef3c7; padding: 2px 6px; border-radius: 4px;">URGENT</span>' : ''}
+      </p>
+      <p style="margin: 0; font-size: 14px; color: #334155; white-space: pre-wrap;">${item.content.length > 300 ? item.content.slice(0, 300) + "..." : item.content}</p>
+    </div>
+  `).join("");
+
   const html = `
     <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
         <p style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">Coordination Sheet Update</p>
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">${sheet.projectName}</h2>
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-          <p style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #0f172a;">${item.authorName} <span style="font-weight: 400; color: #64748b;">(${item.authorType.replace(/_/g, " ")})</span></p>
-          <p style="margin: 0; font-size: 14px; color: #334155; white-space: pre-wrap;">${contentPreview}</p>
+        ${itemsHtml}
+        <div style="margin-top: 24px;">
+          <a href="${sheetUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #ffffff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">View Full Coordination Sheet</a>
         </div>
-        <a href="${sheetUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #ffffff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">View Coordination Sheet</a>
-        <p style="margin: 16px 0 0; font-size: 12px; color: #94a3b8;">You're receiving this because you subscribed to updates for this coordination sheet.</p>
+        <p style="margin: 24px 0 0; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; pt: 16px;">
+          You're receiving this because you subscribed to updates for this coordination sheet. 
+          Notifications are batched and sent at most once every 30 minutes.
+        </p>
       </div>
     </div>
   `;
-  // Send to all subscribers (batch)
-  for (const sub of subscribers) {
+
+  // Send to eligible subscribers
+  for (const sub of eligibleSubscribers) {
     try {
       await resend.emails.send({
         from: "studioTrac <notifications@studiotrac.app>",
@@ -1128,10 +1153,14 @@ async function sendCoordinationNotification(
         subject,
         html,
       });
+      await db.updateSubscriberLastNotified(sub.id);
     } catch (e) {
       console.warn(`[Coordination] Failed to send notification to ${sub.email}:`, e);
     }
   }
+
+  // Mark items as notified
+  await db.markCoordinationItemsAsNotified(unnotifiedItems.map(i => i.id));
 }
 
 export type AppRouter = typeof appRouter;

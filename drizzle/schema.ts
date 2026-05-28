@@ -341,6 +341,7 @@ export const coordinationItems = mysqlTable("coordination_items", {
   content: text("content").notNull(),
   isUrgent: boolean("isUrgent").default(false).notNull(),
   isAddressed: boolean("isAddressed").default(false).notNull(),
+  isNotified: boolean("isNotified").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   editedAt: timestamp("editedAt"),
 });
@@ -364,6 +365,7 @@ export const coordinationSubscribers = mysqlTable("coordination_subscribers", {
   sheetId: int("sheetId").notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }),
+  lastNotifiedAt: timestamp("lastNotifiedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type CoordinationSubscriber = typeof coordinationSubscribers.$inferSelect;

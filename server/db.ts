@@ -2355,3 +2355,44 @@ export async function removeCoordinationSubscriber(sheetId: number, email: strin
     throw error;
   }
 }
+
+// ── Notifications & Rate Limiting ───────────────────────────────
+
+export async function listUnnotifiedCoordinationItems(sheetId: number): Promise<CoordinationItem[]> {
+  try {
+    const db = await getDb();
+    return db.select().from(coordinationItems)
+      .where(and(
+        eq(coordinationItems.sheetId, sheetId),
+        eq(coordinationItems.isNotified, false)
+      ));
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+export async function markCoordinationItemsAsNotified(itemIds: number[]): Promise<void> {
+  if (itemIds.length === 0) return;
+  try {
+    const db = await getDb();
+    await db.update(coordinationItems)
+      .set({ isNotified: true })
+      .where(inArray(coordinationItems.id, itemIds));
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}
+
+export async function updateSubscriberLastNotified(subscriberId: number): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.update(coordinationSubscribers)
+      .set({ lastNotifiedAt: new Date() })
+      .where(eq(coordinationSubscribers.id, subscriberId));
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}

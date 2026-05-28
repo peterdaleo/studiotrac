@@ -97,6 +97,7 @@ export default function CoordinationSheet() {
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
+  const [filterDiscipline, setFilterDiscipline] = useState<string>("all");
 
   // Saved identity (persisted in localStorage)
   const [savedName, setSavedName] = useState(() => localStorage.getItem("coord_author_name") || "");
@@ -178,6 +179,17 @@ export default function CoordinationSheet() {
     addressed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return { topLevelItems: top, repliesByParent: replies, addressedItems: addressed };
   }, [data?.items]);
+
+  // Apply discipline filter
+  const filteredTopItems = useMemo(() => {
+    if (filterDiscipline === "all") return topLevelItems;
+    return topLevelItems.filter(item => item.authorType === filterDiscipline);
+  }, [topLevelItems, filterDiscipline]);
+
+  const filteredAddressedItems = useMemo(() => {
+    if (filterDiscipline === "all") return addressedItems;
+    return addressedItems.filter(item => item.authorType === filterDiscipline);
+  }, [addressedItems, filterDiscipline]);
 
   // Attachments grouped by item
   const attachmentsByItem = useMemo(() => {
@@ -299,6 +311,32 @@ export default function CoordinationSheet() {
           </div>
         )}
 
+        {/* Discipline filter */}
+        {(topLevelItems.length > 0 || addressedItems.length > 0) && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-muted-foreground">Filter:</span>
+            <Select value={filterDiscipline} onValueChange={setFilterDiscipline}>
+              <SelectTrigger className="h-7 w-[150px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Disciplines</SelectItem>
+                {AUTHOR_TYPES.map(t => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filterDiscipline !== "all" && (
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+                onClick={() => setFilterDiscipline("all")}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Active items */}
         {topLevelItems.length === 0 && addressedItems.length === 0 && (
           <div className="text-center py-12">
@@ -308,7 +346,7 @@ export default function CoordinationSheet() {
           </div>
         )}
 
-        {topLevelItems.map((item) => (
+        {filteredTopItems.map((item) => (
           <ItemRow
             key={item.id}
             item={item}
@@ -330,7 +368,7 @@ export default function CoordinationSheet() {
         ))}
 
         {/* Addressed (collapsed) */}
-        {addressedItems.length > 0 && (
+        {filteredAddressedItems.length > 0 && (
           <div className="pt-2">
             <button
               className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
@@ -338,11 +376,11 @@ export default function CoordinationSheet() {
             >
               {showAddressed ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              Addressed ({addressedItems.length})
+              Addressed ({filteredAddressedItems.length})
             </button>
             {showAddressed && (
               <div className="space-y-2 mt-2 opacity-70">
-                {addressedItems.map((item) => (
+                {filteredAddressedItems.map((item) => (
                   <ItemRow
                     key={item.id}
                     item={item}
@@ -637,6 +675,17 @@ function ItemRow({
 
         {/* Inline action buttons (always visible, stop propagation) */}
         <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {!item.parentId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-6 w-6 ${item.isUrgent ? "text-amber-600 bg-amber-50" : "text-muted-foreground"} hover:text-amber-700 hover:bg-amber-50`}
+              title={item.isUrgent ? "Remove urgent flag" : "Mark as urgent"}
+              onClick={() => onUpdateItem.mutate({ token, itemId: item.id, isUrgent: !item.isUrgent })}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {!item.isAddressed ? (
             <Button
               variant="ghost"
