@@ -316,3 +316,55 @@ export const subscriptions = mysqlTable("subscriptions", {
 });
 export type Subscription = typeof subscriptions.$inferSelect;
 export type InsertSubscription = typeof subscriptions.$inferInsert;
+
+// ── Coordination Sheets ──────────────────────────────────────────
+export const coordinationSheets = mysqlTable("coordination_sheets", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId"),
+  projectId: int("projectId").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  projectName: varchar("projectName", { length: 500 }).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdById: int("createdById"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CoordinationSheet = typeof coordinationSheets.$inferSelect;
+export type InsertCoordinationSheet = typeof coordinationSheets.$inferInsert;
+
+export const coordinationItems = mysqlTable("coordination_items", {
+  id: int("id").autoincrement().primaryKey(),
+  sheetId: int("sheetId").notNull(),
+  parentId: int("parentId"),
+  authorName: varchar("authorName", { length: 255 }).notNull(),
+  authorType: mysqlEnum("authorType", ["project_lead", "architectural", "structural", "civil", "mechanical", "plumbing", "landscaping", "other"]).default("other").notNull(),
+  content: text("content").notNull(),
+  isUrgent: boolean("isUrgent").default(false).notNull(),
+  isAddressed: boolean("isAddressed").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  editedAt: timestamp("editedAt"),
+});
+export type CoordinationItem = typeof coordinationItems.$inferSelect;
+export type InsertCoordinationItem = typeof coordinationItems.$inferInsert;
+
+export const coordinationAttachments = mysqlTable("coordination_attachments", {
+  id: int("id").autoincrement().primaryKey(),
+  itemId: int("itemId").notNull(),
+  type: mysqlEnum("type", ["image", "link"]).default("link").notNull(),
+  url: varchar("url", { length: 2048 }).notNull(),
+  fileName: varchar("fileName", { length: 500 }),
+  fileKey: varchar("fileKey", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CoordinationAttachment = typeof coordinationAttachments.$inferSelect;
+export type InsertCoordinationAttachment = typeof coordinationAttachments.$inferInsert;
+
+export const coordinationSubscribers = mysqlTable("coordination_subscribers", {
+  id: int("id").autoincrement().primaryKey(),
+  sheetId: int("sheetId").notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CoordinationSubscriber = typeof coordinationSubscribers.$inferSelect;
+export type InsertCoordinationSubscriber = typeof coordinationSubscribers.$inferInsert;

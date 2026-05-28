@@ -309,6 +309,29 @@ export default function ProjectDetail() {
     },
   });
 
+  // ── Coordination Sheet ──
+  const { data: coordinationSheet } = trpc.coordination.getForProject.useQuery({ projectId });
+  const createCoordinationSheet = trpc.coordination.create.useMutation({
+    onSuccess: () => {
+      utils.coordination.getForProject.invalidate({ projectId });
+      toast.success("Coordination sheet created");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const deleteCoordinationSheet = trpc.coordination.delete.useMutation({
+    onSuccess: () => {
+      utils.coordination.getForProject.invalidate({ projectId });
+      toast.success("Coordination sheet deleted");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const copyCoordinationLink = () => {
+    if (!coordinationSheet) return;
+    const url = `${window.location.origin}/coordination/${coordinationSheet.token}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Coordination sheet link copied");
+  };
+
   const createClientLink = trpc.shareTokens.createClientLink.useMutation({
     onSuccess: () => {
       if (project?.clientName) utils.shareTokens.listForClient.invalidate({ clientName: project.clientName });
@@ -689,6 +712,41 @@ export default function ProjectDetail() {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Coordination Sheet button */}
+          {coordinationSheet ? (
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={copyCoordinationLink}>
+                <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Coordination
+              </Button>
+              {(isAdmin || effectiveRole === "pm") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2 text-muted-foreground hover:text-red-600"
+                  onClick={() => {
+                    if (window.confirm("Delete this coordination sheet? All items, images, and subscriber data will be permanently removed.")) {
+                      deleteCoordinationSheet.mutate({ id: coordinationSheet.id });
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ) : (
+            (isAdmin || effectiveRole === "pm") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => createCoordinationSheet.mutate({ projectId, projectName: project.name })}
+                disabled={createCoordinationSheet.isPending}
+              >
+                <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                {createCoordinationSheet.isPending ? "Creating..." : "Coordination Sheet"}
+              </Button>
+            )
+          )}
 
           <Select
             value={project.status}

@@ -911,11 +911,227 @@ export const appRouter = router({
     }),
   }),
 
+  // ── Coordination Sheets ─────────────────────────────────────────
+  coordination: router({
+    // Admin: get sheet for a project
+    getForProject: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) =>
+      db.getCoordinationSheetByProject(input.projectId)
+    ),
+
+    // Admin: create sheet for a project
+    create: adminOrPmProcedure.input(z.object({
+      projectId: z.number(),
+      projectName: z.string().min(1),
+    })).mutation(async ({ input, ctx }) => {
+      const { nanoid } = await import("nanoid");
+      const token = nanoid(24);
+      return db.createCoordinationSheet({
+        organizationId: ctx.organizationId,
+        projectId: input.projectId,
+        projectName: input.projectName,
+        token,
+        createdById: ctx.user.id,
+      });
+    }),
+
+    // Admin: delete sheet
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      // Get file keys to delete from filesystem
+      const fileKeys = await db.getCoordinationSheetAttachmentKeys(input.id);
+      // Delete files from storage
+      const fs = await import("fs");
+      const path = await import("path");
+      const uploadDir = process.env.UPLOAD_DIR || path.default.resolve(process.cwd(), "uploads");
+      for (const key of fileKeys) {
+        const filePath = path.default.join(uploadDir, key);
+        try { fs.default.unlinkSync(filePath); } catch {}
+      }
+      await db.deleteCoordinationSheet(input.id);
+      return { success: true };
+    }),
+
+    // Public: get sheet data by token (no auth required)
+    getByToken: publicProcedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
+      const items = await db.listCoordinationItems(sheet.id);
+      const itemIds = items.map(i => i.id);
+      const attachments = await db.listCoordinationAttachments(itemIds);
+      const subscribers = await db.listCoordinationSubscribers(sheet.id);
+      return { error: null, sheet, items, attachments, subscribers };
+    }),
+
+    // Public: add item
+    addItem: publicProcedure.input(z.object({
+      token: z.string(),
+      parentId: z.number().optional().nullable(),
+      authorName: z.string().min(1),
+      authorType: z.enum(["project_lead", "architectural", "structural", "civil", "mechanical", "plumbing", "landscaping", "other"]),
+      content: z.string().min(1),
+      isUrgent: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      const item = await db.createCoordinationItem({
+        sheetId: sheet.id,
+        parentId: input.parentId ?? null,
+        authorName: input.authorName,
+        authorType: input.authorType,
+        content: input.content,
+        isUrgent: input.isUrgent ?? false,
+      });
+      // Send email notifications (fire-and-forget)
+      if (item) {
+        sendCoordinationNotification(sheet, item, input.parentId ? "reply" : "new").catch(() => {});
+      }
+      return item;
+    }),
+
+    // Public: update item (edit content, toggle urgent/addressed)
+    updateItem: publicProcedure.input(z.object({
+      token: z.string(),
+      itemId: z.number(),
+      content: z.string().optional(),
+      isUrgent: z.boolean().optional(),
+      isAddressed: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      const { token, itemId, ...data } = input;
+      return db.updateCoordinationItem(itemId, data);
+    }),
+
+    // Public: delete item
+    deleteItem: publicProcedure.input(z.object({
+      token: z.string(),
+      itemId: z.number(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await db.deleteCoordinationItem(input.itemId);
+      return { success: true };
+    }),
+
+    // Public: upload attachment (base64 image)
+    uploadAttachment: publicProcedure.input(z.object({
+      token: z.string(),
+      itemId: z.number(),
+      fileName: z.string().min(1),
+      fileData: z.string(), // base64
+      mimeType: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      const { nanoid } = await import("nanoid");
+      const ext = input.fileName.split(".").pop() || "bin";
+      const fileKey = `coordination/${sheet.id}/${nanoid()}.${ext}`;
+      const buffer = Buffer.from(input.fileData, "base64");
+      const { url } = await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
+      return db.createCoordinationAttachment({
+        itemId: input.itemId,
+        type: "image",
+        url,
+        fileName: input.fileName,
+        fileKey,
+      });
+    }),
+
+    // Public: add link attachment
+    addLinkAttachment: publicProcedure.input(z.object({
+      token: z.string(),
+      itemId: z.number(),
+      url: z.string().url(),
+      fileName: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      return db.createCoordinationAttachment({
+        itemId: input.itemId,
+        type: "link",
+        url: input.url,
+        fileName: input.fileName ?? null,
+      });
+    }),
+
+    // Public: subscribe to notifications
+    subscribe: publicProcedure.input(z.object({
+      token: z.string(),
+      email: z.string().email(),
+      name: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      return db.addCoordinationSubscriber({
+        sheetId: sheet.id,
+        email: input.email.trim().toLowerCase(),
+        name: input.name?.trim() || null,
+      });
+    }),
+
+    // Public: unsubscribe
+    unsubscribe: publicProcedure.input(z.object({
+      token: z.string(),
+      email: z.string().email(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await db.removeCoordinationSubscriber(sheet.id, input.email.trim().toLowerCase());
+      return { success: true };
+    }),
+  }),
+
   // ── Subscription / Billing ─────────────────────────────────────
   subscription: subscriptionRouter,
 
   // ── Super Admin ────────────────────────────────────────────────
   superAdmin: superAdminRouter,
 });
+
+// ── Coordination Sheet Email Notifications ──────────────────────
+async function sendCoordinationNotification(
+  sheet: { id: number; token: string; projectName: string },
+  item: { authorName: string; authorType: string; content: string },
+  type: "new" | "reply"
+) {
+  const { Resend } = await import("resend");
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+  const subscribers = await db.listCoordinationSubscribers(sheet.id);
+  if (subscribers.length === 0) return;
+  const resend = new Resend(apiKey);
+  const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
+  const sheetUrl = `${baseUrl}/coordination/${sheet.token}`;
+  const subject = type === "reply"
+    ? `[${sheet.projectName}] New reply from ${item.authorName}`
+    : `[${sheet.projectName}] New item from ${item.authorName}`;
+  const contentPreview = item.content.length > 200 ? item.content.slice(0, 200) + "..." : item.content;
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
+        <p style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">Coordination Sheet Update</p>
+        <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">${sheet.projectName}</h2>
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <p style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #0f172a;">${item.authorName} <span style="font-weight: 400; color: #64748b;">(${item.authorType.replace(/_/g, " ")})</span></p>
+          <p style="margin: 0; font-size: 14px; color: #334155; white-space: pre-wrap;">${contentPreview}</p>
+        </div>
+        <a href="${sheetUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #ffffff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">View Coordination Sheet</a>
+        <p style="margin: 16px 0 0; font-size: 12px; color: #94a3b8;">You're receiving this because you subscribed to updates for this coordination sheet.</p>
+      </div>
+    </div>
+  `;
+  // Send to all subscribers (batch)
+  for (const sub of subscribers) {
+    try {
+      await resend.emails.send({
+        from: "studioTrac <notifications@studiotrac.app>",
+        to: sub.email,
+        subject,
+        html,
+      });
+    } catch (e) {
+      console.warn(`[Coordination] Failed to send notification to ${sub.email}:`, e);
+    }
+  }
+}
 
 export type AppRouter = typeof appRouter;

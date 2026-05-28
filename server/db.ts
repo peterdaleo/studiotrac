@@ -1,4 +1,4 @@
-import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or } from "drizzle-orm";
+import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users,
@@ -2141,6 +2141,217 @@ export async function getAllActiveTimers(organizationId: number): Promise<{ user
     return result;
   } catch (error) {
     if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── Coordination Sheets ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+import {
+  coordinationSheets, InsertCoordinationSheet, CoordinationSheet,
+  coordinationItems, InsertCoordinationItem, CoordinationItem,
+  coordinationAttachments, InsertCoordinationAttachment, CoordinationAttachment,
+  coordinationSubscribers, InsertCoordinationSubscriber, CoordinationSubscriber,
+} from "../drizzle/schema";
+
+// ── Sheet CRUD ──────────────────────────────────────────────────
+
+export async function createCoordinationSheet(data: InsertCoordinationSheet): Promise<CoordinationSheet | null> {
+  try {
+    const db = await getDb();
+    const [result] = await db.insert(coordinationSheets).values(data).$returningId();
+    const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.id, result.id));
+    return sheet ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function getCoordinationSheetByToken(token: string): Promise<CoordinationSheet | null> {
+  try {
+    const db = await getDb();
+    const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.token, token));
+    return sheet ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function getCoordinationSheetByProject(projectId: number): Promise<CoordinationSheet | null> {
+  try {
+    const db = await getDb();
+    const [sheet] = await db.select().from(coordinationSheets)
+      .where(and(eq(coordinationSheets.projectId, projectId), eq(coordinationSheets.isActive, true)));
+    return sheet ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function deleteCoordinationSheet(id: number): Promise<void> {
+  try {
+    const db = await getDb();
+    // Delete all related data
+    const items = await db.select({ id: coordinationItems.id }).from(coordinationItems)
+      .where(eq(coordinationItems.sheetId, id));
+    if (items.length > 0) {
+      const itemIds = items.map(i => i.id);
+      await db.delete(coordinationAttachments).where(inArray(coordinationAttachments.itemId, itemIds));
+    }
+    await db.delete(coordinationItems).where(eq(coordinationItems.sheetId, id));
+    await db.delete(coordinationSubscribers).where(eq(coordinationSubscribers.sheetId, id));
+    await db.delete(coordinationSheets).where(eq(coordinationSheets.id, id));
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}
+
+export async function getCoordinationSheetAttachmentKeys(sheetId: number): Promise<string[]> {
+  try {
+    const db = await getDb();
+    const items = await db.select({ id: coordinationItems.id }).from(coordinationItems)
+      .where(eq(coordinationItems.sheetId, sheetId));
+    if (items.length === 0) return [];
+    const itemIds = items.map(i => i.id);
+    const attachments = await db.select({ fileKey: coordinationAttachments.fileKey })
+      .from(coordinationAttachments)
+      .where(and(
+        inArray(coordinationAttachments.itemId, itemIds),
+        eq(coordinationAttachments.type, "image"),
+      ));
+    return attachments.map(a => a.fileKey).filter((k): k is string => k != null);
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+// ── Items CRUD ──────────────────────────────────────────────────
+
+export async function listCoordinationItems(sheetId: number): Promise<CoordinationItem[]> {
+  try {
+    const db = await getDb();
+    return db.select().from(coordinationItems)
+      .where(eq(coordinationItems.sheetId, sheetId))
+      .orderBy(coordinationItems.createdAt);
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+export async function createCoordinationItem(data: InsertCoordinationItem): Promise<CoordinationItem | null> {
+  try {
+    const db = await getDb();
+    const [result] = await db.insert(coordinationItems).values(data).$returningId();
+    const [item] = await db.select().from(coordinationItems).where(eq(coordinationItems.id, result.id));
+    return item ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function updateCoordinationItem(id: number, data: Partial<Pick<CoordinationItem, "content" | "isUrgent" | "isAddressed">>): Promise<CoordinationItem | null> {
+  try {
+    const db = await getDb();
+    await db.update(coordinationItems).set({ ...data, editedAt: new Date() }).where(eq(coordinationItems.id, id));
+    const [item] = await db.select().from(coordinationItems).where(eq(coordinationItems.id, id));
+    return item ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function deleteCoordinationItem(id: number): Promise<void> {
+  try {
+    const db = await getDb();
+    // Delete attachments for this item and all replies
+    const replies = await db.select({ id: coordinationItems.id }).from(coordinationItems)
+      .where(eq(coordinationItems.parentId, id));
+    const allIds = [id, ...replies.map(r => r.id)];
+    await db.delete(coordinationAttachments).where(inArray(coordinationAttachments.itemId, allIds));
+    await db.delete(coordinationItems).where(inArray(coordinationItems.id, allIds));
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}
+
+// ── Attachments ─────────────────────────────────────────────────
+
+export async function listCoordinationAttachments(itemIds: number[]): Promise<CoordinationAttachment[]> {
+  try {
+    if (itemIds.length === 0) return [];
+    const db = await getDb();
+    return db.select().from(coordinationAttachments)
+      .where(inArray(coordinationAttachments.itemId, itemIds));
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+export async function createCoordinationAttachment(data: InsertCoordinationAttachment): Promise<CoordinationAttachment | null> {
+  try {
+    const db = await getDb();
+    const [result] = await db.insert(coordinationAttachments).values(data).$returningId();
+    const [attachment] = await db.select().from(coordinationAttachments).where(eq(coordinationAttachments.id, result.id));
+    return attachment ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+// ── Subscribers ─────────────────────────────────────────────────
+
+export async function listCoordinationSubscribers(sheetId: number): Promise<CoordinationSubscriber[]> {
+  try {
+    const db = await getDb();
+    return db.select().from(coordinationSubscribers)
+      .where(eq(coordinationSubscribers.sheetId, sheetId));
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+export async function addCoordinationSubscriber(data: InsertCoordinationSubscriber): Promise<CoordinationSubscriber | null> {
+  try {
+    const db = await getDb();
+    // Upsert: if already subscribed, just return existing
+    const [existing] = await db.select().from(coordinationSubscribers)
+      .where(and(
+        eq(coordinationSubscribers.sheetId, data.sheetId),
+        eq(coordinationSubscribers.email, data.email),
+      ));
+    if (existing) return existing;
+    const [result] = await db.insert(coordinationSubscribers).values(data).$returningId();
+    const [sub] = await db.select().from(coordinationSubscribers).where(eq(coordinationSubscribers.id, result.id));
+    return sub ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function removeCoordinationSubscriber(sheetId: number, email: string): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.delete(coordinationSubscribers)
+      .where(and(
+        eq(coordinationSubscribers.sheetId, sheetId),
+        eq(coordinationSubscribers.email, email),
+      ));
+  } catch (error) {
+    if (isMissingTableError(error)) return;
     throw error;
   }
 }

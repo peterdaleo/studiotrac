@@ -19,6 +19,7 @@ import Financials from "./pages/Financials";
 import Reports from "./pages/Reports";
 import TimeTracking from "./pages/TimeTracking";
 import ClientPortal from "./pages/ClientPortal";
+import CoordinationSheet from "./pages/CoordinationSheet";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import WaitlistAdmin from "./pages/WaitlistAdmin";
@@ -68,6 +69,8 @@ function App() {
             <Route path="/onboarding" component={Onboarding} />
             {/* Public client portal — no auth, no dashboard layout */}
             <Route path="/portal/:token" component={ClientPortal} />
+            {/* Public coordination sheet — no auth, no dashboard layout */}
+            <Route path="/coordination/:token" component={CoordinationSheet} />
             {/* All other routes go through the dashboard */}
             <Route component={DashboardRouter} />
           </Switch>
