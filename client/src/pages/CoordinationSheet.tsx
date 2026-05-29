@@ -605,6 +605,8 @@ function ItemRow({
   const [editContent, setEditContent] = useState(item.content);
   const [editingReplyId, setEditingReplyId] = useState<number | null>(null);
   const [editReplyContent, setEditReplyContent] = useState("");
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxName, setLightboxName] = useState<string>("");
   const itemAttachments = attachments.get(item.id) ?? [];
 
   const handleSaveEdit = () => {
@@ -834,13 +836,18 @@ function ItemRow({
             <div className="mt-3 flex flex-wrap gap-2">
               {itemAttachments.map((att: any) => (
                 att.type === "image" ? (
-                  <a key={att.id} href={getImageUrl(att)} target="_blank" rel="noopener noreferrer" className="block">
+                  <button
+                    key={att.id}
+                    type="button"
+                    onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
+                    className="block rounded-lg overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
                     <img
                       src={getImageUrl(att)}
                       alt={att.fileName || "Attachment"}
-                      className="h-20 w-20 object-cover rounded-lg border hover:opacity-80 transition-opacity"
+                      className="h-20 w-20 object-cover"
                     />
-                  </a>
+                  </button>
                 ) : (
                   <a
                     key={att.id}
@@ -993,9 +1000,14 @@ function ItemRow({
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {replyAttachments.map((att: any) => (
                           att.type === "image" ? (
-                            <a key={att.id} href={getImageUrl(att)} target="_blank" rel="noopener noreferrer">
-                              <img src={getImageUrl(att)} alt="" className="h-14 w-14 object-cover rounded border" />
-                            </a>
+                            <button
+                              key={att.id}
+                              type="button"
+                              onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
+                              className="block rounded overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                              <img src={getImageUrl(att)} alt="" className="h-14 w-14 object-cover" />
+                            </button>
                           ) : (
                             <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 underline">
                               {att.fileName || "Link"}
@@ -1029,6 +1041,24 @@ function ItemRow({
           )}
         </div>
       )}
+
+      {/* Lightbox modal for full-size image preview */}
+      <Dialog open={!!lightboxUrl} onOpenChange={(open) => { if (!open) setLightboxUrl(null); }}>
+        <DialogContent className="max-w-3xl w-full p-2 sm:p-4">
+          <DialogHeader className="pb-1">
+            <DialogTitle className="text-sm font-medium truncate">{lightboxName}</DialogTitle>
+          </DialogHeader>
+          {lightboxUrl && (
+            <div className="flex items-center justify-center">
+              <img
+                src={lightboxUrl}
+                alt={lightboxName}
+                className="max-h-[75vh] max-w-full object-contain rounded"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
