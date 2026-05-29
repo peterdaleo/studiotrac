@@ -34,6 +34,7 @@ import {
   Link2,
   Mail,
   MessageSquare,
+  Pencil,
   Plus,
   Reply,
   Send,
@@ -591,7 +592,27 @@ function ItemRow({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState(item.content);
+  const [editingReplyId, setEditingReplyId] = useState<number | null>(null);
+  const [editReplyContent, setEditReplyContent] = useState("");
   const itemAttachments = attachments.get(item.id) ?? [];
+
+  const handleSaveEdit = () => {
+    if (!editContent.trim()) return;
+    onUpdateItem.mutate(
+      { token, itemId: item.id, content: editContent.trim() },
+      { onSuccess: () => setEditing(false) }
+    );
+  };
+
+  const handleSaveReplyEdit = (replyId: number) => {
+    if (!editReplyContent.trim()) return;
+    onUpdateItem.mutate(
+      { token, itemId: replyId, content: editReplyContent.trim() },
+      { onSuccess: () => setEditingReplyId(null) }
+    );
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -675,6 +696,19 @@ function ItemRow({
 
         {/* Inline action buttons (always visible, stop propagation) */}
         <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
+            title="Edit"
+            onClick={() => {
+              setEditContent(item.content);
+              setEditing(true);
+              if (!expanded) onToggleExpand();
+            }}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
           {!item.parentId && (
             <Button
               variant="ghost"
@@ -749,7 +783,42 @@ function ItemRow({
           </div>
 
           {/* Content */}
-          <p className="text-sm whitespace-pre-wrap text-slate-700 leading-relaxed">{item.content}</p>
+          {editing ? (
+            <div className="space-y-2">
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="resize-none text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setEditing(false); setEditContent(item.content); }
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveEdit();
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleSaveEdit}
+                  disabled={onUpdateItem.isPending || !editContent.trim()}
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => { setEditing(false); setEditContent(item.content); }}
+                >
+                  Cancel
+                </Button>
+                <span className="text-[10px] text-muted-foreground">⌘↵ to save · Esc to cancel</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap text-slate-700 leading-relaxed">{item.content}</p>
+          )}
 
           {/* Attachments */}
           {itemAttachments.length > 0 && (
@@ -847,8 +916,70 @@ function ItemRow({
                         {getAuthorTypeLabel(reply.authorType)}
                       </Badge>
                       <span className="text-[10px] text-muted-foreground">{formatDate(reply.createdAt)}</span>
+                      {reply.editedAt && <span className="text-[10px] text-muted-foreground">(edited)</span>}
+                      <div className="ml-auto flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
+                          title="Edit reply"
+                          onClick={() => {
+                            setEditingReplyId(reply.id);
+                            setEditReplyContent(reply.content);
+                          }}
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          title="Delete reply"
+                          onClick={() => {
+                            if (window.confirm("Delete this reply?")) {
+                              onDeleteItem.mutate({ token, itemId: reply.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-700 mt-1 whitespace-pre-wrap">{reply.content}</p>
+                    {editingReplyId === reply.id ? (
+                      <div className="mt-1 space-y-1.5">
+                        <Textarea
+                          value={editReplyContent}
+                          onChange={(e) => setEditReplyContent(e.target.value)}
+                          rows={3}
+                          className="resize-none text-xs"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") setEditingReplyId(null);
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveReplyEdit(reply.id);
+                          }}
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            className="h-6 text-[11px] px-2"
+                            onClick={() => handleSaveReplyEdit(reply.id)}
+                            disabled={onUpdateItem.isPending || !editReplyContent.trim()}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[11px] px-2"
+                            onClick={() => setEditingReplyId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-700 mt-1 whitespace-pre-wrap">{reply.content}</p>
+                    )}
                     {replyAttachments.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {replyAttachments.map((att: any) => (
