@@ -62,6 +62,7 @@ import {
 import { useLocation, useParams } from "wouter";
 import { getPhaseShortLabel } from "@shared/constants";
 import { toast } from "sonner";
+import { isDeadlineOverdueUTC } from "@/lib/utils";
 import {
   Tooltip as UITooltip,
   TooltipContent as UITooltipContent,
@@ -236,7 +237,7 @@ export default function Team() {
       const memberTasks = allTasks.filter((t) => t.assigneeId === m.id);
       const completed = memberTasks.filter((t) => t.status === "done").length;
       const now = new Date();
-      const overdue = memberTasks.filter((t) => t.status !== "done" && t.deadline != null && new Date(t.deadline) < now).length;
+      const overdue = memberTasks.filter((t) => t.status !== "done" && t.deadline != null && isDeadlineOverdueUTC(t.deadline)).length;
       const inProgress = memberTasks.filter((t) => t.status === "in_progress").length;
       const total = memberTasks.length;
       const missedRate = total > 0 ? Math.round((overdue / total) * 100) : 0;
@@ -587,8 +588,7 @@ export default function Team() {
                 <>
                   <div className="divide-y">
                     {activeMemberTasks.map((t) => {
-                      const today = new Date(); today.setHours(0,0,0,0);
-                      const isOverdue = t.deadline && new Date(t.deadline) < today && t.status !== "done";
+                      const isOverdue = t.deadline && isDeadlineOverdueUTC(t.deadline) && t.status !== "done";
                       return (
                         <div key={t.id} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setLocation(`/projects/${t.projectId}`)}>
                           {isOverdue ? (

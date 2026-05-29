@@ -79,6 +79,7 @@ import {
   getStatusLabel,
 } from "@shared/constants";
 import { toast } from "sonner";
+import { formatDateUTC, daysUntilUTC, isDeadlineOverdueUTC } from "@/lib/utils";
 
 const statusColorMap: Record<string, string> = {
   on_track: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
@@ -928,7 +929,7 @@ export default function ProjectDetail() {
                     if (taskPrioritySort === "desc") return b.priority - a.priority;
                     return 0;
                   }).map((task) => {
-                    const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
+                    const isOverdue = task.deadline && isDeadlineOverdueUTC(task.deadline) && task.status !== "done";
                     const isEditing = editingTaskId === task.id;
 
                     if (isEditing && editTaskData) {
@@ -1033,7 +1034,7 @@ export default function ProjectDetail() {
                             {task.deadline && (
                               <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
                                 <Clock className="h-3 w-3" />
-                                {new Date(task.deadline).toLocaleDateString()}
+                                {formatDateUTC(task.deadline)}
                               </span>
                             )}
                           </div>
@@ -1412,7 +1413,7 @@ export default function ProjectDetail() {
                     />
                   ) : (
                     <span className="text-sm">
-                      {project.startDate ? new Date(project.startDate).toLocaleDateString() : "Not set"}
+                      {project.startDate ? formatDateUTC(project.startDate) : "Not set"}
                     </span>
                   )}
                 </div>
@@ -1428,7 +1429,7 @@ export default function ProjectDetail() {
                     />
                   ) : (
                     <span className="text-sm">
-                      {project.deadline ? new Date(project.deadline).toLocaleDateString() : "Not set"}
+                      {project.deadline ? formatDateUTC(project.deadline) : "Not set"}
                     </span>
                   )}
                 </div>

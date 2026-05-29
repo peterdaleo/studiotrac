@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { formatDateUTC } from "@/lib/utils";
 import {
   Download,
   FileSpreadsheet,
@@ -62,8 +63,8 @@ export default function Reports() {
           escapeCSV(p.status),
           escapeCSV(p.phase),
           p.completionPercentage,
-          p.startDate ? new Date(p.startDate).toLocaleDateString() : "",
-          p.deadline ? new Date(p.deadline).toLocaleDateString() : "",
+          p.startDate ? formatDateUTC(p.startDate) : "",
+          p.deadline ? formatDateUTC(p.deadline) : "",
           escapeCSV(p.projectManagerName),
           p.contractedFee ? `$${(p.contractedFee / 100).toLocaleString()}` : "",
           p.invoicedAmount ? `$${(p.invoicedAmount / 100).toLocaleString()}` : "",
@@ -91,7 +92,7 @@ export default function Reports() {
           escapeCSV(t.assigneeName),
           t.priority,
           escapeCSV(t.status),
-          t.deadline ? new Date(t.deadline).toLocaleDateString() : "",
+          t.deadline ? formatDateUTC(t.deadline) : "",
           t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "",
           t.completedAt ? new Date(t.completedAt).toLocaleDateString() : "",
         ]);

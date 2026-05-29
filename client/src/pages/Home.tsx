@@ -27,6 +27,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { getPhaseShortLabel, getStatusLabel } from "@shared/constants";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { daysUntilUTC, isDeadlineOverdueUTC } from "@/lib/utils";
 
 const statusColorMap: Record<string, string> = {
   on_track: "bg-emerald-500",
@@ -86,21 +87,15 @@ export default function Home() {
     .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
     .slice(0, 5) ?? [];
   const upcomingDeadlines = allTasks
-    ?.filter((t) => t.deadline && t.status !== "done" && new Date(t.deadline) > new Date())
+    ?.filter((t) => t.deadline && t.status !== "done" && (daysUntilUTC(t.deadline) ?? -1) >= 0)
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
     .slice(0, 5) ?? [];
-
-  // Overdue: not done AND deadline strictly before start of today
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // Overdue: not done AND deadline strictly before today (UTC-safe)
   const overdueTasks = allTasks
-    ?.filter((t) => t.status !== "done" && t.deadline && new Date(t.deadline) < todayStart)
+    ?.filter((t) => t.status !== "done" && t.deadline && isDeadlineOverdueUTC(t.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()) ?? [];
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   const delayedProjects = projects?.filter(
-    (p) => p.status !== "completed" && p.deadline && new Date(p.deadline) < today
+    (p) => p.status !== "completed" && p.deadline && isDeadlineOverdueUTC(p.deadline)
   ).length ?? 0;
 
   if (statsLoading || projectsLoading) {
@@ -561,9 +556,7 @@ export default function Home() {
                 <p className="text-sm text-muted-foreground">No upcoming deadlines</p>
               ) : (
                 upcomingDeadlines.map((task) => {
-                  const daysLeft = Math.ceil(
-                    (new Date(task.deadline!).getTime() - Date.now()) / 86400000
-                  );
+                  const daysLeft = daysUntilUTC(task.deadline) ?? 0;
                   return (
                     <div key={task.id} className="flex items-start gap-3 -mx-3 px-3 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setLocation(`/projects/${task.projectId}`)}>
                       <div className={`h-1.5 w-1.5 rounded-full mt-1.5 shrink-0 ${daysLeft <= 3 ? "bg-red-500" : daysLeft <= 7 ? "bg-amber-500" : "bg-emerald-500"}`} />
@@ -593,7 +586,7 @@ export default function Home() {
                   <div key={task.id} className="text-sm -mx-3 px-3 py-1.5 rounded-md cursor-pointer hover:bg-red-50/60 dark:hover:bg-red-950/20 transition-colors" onClick={() => setLocation(`/projects/${task.projectId}`)}>
                     <p className="truncate">{task.title}</p>
                     <p className="text-xs text-red-500">
-                      {Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000))} day{Math.abs(Math.ceil((new Date(task.deadline!).getTime() - Date.now()) / 86400000)) !== 1 ? 's' : ''} overdue
+                      {Math.abs(daysUntilUTC(task.deadline) ?? 0)} day{Math.abs(daysUntilUTC(task.deadline) ?? 0) !== 1 ? 's' : ''} overdue
                     </p>
                   </div>
                 ))}

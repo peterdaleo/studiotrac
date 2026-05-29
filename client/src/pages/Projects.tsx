@@ -60,6 +60,7 @@ import {
   getStatusLabel,
 } from "@shared/constants";
 import { toast } from "sonner";
+import { daysUntilUTC } from "@/lib/utils";
 
 const statusColorMap: Record<string, string> = {
   on_track: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
@@ -188,9 +189,7 @@ export default function Projects() {
   };
 
   const renderGridCard = (project: NonNullable<typeof projects>[0]) => {
-    const daysUntilDeadline = project.deadline
-      ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
-      : null;
+    const daysUntilDeadline = daysUntilUTC(project.deadline);
     return (
       <Card
         key={project.id}
@@ -271,9 +270,7 @@ export default function Projects() {
   };
 
   const renderCompactRow = (project: NonNullable<typeof projects>[0]) => {
-    const daysUntilDeadline = project.deadline
-      ? Math.ceil((new Date(project.deadline).getTime() - Date.now()) / 86400000)
-      : null;
+    const daysUntilDeadline = daysUntilUTC(project.deadline);
     return (
       <div
         key={project.id}

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { isSameDayUTCvsLocal } from "@/lib/utils";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -140,6 +141,13 @@ function formatMinutesRange(startMinutes?: number | null, endMinutes?: number | 
 }
 
 function isSameDay(left: Date, right: Date) {
+  // If one date is at UTC midnight (date-only field from server), compare UTC date parts
+  // against local date parts of the other (calendar grid day). Otherwise fall back to
+  // local-vs-local comparison for "today" checks which use local midnight.
+  const leftIsUTCMidnight = left.getUTCHours() === 0 && left.getUTCMinutes() === 0 && left.getUTCSeconds() === 0 && left.getUTCMilliseconds() === 0;
+  const rightIsUTCMidnight = right.getUTCHours() === 0 && right.getUTCMinutes() === 0 && right.getUTCSeconds() === 0 && right.getUTCMilliseconds() === 0;
+  if (leftIsUTCMidnight && !rightIsUTCMidnight) return isSameDayUTCvsLocal(left, right);
+  if (rightIsUTCMidnight && !leftIsUTCMidnight) return isSameDayUTCvsLocal(right, left);
   return (
     left.getFullYear() === right.getFullYear() &&
     left.getMonth() === right.getMonth() &&

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useParams } from "wouter";
 import { PROJECT_PHASES, getPhaseLabel } from "@shared/constants";
+import { formatDateUTC } from "@/lib/utils";
 
 const statusColorMap: Record<string, string> = {
   on_track: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
@@ -184,14 +185,14 @@ function ProjectCard({ project, notes, files }: { project: any; notes: any[]; fi
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">Start Date</span>
                   <span className="text-sm">
-                    {project.startDate ? new Date(project.startDate).toLocaleDateString() : "TBD"}
+                    {project.startDate ? formatDateUTC(project.startDate) : "TBD"}
                   </span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">Target Completion</span>
                   <span className="text-sm">
-                    {project.deadline ? new Date(project.deadline).toLocaleDateString() : "TBD"}
+                    {project.deadline ? formatDateUTC(project.deadline) : "TBD"}
                   </span>
                 </div>
               </div>
