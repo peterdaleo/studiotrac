@@ -564,10 +564,10 @@ function NewItemForm({
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-// Get displayable image URL from attachment (supports DB-stored base64 and legacy filesystem URLs)
+// Get displayable image URL from attachment — served via dedicated endpoint
 function getImageUrl(att: any): string {
-  if (att.fileData && att.mimeType) return `data:${att.mimeType};base64,${att.fileData}`;
-  return att.url; // fallback for legacy or link attachments
+  if (att.type === "image") return `/api/coordination-image/${att.id}`;
+  return att.url; // link attachments
 }
 
 // ── Collapsible Item Row ──────────────────────────────────────────────

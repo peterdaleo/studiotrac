@@ -51,6 +51,33 @@ async function startServer() {
   const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
   app.use("/uploads", express.static(uploadDir));
 
+  // Serve coordination sheet images from database (base64 stored in DB)
+  app.get("/api/coordination-image/:id", async (req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      const { coordinationAttachments } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [att] = await db.select({
+        fileData: coordinationAttachments.fileData,
+        mimeType: coordinationAttachments.mimeType,
+        fileName: coordinationAttachments.fileName,
+      }).from(coordinationAttachments).where(eq(coordinationAttachments.id, parseInt(req.params.id)));
+      if (!att || !att.fileData) {
+        return res.status(404).send("Image not found");
+      }
+      const buffer = Buffer.from(att.fileData, "base64");
+      res.setHeader("Content-Type", att.mimeType || "image/png");
+      res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      if (att.fileName) res.setHeader("Content-Disposition", `inline; filename="${att.fileName}"`);
+      res.send(buffer);
+    } catch (e) {
+      console.error("Error serving coordination image:", e);
+      res.status(500).send("Internal server error");
+    }
+  });
+
   // Auth routes (signup/login)
   registerOAuthRoutes(app);
 

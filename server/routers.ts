@@ -949,7 +949,9 @@ export const appRouter = router({
       const itemIds = items.map(i => i.id);
       const attachments = await db.listCoordinationAttachments(itemIds);
       const subscribers = await db.listCoordinationSubscribers(sheet.id);
-      return { error: null, sheet, items, attachments, subscribers };
+      // Strip fileData from response to keep payload small — images served via /api/coordination-image/:id
+      const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
+      return { error: null, sheet, items, attachments: lightAttachments, subscribers };
     }),
 
     // Public: add item
