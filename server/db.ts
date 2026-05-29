@@ -2180,6 +2180,17 @@ export async function getCoordinationSheetByToken(token: string): Promise<Coordi
   }
 }
 
+export async function getCoordinationSheetByClientToken(clientToken: string): Promise<CoordinationSheet | null> {
+  try {
+    const db = await getDb();
+    const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.clientToken, clientToken));
+    return sheet ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
 export async function getCoordinationSheetByProject(projectId: number): Promise<CoordinationSheet | null> {
   try {
     const db = await getDb();
@@ -2257,7 +2268,7 @@ export async function createCoordinationItem(data: InsertCoordinationItem): Prom
   }
 }
 
-export async function updateCoordinationItem(id: number, data: Partial<Pick<CoordinationItem, "content" | "isUrgent" | "isAddressed">>): Promise<CoordinationItem | null> {
+export async function updateCoordinationItem(id: number, data: Partial<Pick<CoordinationItem, "content" | "isUrgent" | "isAddressed" | "visibility">>): Promise<CoordinationItem | null> {
   try {
     const db = await getDb();
     await db.update(coordinationItems).set({ ...data, editedAt: new Date() }).where(eq(coordinationItems.id, id));

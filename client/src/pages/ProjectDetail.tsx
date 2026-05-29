@@ -333,6 +333,13 @@ export default function ProjectDetail() {
     toast.success("Coordination sheet link copied");
   };
 
+  const copyClientCoordinationLink = () => {
+    if (!coordinationSheet?.clientToken) return;
+    const url = `${window.location.origin}/coordination/client/${coordinationSheet.clientToken}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Client coordination link copied");
+  };
+
   const createClientLink = trpc.shareTokens.createClientLink.useMutation({
     onSuccess: () => {
       if (project?.clientName) utils.shareTokens.listForClient.invalidate({ clientName: project.clientName });
@@ -730,10 +737,21 @@ export default function ProjectDetail() {
                 size="icon" 
                 className="h-8 w-8 text-muted-foreground" 
                 onClick={copyCoordinationLink}
-                title="Copy public link"
+                title="Copy team link"
               >
                 <Link2 className="h-3.5 w-3.5" />
               </Button>
+              {coordinationSheet.clientToken && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" 
+                  onClick={copyClientCoordinationLink}
+                  title="Copy client link (filtered view)"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {(isAdmin || effectiveRole === "pm") && (
                 <Button
                   variant="ghost"

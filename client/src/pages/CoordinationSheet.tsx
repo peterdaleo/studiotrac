@@ -43,6 +43,8 @@ import {
   X,
   Bell,
   BellOff,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
@@ -92,7 +94,10 @@ function formatDateShort(date: string | Date) {
 }
 
 export default function CoordinationSheet() {
-  const { token } = useParams<{ token: string }>();
+  const params = useParams<{ token?: string; clientToken?: string }>();
+  const token = params.token;
+  const clientToken = params.clientToken;
+  const isClientView = !!clientToken;
   const [showAddressed, setShowAddressed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
@@ -104,10 +109,18 @@ export default function CoordinationSheet() {
   const [savedName, setSavedName] = useState(() => localStorage.getItem("coord_author_name") || "");
   const [savedType, setSavedType] = useState<AuthorType>(() => (localStorage.getItem("coord_author_type") as AuthorType) || "other");
 
-  const { data, isLoading, refetch } = trpc.coordination.getByToken.useQuery(
+  // Use different query depending on whether this is a client view or full view
+  const fullQuery = trpc.coordination.getByToken.useQuery(
     { token: token! },
-    { enabled: !!token }
+    { enabled: !!token && !isClientView }
   );
+  const clientQuery = trpc.coordination.getByClientToken.useQuery(
+    { clientToken: clientToken! },
+    { enabled: !!clientToken && isClientView }
+  );
+  const { data, isLoading, refetch } = isClientView
+    ? { data: clientQuery.data, isLoading: clientQuery.isLoading, refetch: clientQuery.refetch }
+    : { data: fullQuery.data, isLoading: fullQuery.isLoading, refetch: fullQuery.refetch };
 
   const addItem = trpc.coordination.addItem.useMutation({
     onSuccess: () => { refetch(); setNewItemOpen(false); setReplyingTo(null); toast.success("Item posted"); },
@@ -249,33 +262,37 @@ export default function CoordinationSheet() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{sheet.projectName}</h1>
-              <p className="text-xs text-muted-foreground">Coordination Sheet</p>
+              <p className="text-xs text-muted-foreground">{isClientView ? "Client View" : "Coordination Sheet"}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <Bell className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Notify</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Email Notifications</DialogTitle>
-                  </DialogHeader>
-                  <SubscribeForm
-                    token={token!}
-                    subscribers={data.subscribers}
-                    onSubscribe={(email, name) => subscribe.mutate({ token: token!, email, name })}
-                    onUnsubscribe={(email) => unsubscribe.mutate({ token: token!, email })}
-                    isPending={subscribe.isPending || unsubscribe.isPending}
-                  />
-                </DialogContent>
-              </Dialog>
-              <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
-                <Plus className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">New Item</span>
-              </Button>
+              {!isClientView && (
+                <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5">
+                      <Bell className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Notify</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Email Notifications</DialogTitle>
+                    </DialogHeader>
+                    <SubscribeForm
+                      token={token!}
+                      subscribers={data.subscribers}
+                      onSubscribe={(email, name) => subscribe.mutate({ token: token!, email, name })}
+                      onUnsubscribe={(email) => unsubscribe.mutate({ token: token!, email })}
+                      isPending={subscribe.isPending || unsubscribe.isPending}
+                    />
+                  </DialogContent>
+                </Dialog>
+              )}
+              {!isClientView && (
+                <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">New Item</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -373,6 +390,7 @@ export default function CoordinationSheet() {
             onUploadAttachment={uploadAttachment}
             onAddLink={addLink}
             onDeleteAttachment={deleteAttachment}
+            isClientView={isClientView}
           />
         ))}
 
@@ -408,6 +426,7 @@ export default function CoordinationSheet() {
                     onUploadAttachment={uploadAttachment}
                     onAddLink={addLink}
                     onDeleteAttachment={deleteAttachment}
+                    isClientView={isClientView}
                   />
                 ))}
               </div>
@@ -588,6 +607,7 @@ function ItemRow({
   onDeleteItem,
   onUploadAttachment,
   onAddLink,
+  isClientView = false,
 }: {
   item: any;
   replies: any[];
@@ -605,6 +625,7 @@ function ItemRow({
   onUploadAttachment: any;
   onAddLink: any;
   onDeleteAttachment: any;
+  isClientView?: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [linkUrl, setLinkUrl] = useState("");
@@ -737,6 +758,17 @@ function ItemRow({
               onClick={() => onUpdateItem.mutate({ token, itemId: item.id, isUrgent: !item.isUrgent })}
             >
               <AlertTriangle className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {!isClientView && !item.parentId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-6 w-6 ${item.visibility === "client" ? "text-indigo-600 bg-indigo-50" : "text-muted-foreground"} hover:text-indigo-700 hover:bg-indigo-50`}
+              title={item.visibility === "client" ? "Visible to client (click to make internal only)" : "Internal only (click to make visible to client)"}
+              onClick={() => onUpdateItem.mutate({ token, itemId: item.id, visibility: item.visibility === "client" ? "internal" : "client" })}
+            >
+              {item.visibility === "client" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
             </Button>
           )}
           {!item.isAddressed ? (

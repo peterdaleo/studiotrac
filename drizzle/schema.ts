@@ -323,6 +323,7 @@ export const coordinationSheets = mysqlTable("coordination_sheets", {
   organizationId: int("organizationId"),
   projectId: int("projectId").notNull(),
   token: varchar("token", { length: 128 }).notNull().unique(),
+  clientToken: varchar("clientToken", { length: 128 }),
   projectName: varchar("projectName", { length: 500 }).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   createdById: int("createdById"),
@@ -342,6 +343,7 @@ export const coordinationItems = mysqlTable("coordination_items", {
   isUrgent: boolean("isUrgent").default(false).notNull(),
   isAddressed: boolean("isAddressed").default(false).notNull(),
   isNotified: boolean("isNotified").default(false).notNull(),
+  visibility: mysqlEnum("visibility", ["internal", "client"]).default("internal").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   editedAt: timestamp("editedAt"),
 });

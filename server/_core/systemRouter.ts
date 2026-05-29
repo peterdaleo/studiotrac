@@ -139,6 +139,14 @@ export const systemRouter = router({
       results.push("coordination_subscribers table ensured");
       await db.execute(sql`ALTER TABLE coordination_subscribers ADD COLUMN IF NOT EXISTS lastNotifiedAt timestamp NULL`).catch(() => {});
 
+      // Add clientToken to coordination_sheets for client-only view links
+      await db.execute(sql`ALTER TABLE coordination_sheets ADD COLUMN clientToken varchar(128)`).catch(() => {});
+      results.push("coordination_sheets clientToken column ensured");
+
+      // Add visibility to coordination_items for internal/client filtering
+      await db.execute(sql`ALTER TABLE coordination_items ADD COLUMN visibility enum('internal','client') NOT NULL DEFAULT 'internal'`).catch(() => {});
+      results.push("coordination_items visibility column ensured");
+
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };

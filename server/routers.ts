@@ -925,11 +925,13 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const { nanoid } = await import("nanoid");
       const token = nanoid(24);
+      const clientToken = nanoid(24);
       return db.createCoordinationSheet({
         organizationId: ctx.organizationId,
         projectId: input.projectId,
         projectName: input.projectName,
         token,
+        clientToken,
         createdById: ctx.user.id,
       });
     }),
@@ -952,6 +954,19 @@ export const appRouter = router({
       // Strip fileData from response to keep payload small — images served via /api/coordination-image/:id
       const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
       return { error: null, sheet, items, attachments: lightAttachments, subscribers };
+    }),
+
+    // Public: get sheet data by client token (only client-visible items)
+    getByClientToken: publicProcedure.input(z.object({ clientToken: z.string() })).query(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByClientToken(input.clientToken);
+      if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
+      const allItems = await db.listCoordinationItems(sheet.id);
+      // Only show items marked as client-visible
+      const items = allItems.filter(i => i.visibility === "client");
+      const itemIds = items.map(i => i.id);
+      const attachments = await db.listCoordinationAttachments(itemIds);
+      const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
+      return { error: null, sheet, items, attachments: lightAttachments, subscribers: [], isClientView: true };
     }),
 
     // Public: add item
@@ -987,6 +1002,7 @@ export const appRouter = router({
       content: z.string().optional(),
       isUrgent: z.boolean().optional(),
       isAddressed: z.boolean().optional(),
+      visibility: z.enum(["internal", "client"]).optional(),
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
