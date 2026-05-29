@@ -844,7 +844,7 @@ function ItemRow({
             <div className="mt-3 flex flex-wrap gap-2">
               {itemAttachments.map((att: any) => (
                 att.type === "image" ? (
-                  <div key={att.id} className="relative group">
+                  <div key={att.id} className="flex flex-col items-center gap-0.5">
                     <button
                       type="button"
                       onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
@@ -860,14 +860,13 @@ function ItemRow({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm("Delete this image attachment?")) {
+                        if (window.confirm("Delete this image?")) {
                           onDeleteAttachment.mutate({ token, attachmentId: att.id });
                         }
                       }}
-                      className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
-                      title="Delete image"
+                      className="text-[10px] text-red-500 hover:text-red-700 hover:underline leading-none"
                     >
-                      <X className="h-3 w-3" />
+                      Delete
                     </button>
                   </div>
                 ) : (
@@ -1022,7 +1021,7 @@ function ItemRow({
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {replyAttachments.map((att: any) => (
                           att.type === "image" ? (
-                            <div key={att.id} className="relative group">
+                            <div key={att.id} className="flex flex-col items-center gap-0.5">
                               <button
                                 type="button"
                                 onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
@@ -1034,14 +1033,13 @@ function ItemRow({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (confirm("Delete this image attachment?")) {
+                                  if (window.confirm("Delete this image?")) {
                                     onDeleteAttachment.mutate({ token, attachmentId: att.id });
                                   }
                                 }}
-                                className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
-                                title="Delete image"
+                                className="text-[10px] text-red-500 hover:text-red-700 hover:underline leading-none"
                               >
-                                <X className="h-3 w-3" />
+                                Delete
                               </button>
                             </div>
                           ) : (
