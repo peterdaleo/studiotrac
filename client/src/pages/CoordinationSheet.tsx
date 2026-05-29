@@ -134,6 +134,11 @@ export default function CoordinationSheet() {
     onError: (e) => toast.error(e.message),
   });
 
+  const deleteAttachment = trpc.coordination.deleteAttachment.useMutation({
+    onSuccess: () => { refetch(); toast.success("Attachment deleted"); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const subscribe = trpc.coordination.subscribe.useMutation({
     onSuccess: () => { refetch(); setSubscribeOpen(false); toast.success("Subscribed to notifications"); },
     onError: (e) => toast.error(e.message),
@@ -367,6 +372,7 @@ export default function CoordinationSheet() {
             onDeleteItem={deleteItem}
             onUploadAttachment={uploadAttachment}
             onAddLink={addLink}
+            onDeleteAttachment={deleteAttachment}
           />
         ))}
 
@@ -401,6 +407,7 @@ export default function CoordinationSheet() {
                     onDeleteItem={deleteItem}
                     onUploadAttachment={uploadAttachment}
                     onAddLink={addLink}
+                    onDeleteAttachment={deleteAttachment}
                   />
                 ))}
               </div>
@@ -597,6 +604,7 @@ function ItemRow({
   onDeleteItem: any;
   onUploadAttachment: any;
   onAddLink: any;
+  onDeleteAttachment: any;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [linkUrl, setLinkUrl] = useState("");
@@ -836,18 +844,32 @@ function ItemRow({
             <div className="mt-3 flex flex-wrap gap-2">
               {itemAttachments.map((att: any) => (
                 att.type === "image" ? (
-                  <button
-                    key={att.id}
-                    type="button"
-                    onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
-                    className="block rounded-lg overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    <img
-                      src={getImageUrl(att)}
-                      alt={att.fileName || "Attachment"}
-                      className="h-20 w-20 object-cover"
-                    />
-                  </button>
+                  <div key={att.id} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
+                      className="block rounded-lg overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      <img
+                        src={getImageUrl(att)}
+                        alt={att.fileName || "Attachment"}
+                        className="h-20 w-20 object-cover"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm("Delete this image attachment?")) {
+                          onDeleteAttachment.mutate({ token, attachmentId: att.id });
+                        }
+                      }}
+                      className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+                      title="Delete image"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
                 ) : (
                   <a
                     key={att.id}
@@ -1000,14 +1022,28 @@ function ItemRow({
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {replyAttachments.map((att: any) => (
                           att.type === "image" ? (
-                            <button
-                              key={att.id}
-                              type="button"
-                              onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
-                              className="block rounded overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            >
-                              <img src={getImageUrl(att)} alt="" className="h-14 w-14 object-cover" />
-                            </button>
+                            <div key={att.id} className="relative group">
+                              <button
+                                type="button"
+                                onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
+                                className="block rounded overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              >
+                                <img src={getImageUrl(att)} alt="" className="h-14 w-14 object-cover" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm("Delete this image attachment?")) {
+                                    onDeleteAttachment.mutate({ token, attachmentId: att.id });
+                                  }
+                                }}
+                                className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+                                title="Delete image"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
                           ) : (
                             <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 underline">
                               {att.fileName || "Link"}

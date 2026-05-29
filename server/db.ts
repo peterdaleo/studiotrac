@@ -2310,6 +2310,16 @@ export async function createCoordinationAttachment(data: InsertCoordinationAttac
   }
 }
 
+export async function deleteCoordinationAttachment(id: number): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.delete(coordinationAttachments).where(eq(coordinationAttachments.id, id));
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}
+
 // ── Subscribers ─────────────────────────────────────────────────
 
 export async function listCoordinationSubscribers(sheetId: number): Promise<CoordinationSubscriber[]> {

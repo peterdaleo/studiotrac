@@ -1043,6 +1043,17 @@ export const appRouter = router({
       });
     }),
 
+    // Public: delete attachment
+    deleteAttachment: publicProcedure.input(z.object({
+      token: z.string(),
+      attachmentId: z.number(),
+    })).mutation(async ({ input }) => {
+      const sheet = await db.getCoordinationSheetByToken(input.token);
+      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await db.deleteCoordinationAttachment(input.attachmentId);
+      return { success: true };
+    }),
+
     // Public: subscribe to notifications
     subscribe: publicProcedure.input(z.object({
       token: z.string(),
