@@ -607,6 +607,7 @@ function ItemRow({
   onDeleteItem,
   onUploadAttachment,
   onAddLink,
+  onDeleteAttachment,
   isClientView = false,
 }: {
   item: any;
