@@ -121,6 +121,10 @@ export const systemRouter = router({
         CONSTRAINT coordination_attachments_id PRIMARY KEY(id)
       )`);
       results.push("coordination_attachments table ensured");
+      // Add fileData (MEDIUMTEXT) and mimeType columns for persistent base64 image storage
+      await db.execute(sql`ALTER TABLE coordination_attachments ADD COLUMN fileData MEDIUMTEXT`).catch(() => {});
+      await db.execute(sql`ALTER TABLE coordination_attachments ADD COLUMN mimeType varchar(100)`).catch(() => {});
+      results.push("coordination_attachments fileData+mimeType columns ensured");
 
       await db.execute(sql`CREATE TABLE IF NOT EXISTS coordination_subscribers (
         id int AUTO_INCREMENT NOT NULL,

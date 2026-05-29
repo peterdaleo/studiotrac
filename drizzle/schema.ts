@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
 // ── Organizations ─────────────────────────────────────────────────
 export const organizations = mysqlTable("organizations", {
   id: int("id").autoincrement().primaryKey(),
@@ -355,6 +355,8 @@ export const coordinationAttachments = mysqlTable("coordination_attachments", {
   url: varchar("url", { length: 2048 }).notNull(),
   fileName: varchar("fileName", { length: 500 }),
   fileKey: varchar("fileKey", { length: 500 }),
+  fileData: mediumtext("fileData"), // base64-encoded image data for persistent storage (up to 16MB)
+  mimeType: varchar("mimeType", { length: 100 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type CoordinationAttachment = typeof coordinationAttachments.$inferSelect;

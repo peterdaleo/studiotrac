@@ -204,6 +204,12 @@ export default function CoordinationSheet() {
     return map;
   }, [data?.attachments]);
 
+  // Helper: get displayable image URL from attachment (supports DB-stored base64 and legacy filesystem URLs)
+  const getImageUrl = (att: any): string => {
+    if (att.fileData && att.mimeType) return `data:${att.mimeType};base64,${att.fileData}`;
+    return att.url; // fallback for legacy or link attachments
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -825,9 +831,9 @@ function ItemRow({
             <div className="mt-3 flex flex-wrap gap-2">
               {itemAttachments.map((att: any) => (
                 att.type === "image" ? (
-                  <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                  <a key={att.id} href={getImageUrl(att)} target="_blank" rel="noopener noreferrer" className="block">
                     <img
-                      src={att.url}
+                      src={getImageUrl(att)}
                       alt={att.fileName || "Attachment"}
                       className="h-20 w-20 object-cover rounded-lg border hover:opacity-80 transition-opacity"
                     />
@@ -984,8 +990,8 @@ function ItemRow({
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {replyAttachments.map((att: any) => (
                           att.type === "image" ? (
-                            <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer">
-                              <img src={att.url} alt="" className="h-14 w-14 object-cover rounded border" />
+                            <a key={att.id} href={getImageUrl(att)} target="_blank" rel="noopener noreferrer">
+                              <img src={getImageUrl(att)} alt="" className="h-14 w-14 object-cover rounded border" />
                             </a>
                           ) : (
                             <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 underline">

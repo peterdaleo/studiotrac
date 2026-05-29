@@ -936,9 +936,7 @@ export const appRouter = router({
 
     // Admin: delete sheet
     delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-      const { storageDeleteDir } = await import("./storage");
-      // Delete all files in the sheet's directory
-      await storageDeleteDir(`coordination/${input.id}`);
+      // Images are stored as base64 in DB, so deleting the sheet cascades cleanup
       await db.deleteCoordinationSheet(input.id);
       return { success: true };
     }),
@@ -1015,17 +1013,16 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
-      const { nanoid } = await import("nanoid");
-      const ext = input.fileName.split(".").pop() || "bin";
-      const fileKey = `coordination/${sheet.id}/${nanoid()}.${ext}`;
-      const buffer = Buffer.from(input.fileData, "base64");
-      const { url } = await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
+      const mime = input.mimeType || "image/png";
+      // Store base64 in DB (fileData column) for persistence across deploys
       return db.createCoordinationAttachment({
         itemId: input.itemId,
         type: "image",
-        url,
+        url: "db-stored", // placeholder — client constructs data URL from fileData+mimeType
         fileName: input.fileName,
-        fileKey,
+        fileKey: null,
+        fileData: input.fileData,
+        mimeType: mime,
       });
     }),
 
