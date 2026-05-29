@@ -204,11 +204,7 @@ export default function CoordinationSheet() {
     return map;
   }, [data?.attachments]);
 
-  // Helper: get displayable image URL from attachment (supports DB-stored base64 and legacy filesystem URLs)
-  const getImageUrl = (att: any): string => {
-    if (att.fileData && att.mimeType) return `data:${att.mimeType};base64,${att.fileData}`;
-    return att.url; // fallback for legacy or link attachments
-  };
+
 
   if (isLoading) {
     return (
@@ -558,6 +554,13 @@ function NewItemForm({
       </div>
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+// Get displayable image URL from attachment (supports DB-stored base64 and legacy filesystem URLs)
+function getImageUrl(att: any): string {
+  if (att.fileData && att.mimeType) return `data:${att.mimeType};base64,${att.fileData}`;
+  return att.url; // fallback for legacy or link attachments
 }
 
 // ── Collapsible Item Row ──────────────────────────────────────────────
