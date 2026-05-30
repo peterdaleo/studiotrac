@@ -158,6 +158,20 @@ export const systemRouter = router({
     }
   }),
 
+  diagCoordination: publicProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) return { error: "no db" };
+    try {
+      const subscribers = await db.execute(sql`SELECT id, email, phone, name, sheetId, lastNotifiedAt FROM coordination_subscribers ORDER BY id`);
+      const unnotified = await db.execute(sql`SELECT id, sheetId, authorName, content, isNotified, createdAt FROM coordination_items WHERE isNotified = 0 ORDER BY createdAt DESC LIMIT 20`);
+      const sheets = await db.execute(sql`SELECT id, projectName, token, clientToken, isActive FROM coordination_sheets ORDER BY id`);
+      return { subscribers, unnotified, sheets };
+    } catch (e: any) {
+      return { error: e?.message };
+    }
+  }),
+
   testEmail: publicProcedure.mutation(async () => {
     const { Resend } = await import("resend");
     const apiKey = process.env.RESEND_API_KEY;
