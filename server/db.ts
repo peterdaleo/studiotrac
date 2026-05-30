@@ -2417,3 +2417,24 @@ export async function updateSubscriberLastNotified(subscriberId: number): Promis
     throw error;
   }
 }
+
+// Returns all active coordination sheets that have at least one unnotified item
+export async function listSheetsWithUnnotifiedItems(): Promise<CoordinationSheet[]> {
+  try {
+    const db = await getDb();
+    // Get distinct sheetIds that have unnotified items
+    const rows = await db.selectDistinct({ sheetId: coordinationItems.sheetId })
+      .from(coordinationItems)
+      .where(eq(coordinationItems.isNotified, false));
+    if (rows.length === 0) return [];
+    const sheetIds = rows.map(r => r.sheetId);
+    return db.select().from(coordinationSheets)
+      .where(and(
+        inArray(coordinationSheets.id, sheetIds),
+        eq(coordinationSheets.isActive, true)
+      ));
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}

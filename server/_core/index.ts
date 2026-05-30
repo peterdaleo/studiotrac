@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe/webhooks";
+import { startCoordinationCron } from "../coordinationCron";
 import cors from "cors";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -110,3 +111,6 @@ async function startServer() {
 }
 
 startServer().catch(console.error);
+
+// Start background cron jobs
+startCoordinationCron();
