@@ -980,6 +980,9 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      // If the request came in via the client token, auto-set visibility = "client"
+      // so the item immediately appears in the client-filtered view.
+      const isClientToken = sheet.clientToken === input.token;
       const item = await db.createCoordinationItem({
         sheetId: sheet.id,
         parentId: input.parentId ?? null,
@@ -987,6 +990,7 @@ export const appRouter = router({
         authorType: input.authorType,
         content: input.content,
         isUrgent: input.isUrgent ?? false,
+        visibility: isClientToken ? "client" : "internal",
       });
       // Send email notifications (fire-and-forget)
       if (item) {
