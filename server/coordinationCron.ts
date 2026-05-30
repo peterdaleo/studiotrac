@@ -14,7 +14,18 @@ async function runCoordinationDigest() {
   try {
     const { Resend } = await import("resend");
     const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return;
+
+    // Twilio SMS client (lazy init)
+    const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+    const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
+    let twilioClient: import("twilio").Twilio | null = null;
+    if (twilioSid && twilioAuth) {
+      const { default: twilio } = await import("twilio");
+      twilioClient = twilio(twilioSid, twilioAuth);
+    }
+
+    if (!apiKey && !twilioClient) return;
 
     // Find all active sheets that have unnotified items
     const sheetsWithPending = await db.listSheetsWithUnnotifiedItems();
@@ -22,7 +33,7 @@ async function runCoordinationDigest() {
 
     console.log(`[CoordinationCron] Found ${sheetsWithPending.length} sheet(s) with pending notifications`);
 
-    const resend = new Resend(apiKey);
+    const resend = apiKey ? new Resend(apiKey) : null;
     const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
 
     for (const sheet of sheetsWithPending) {
@@ -43,6 +54,7 @@ async function runCoordinationDigest() {
       const subject = unnotifiedItems.length === 1
         ? `[${sheet.projectName}] New coordination item from ${unnotifiedItems[0].authorName}`
         : `[${sheet.projectName}] ${unnotifiedItems.length} new coordination updates`;
+      const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. View: ${sheetUrl}`;
 
       const itemsHtml = unnotifiedItems.map(item => `
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
@@ -74,22 +86,46 @@ async function runCoordinationDigest() {
 
       let anySent = false;
       for (const sub of eligibleSubscribers) {
-        try {
-          const result = await resend.emails.send({
-            from: "studioTrac <notifications@studiotrac.app>",
-            to: sub.email,
-            subject,
-            html,
-          });
-          if (result.error) {
-            console.error(`[CoordinationCron] Resend error for ${sub.email}:`, JSON.stringify(result.error));
-          } else {
-            console.log(`[CoordinationCron] Digest sent to ${sub.email} for sheet "${sheet.projectName}", id: ${result.data?.id}`);
-            await db.updateSubscriberLastNotified(sub.id);
-            anySent = true;
+        let subSent = false;
+
+        // Email
+        if (sub.email && resend) {
+          try {
+            const result = await resend.emails.send({
+              from: "studioTrac <notifications@studiotrac.app>",
+              to: sub.email,
+              subject,
+              html,
+            });
+            if (result.error) {
+              console.error(`[CoordinationCron] Resend error for ${sub.email}:`, JSON.stringify(result.error));
+            } else {
+              console.log(`[CoordinationCron] Email sent to ${sub.email} for sheet "${sheet.projectName}", id: ${result.data?.id}`);
+              subSent = true;
+            }
+          } catch (e) {
+            console.error(`[CoordinationCron] Exception sending email to ${sub.email}:`, e);
           }
-        } catch (e) {
-          console.error(`[CoordinationCron] Exception sending to ${sub.email}:`, e);
+        }
+
+        // SMS
+        if (sub.phone && twilioClient && twilioFrom) {
+          try {
+            const msg = await twilioClient.messages.create({
+              body: smsBody,
+              from: twilioFrom,
+              to: sub.phone,
+            });
+            console.log(`[CoordinationCron] SMS sent to ${sub.phone} for sheet "${sheet.projectName}", sid: ${msg.sid}`);
+            subSent = true;
+          } catch (e) {
+            console.error(`[CoordinationCron] Exception sending SMS to ${sub.phone}:`, e);
+          }
+        }
+
+        if (subSent) {
+          await db.updateSubscriberLastNotified(sub.id);
+          anySent = true;
         }
       }
 

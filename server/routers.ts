@@ -1079,26 +1079,30 @@ export const appRouter = router({
     // Public: subscribe to notifications
     subscribe: publicProcedure.input(z.object({
       token: z.string(),
-      email: z.string().email(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
       name: z.string().optional(),
     })).mutation(async ({ input }) => {
+      if (!input.email && !input.phone) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Email or phone number is required" });
+      }
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       return db.addCoordinationSubscriber({
         sheetId: sheet.id,
-        email: input.email.trim().toLowerCase(),
+        email: input.email ? input.email.trim().toLowerCase() : null,
+        phone: input.phone ? input.phone.trim() : null,
         name: input.name?.trim() || null,
       });
     }),
-
     // Public: unsubscribe
     unsubscribe: publicProcedure.input(z.object({
       token: z.string(),
-      email: z.string().email(),
+      emailOrPhone: z.string(),
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
-      await db.removeCoordinationSubscriber(sheet.id, input.email.trim().toLowerCase());
+      await db.removeCoordinationSubscriber(sheet.id, input.emailOrPhone.trim());
       return { success: true };
     }),
   }),
@@ -1174,29 +1178,65 @@ async function sendCoordinationNotification(
     </div>
   `;
 
+  // Twilio SMS client (lazy init)
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+  const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
+  let twilioClient: import("twilio").Twilio | null = null;
+  if (twilioSid && twilioAuth) {
+    const { default: twilio } = await import("twilio");
+    twilioClient = twilio(twilioSid, twilioAuth);
+  }
+
+  const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. View: ${sheetUrl}`;
+
   // Send to eligible subscribers
   let anySent = false;
   for (const sub of eligibleSubscribers) {
-    try {
-      const result = await resend.emails.send({
-        from: "studioTrac <notifications@studiotrac.app>",
-        to: sub.email,
-        subject,
-        html,
-      });
-      if (result.error) {
-        console.error(`[Coordination] Resend API error for ${sub.email}:`, JSON.stringify(result.error));
-      } else {
-        console.log(`[Coordination] Email sent to ${sub.email}, id: ${result.data?.id}`);
-        await db.updateSubscriberLastNotified(sub.id);
-        anySent = true;
+    let subSent = false;
+
+    // Email
+    if (sub.email) {
+      try {
+        const result = await resend.emails.send({
+          from: "studioTrac <notifications@studiotrac.app>",
+          to: sub.email,
+          subject,
+          html,
+        });
+        if (result.error) {
+          console.error(`[Coordination] Resend API error for ${sub.email}:`, JSON.stringify(result.error));
+        } else {
+          console.log(`[Coordination] Email sent to ${sub.email}, id: ${result.data?.id}`);
+          subSent = true;
+        }
+      } catch (e) {
+        console.error(`[Coordination] Exception sending email to ${sub.email}:`, e);
       }
-    } catch (e) {
-      console.error(`[Coordination] Exception sending notification to ${sub.email}:`, e);
+    }
+
+    // SMS
+    if (sub.phone && twilioClient && twilioFrom) {
+      try {
+        const msg = await twilioClient.messages.create({
+          body: smsBody,
+          from: twilioFrom,
+          to: sub.phone,
+        });
+        console.log(`[Coordination] SMS sent to ${sub.phone}, sid: ${msg.sid}`);
+        subSent = true;
+      } catch (e) {
+        console.error(`[Coordination] Exception sending SMS to ${sub.phone}:`, e);
+      }
+    }
+
+    if (subSent) {
+      await db.updateSubscriberLastNotified(sub.id);
+      anySent = true;
     }
   }
 
-  // Only mark items as notified if at least one email was successfully sent
+  // Only mark items as notified if at least one notification was successfully sent
   if (anySent) {
     await db.markCoordinationItemsAsNotified(unnotifiedItems.map(i => i.id));
   }

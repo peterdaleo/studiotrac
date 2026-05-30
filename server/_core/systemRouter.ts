@@ -129,15 +129,20 @@ export const systemRouter = router({
       await db.execute(sql`CREATE TABLE IF NOT EXISTS coordination_subscribers (
         id int AUTO_INCREMENT NOT NULL,
         sheetId int NOT NULL,
-        email varchar(255) NOT NULL,
+        email varchar(255),
+        phone varchar(32),
         name varchar(255),
         lastNotifiedAt timestamp NULL,
         createdAt timestamp NOT NULL DEFAULT (now()),
-        CONSTRAINT coordination_subscribers_id PRIMARY KEY(id),
-        CONSTRAINT coordination_subscribers_sheet_email_unique UNIQUE(sheetId, email)
+        CONSTRAINT coordination_subscribers_id PRIMARY KEY(id)
       )`);
       results.push("coordination_subscribers table ensured");
       await db.execute(sql`ALTER TABLE coordination_subscribers ADD COLUMN IF NOT EXISTS lastNotifiedAt timestamp NULL`).catch(() => {});
+      // Add phone column for SMS notifications
+      await db.execute(sql`ALTER TABLE coordination_subscribers ADD COLUMN IF NOT EXISTS phone varchar(32) NULL`).catch(() => {});
+      // Make email nullable (subscribers can use phone-only)
+      await db.execute(sql`ALTER TABLE coordination_subscribers MODIFY COLUMN email varchar(255) NULL`).catch(() => {});
+      results.push("coordination_subscribers phone column ensured");
 
       // Add clientToken to coordination_sheets for client-only view links
       await db.execute(sql`ALTER TABLE coordination_sheets ADD COLUMN clientToken varchar(128)`).catch(() => {});

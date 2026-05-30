@@ -2361,13 +2361,23 @@ export async function listCoordinationSubscribers(sheetId: number): Promise<Coor
 export async function addCoordinationSubscriber(data: InsertCoordinationSubscriber): Promise<CoordinationSubscriber | null> {
   try {
     const db = await getDb();
-    // Upsert: if already subscribed, just return existing
-    const [existing] = await db.select().from(coordinationSubscribers)
-      .where(and(
-        eq(coordinationSubscribers.sheetId, data.sheetId),
-        eq(coordinationSubscribers.email, data.email),
-      ));
-    if (existing) return existing;
+    // Upsert: if already subscribed by email or phone, just return existing
+    if (data.email) {
+      const [existing] = await db.select().from(coordinationSubscribers)
+        .where(and(
+          eq(coordinationSubscribers.sheetId, data.sheetId),
+          eq(coordinationSubscribers.email, data.email),
+        ));
+      if (existing) return existing;
+    }
+    if (data.phone) {
+      const [existing] = await db.select().from(coordinationSubscribers)
+        .where(and(
+          eq(coordinationSubscribers.sheetId, data.sheetId),
+          eq(coordinationSubscribers.phone, data.phone),
+        ));
+      if (existing) return existing;
+    }
     const [result] = await db.insert(coordinationSubscribers).values(data).$returningId();
     const [sub] = await db.select().from(coordinationSubscribers).where(eq(coordinationSubscribers.id, result.id));
     return sub ?? null;
@@ -2377,14 +2387,24 @@ export async function addCoordinationSubscriber(data: InsertCoordinationSubscrib
   }
 }
 
-export async function removeCoordinationSubscriber(sheetId: number, email: string): Promise<void> {
+export async function removeCoordinationSubscriber(sheetId: number, emailOrPhone: string): Promise<void> {
   try {
     const db = await getDb();
-    await db.delete(coordinationSubscribers)
-      .where(and(
-        eq(coordinationSubscribers.sheetId, sheetId),
-        eq(coordinationSubscribers.email, email),
-      ));
+    // Try to delete by email first, then by phone
+    const isPhone = emailOrPhone.startsWith("+") || /^\d/.test(emailOrPhone);
+    if (isPhone) {
+      await db.delete(coordinationSubscribers)
+        .where(and(
+          eq(coordinationSubscribers.sheetId, sheetId),
+          eq(coordinationSubscribers.phone, emailOrPhone),
+        ));
+    } else {
+      await db.delete(coordinationSubscribers)
+        .where(and(
+          eq(coordinationSubscribers.sheetId, sheetId),
+          eq(coordinationSubscribers.email, emailOrPhone),
+        ));
+    }
   } catch (error) {
     if (isMissingTableError(error)) return;
     throw error;

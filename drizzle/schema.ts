@@ -367,7 +367,8 @@ export type InsertCoordinationAttachment = typeof coordinationAttachments.$infer
 export const coordinationSubscribers = mysqlTable("coordination_subscribers", {
   id: int("id").autoincrement().primaryKey(),
   sheetId: int("sheetId").notNull(),
-  email: varchar("email", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 32 }),
   name: varchar("name", { length: 255 }),
   lastNotifiedAt: timestamp("lastNotifiedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

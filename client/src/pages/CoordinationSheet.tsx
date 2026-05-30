@@ -45,6 +45,7 @@ import {
   BellOff,
   Eye,
   EyeOff,
+  Phone,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
@@ -283,8 +284,8 @@ export default function CoordinationSheet() {
                     <SubscribeForm
                       token={effectiveToken}
                       subscribers={data.subscribers}
-                      onSubscribe={(email, name) => subscribe.mutate({ token: effectiveToken, email, name })}
-                      onUnsubscribe={(email) => unsubscribe.mutate({ token: effectiveToken, email })}
+                      onSubscribe={(email, phone, name) => subscribe.mutate({ token: effectiveToken, email: email || undefined, phone: phone || undefined, name })}
+                      onUnsubscribe={(emailOrPhone) => unsubscribe.mutate({ token: effectiveToken, emailOrPhone })}
                       isPending={subscribe.isPending || unsubscribe.isPending}
                     />
                   </DialogContent>
@@ -1142,41 +1143,53 @@ function SubscribeForm({
 }: {
   token: string;
   subscribers: any[];
-  onSubscribe: (email: string, name?: string) => void;
-  onUnsubscribe: (email: string) => void;
+  onSubscribe: (email: string, phone: string, name?: string) => void;
+  onUnsubscribe: (emailOrPhone: string) => void;
   isPending: boolean;
 }) {
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
+  const canSubmit = (email.trim() || phone.trim()) && !isPending;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Enter your email to receive notifications when new items or replies are posted.
+        Enter your email and/or phone number to receive notifications when new items or replies are posted.
       </p>
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Input
-          placeholder="your@email.com"
+          placeholder="your@email.com (optional)"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="flex-1"
+        />
+        <Input
+          placeholder="+1 555 000 0000 (optional)"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
         />
         <Input
           placeholder="Name (optional)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="flex-1"
+          className="sm:col-span-2"
         />
-        <Button
-          size="sm"
-          disabled={!email.trim() || isPending}
-          onClick={() => { onSubscribe(email.trim(), name.trim() || undefined); setEmail(""); setName(""); }}
-          className="gap-1.5"
-        >
-          <Bell className="h-3.5 w-3.5" /> Subscribe
-        </Button>
       </div>
+      <Button
+        size="sm"
+        disabled={!canSubmit}
+        onClick={() => {
+          onSubscribe(email.trim(), phone.trim(), name.trim() || undefined);
+          setEmail("");
+          setPhone("");
+          setName("");
+        }}
+        className="gap-1.5 w-full"
+      >
+        <Bell className="h-3.5 w-3.5" /> Subscribe
+      </Button>
       {subscribers.length > 0 && (
         <>
           <Separator />
@@ -1185,15 +1198,22 @@ function SubscribeForm({
             {subscribers.map((sub: any) => (
               <div key={sub.id} className="flex items-center justify-between gap-2 text-sm py-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <span className="truncate">{sub.email}</span>
+                  {sub.email
+                    ? <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    : <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                  <span className="truncate">{sub.email || sub.phone}</span>
+                  {sub.phone && sub.email && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                      <Phone className="h-3 w-3" />{sub.phone}
+                    </span>
+                  )}
                   {sub.name && <span className="text-xs text-muted-foreground">({sub.name})</span>}
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 text-muted-foreground hover:text-red-600 shrink-0"
-                  onClick={() => onUnsubscribe(sub.email)}
+                  onClick={() => onUnsubscribe(sub.email || sub.phone)}
                   disabled={isPending}
                 >
                   <BellOff className="h-3 w-3" />
