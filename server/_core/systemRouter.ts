@@ -160,7 +160,7 @@ export const systemRouter = router({
     try {
       const resend = new Resend(apiKey);
       const result = await resend.emails.send({
-        from: "studioTrac <invites@studiotrac.app>",
+        from: "studioTrac <notifications@studiotrac.app>",
         to: "peter.daleo@gmail.com",
         subject: "[StudioTrac] Coordination Sheet Email Test",
         html: "<p>This is a test email from the StudioTrac coordination sheet notification system. If you received this, email notifications are working correctly.</p>",

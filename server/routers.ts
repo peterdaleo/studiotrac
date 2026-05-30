@@ -1175,7 +1175,7 @@ async function sendCoordinationNotification(
   for (const sub of eligibleSubscribers) {
     try {
       const result = await resend.emails.send({
-        from: "studioTrac <invites@studiotrac.app>",
+        from: "studioTrac <notifications@studiotrac.app>",
         to: sub.email,
         subject,
         html,
