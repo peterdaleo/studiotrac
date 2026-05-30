@@ -27,12 +27,17 @@ export const systemRouter = router({
       return { error: e?.message };
     }
   }),
-  runMigration: publicProcedure.mutation(async () => {
+  runMigration: publicProcedure.input(z.object({ sql: z.string().optional() }).optional()).mutation(async ({ input }) => {
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) return { error: "no db" };
     const results: string[] = [];
     try {
+      if (input?.sql) {
+        const res = await db.execute(sql.raw(input.sql));
+        return { success: true, results: [JSON.stringify(res)] };
+      }
+
       // Create invoices table if it doesn't exist (from migration 0004)
       await db.execute(sql`CREATE TABLE IF NOT EXISTS invoices (
         id int AUTO_INCREMENT NOT NULL,
