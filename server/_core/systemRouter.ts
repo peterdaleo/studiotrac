@@ -31,7 +31,7 @@ export const systemRouter = router({
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) return { error: "no db" };
-    const results: string[] = [];
+    const results: string[] = ["v2"];
     try {
       if (input?.sql) {
         const res = await db.execute(sql.raw(input.sql));
