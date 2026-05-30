@@ -289,12 +289,10 @@ export default function CoordinationSheet() {
                   />
                 </DialogContent>
               </Dialog>
-              {!isClientView && (
-                <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">New Item</span>
-                </Button>
-              )}
+              <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">New Item</span>
+              </Button>
             </div>
           </div>
         </div>
