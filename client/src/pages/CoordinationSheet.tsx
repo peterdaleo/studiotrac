@@ -269,28 +269,26 @@ export default function CoordinationSheet() {
               <p className="text-xs text-muted-foreground">{isClientView ? "Client View" : "Coordination Sheet"}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {!isClientView && (
-                <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5">
-                      <Bell className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Notify</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Email Notifications</DialogTitle>
-                    </DialogHeader>
-                    <SubscribeForm
-                      token={effectiveToken}
-                      subscribers={data.subscribers}
-                      onSubscribe={(email, phone, name) => subscribe.mutate({ token: effectiveToken, email: email || undefined, phone: phone || undefined, name })}
-                      onUnsubscribe={(emailOrPhone) => unsubscribe.mutate({ token: effectiveToken, emailOrPhone })}
-                      isPending={subscribe.isPending || unsubscribe.isPending}
-                    />
-                  </DialogContent>
-                </Dialog>
-              )}
+              <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Bell className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Notify</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Notifications</DialogTitle>
+                  </DialogHeader>
+                  <SubscribeForm
+                    token={effectiveToken}
+                    subscribers={data.subscribers}
+                    onSubscribe={(email, phone, name) => subscribe.mutate({ token: effectiveToken, email: email || undefined, phone: phone || undefined, name })}
+                    onUnsubscribe={(emailOrPhone) => unsubscribe.mutate({ token: effectiveToken, emailOrPhone })}
+                    isPending={subscribe.isPending || unsubscribe.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
               {!isClientView && (
                 <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
                   <Plus className="h-3.5 w-3.5" />
