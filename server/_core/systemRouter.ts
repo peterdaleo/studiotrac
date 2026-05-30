@@ -152,4 +152,27 @@ export const systemRouter = router({
       return { error: e?.message, results };
     }
   }),
+
+  testEmail: publicProcedure.mutation(async () => {
+    const { Resend } = await import("resend");
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) return { error: "RESEND_API_KEY is not set", apiKeySet: false };
+    try {
+      const resend = new Resend(apiKey);
+      const result = await resend.emails.send({
+        from: "studioTrac <invites@studiotrac.app>",
+        to: "peter.daleo@gmail.com",
+        subject: "[StudioTrac] Coordination Sheet Email Test",
+        html: "<p>This is a test email from the StudioTrac coordination sheet notification system. If you received this, email notifications are working correctly.</p>",
+      });
+      return { 
+        apiKeySet: true, 
+        apiKeyPrefix: apiKey.substring(0, 8) + "...",
+        result: result.data ? { id: result.data.id } : null,
+        error: result.error ? JSON.stringify(result.error) : null
+      };
+    } catch (e: any) {
+      return { apiKeySet: true, error: e?.message, stack: e?.stack?.substring(0, 500) };
+    }
+  }),
 });
