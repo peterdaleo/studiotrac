@@ -98,6 +98,9 @@ export default function CoordinationSheet() {
   const token = params.token;
   const clientToken = params.clientToken;
   const isClientView = !!clientToken;
+  // Use whichever token is available — clientToken on /coordination/client/:clientToken route,
+  // main token on /coordination/:token route. Server accepts both via getCoordinationSheetByAnyToken.
+  const effectiveToken = token ?? clientToken ?? "";
   const [showAddressed, setShowAddressed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
@@ -278,10 +281,10 @@ export default function CoordinationSheet() {
                       <DialogTitle>Email Notifications</DialogTitle>
                     </DialogHeader>
                     <SubscribeForm
-                      token={token!}
+                      token={effectiveToken}
                       subscribers={data.subscribers}
-                      onSubscribe={(email, name) => subscribe.mutate({ token: token!, email, name })}
-                      onUnsubscribe={(email) => unsubscribe.mutate({ token: token!, email })}
+                      onSubscribe={(email, name) => subscribe.mutate({ token: effectiveToken, email, name })}
+                      onUnsubscribe={(email) => unsubscribe.mutate({ token: effectiveToken, email })}
                       isPending={subscribe.isPending || unsubscribe.isPending}
                     />
                   </DialogContent>
@@ -377,7 +380,7 @@ export default function CoordinationSheet() {
             item={item}
             replies={repliesByParent.get(item.id) ?? []}
             attachments={attachmentsByItem}
-            token={token!}
+            token={effectiveToken}
             savedName={savedName}
             savedType={savedType}
             replyingTo={replyingTo}
@@ -413,7 +416,7 @@ export default function CoordinationSheet() {
                     item={item}
                     replies={repliesByParent.get(item.id) ?? []}
                     attachments={attachmentsByItem}
-                    token={token!}
+                    token={effectiveToken}
                     savedName={savedName}
                     savedType={savedType}
                     replyingTo={replyingTo}
@@ -442,7 +445,7 @@ export default function CoordinationSheet() {
             <DialogTitle>New Coordination Item</DialogTitle>
           </DialogHeader>
           <NewItemForm
-            token={token!}
+            token={effectiveToken}
             savedName={savedName}
             savedType={savedType}
             onSubmit={(data) => addItem.mutate(data)}

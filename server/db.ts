@@ -2191,6 +2191,20 @@ export async function getCoordinationSheetByClientToken(clientToken: string): Pr
   }
 }
 
+// Look up a sheet by either the main token or the client token (for public mutations)
+export async function getCoordinationSheetByAnyToken(token: string): Promise<CoordinationSheet | null> {
+  try {
+    const db = await getDb();
+    const [byToken] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.token, token));
+    if (byToken) return byToken;
+    const [byClientToken] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.clientToken, token));
+    return byClientToken ?? null;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
 export async function getCoordinationSheetByProject(projectId: number): Promise<CoordinationSheet | null> {
   try {
     const db = await getDb();

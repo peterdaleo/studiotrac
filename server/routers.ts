@@ -978,7 +978,7 @@ export const appRouter = router({
       content: z.string().min(1),
       isUrgent: z.boolean().optional(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       const item = await db.createCoordinationItem({
         sheetId: sheet.id,
@@ -1004,7 +1004,7 @@ export const appRouter = router({
       isAddressed: z.boolean().optional(),
       visibility: z.enum(["internal", "client"]).optional(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       const { token, itemId, ...data } = input;
       return db.updateCoordinationItem(itemId, data);
@@ -1015,7 +1015,7 @@ export const appRouter = router({
       token: z.string(),
       itemId: z.number(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await db.deleteCoordinationItem(input.itemId);
       return { success: true };
@@ -1029,7 +1029,7 @@ export const appRouter = router({
       fileData: z.string(), // base64
       mimeType: z.string().optional(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       const mime = input.mimeType || "image/png";
       // Store base64 in DB (fileData column) for persistence across deploys
@@ -1051,7 +1051,7 @@ export const appRouter = router({
       url: z.string().url(),
       fileName: z.string().optional(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       return db.createCoordinationAttachment({
         itemId: input.itemId,
@@ -1066,7 +1066,7 @@ export const appRouter = router({
       token: z.string(),
       attachmentId: z.number(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await db.deleteCoordinationAttachment(input.attachmentId);
       return { success: true };
@@ -1078,7 +1078,7 @@ export const appRouter = router({
       email: z.string().email(),
       name: z.string().optional(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       return db.addCoordinationSubscriber({
         sheetId: sheet.id,
@@ -1092,7 +1092,7 @@ export const appRouter = router({
       token: z.string(),
       email: z.string().email(),
     })).mutation(async ({ input }) => {
-      const sheet = await db.getCoordinationSheetByToken(input.token);
+      const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await db.removeCoordinationSubscriber(sheet.id, input.email.trim().toLowerCase());
       return { success: true };
