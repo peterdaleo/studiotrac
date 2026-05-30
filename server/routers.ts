@@ -1171,22 +1171,31 @@ async function sendCoordinationNotification(
   `;
 
   // Send to eligible subscribers
+  let anySent = false;
   for (const sub of eligibleSubscribers) {
     try {
-      await resend.emails.send({
-        from: "studioTrac <notifications@studiotrac.app>",
+      const result = await resend.emails.send({
+        from: "studioTrac <invites@studiotrac.app>",
         to: sub.email,
         subject,
         html,
       });
-      await db.updateSubscriberLastNotified(sub.id);
+      if (result.error) {
+        console.error(`[Coordination] Resend API error for ${sub.email}:`, JSON.stringify(result.error));
+      } else {
+        console.log(`[Coordination] Email sent to ${sub.email}, id: ${result.data?.id}`);
+        await db.updateSubscriberLastNotified(sub.id);
+        anySent = true;
+      }
     } catch (e) {
-      console.warn(`[Coordination] Failed to send notification to ${sub.email}:`, e);
+      console.error(`[Coordination] Exception sending notification to ${sub.email}:`, e);
     }
   }
 
-  // Mark items as notified
-  await db.markCoordinationItemsAsNotified(unnotifiedItems.map(i => i.id));
+  // Only mark items as notified if at least one email was successfully sent
+  if (anySent) {
+    await db.markCoordinationItemsAsNotified(unnotifiedItems.map(i => i.id));
+  }
 }
 
 export type AppRouter = typeof appRouter;
