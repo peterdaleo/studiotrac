@@ -4,32 +4,54 @@
  * Runs every 30 minutes to catch any unnotified coordination sheet items
  * that were missed by the on-post trigger (e.g. items posted within the
  * 30-minute throttle window that never got a follow-up trigger).
+ *
+ * Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
  */
 import cron from "node-cron";
-import { Resend } from "resend";
-import twilio from "twilio";
 import * as db from "./db";
 
 const THIRTY_MINUTES = 30 * 60 * 1000;
 
+// Lazy-cached clients — only initialized when first notification fires
+let _resend: any = null;
+function getResend() {
+  if (!_resend) {
+    const { Resend } = require("resend");
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
+
+let _twilioClient: any = null;
+function getTwilioClient() {
+  if (!_twilioClient) {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (accountSid && authToken) {
+      const twilio = require("twilio");
+      _twilioClient = twilio(accountSid, authToken);
+    }
+  }
+  return _twilioClient;
+}
+
 async function runCoordinationDigest() {
   try {
     const apiKey = process.env.RESEND_API_KEY;
-
-    // Twilio SMS client
-    const twilioSid = process.env.TWILIO_ACCOUNT_SID;
-    const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
     const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
-    const twilioClient = (twilioSid && twilioAuth) ? twilio(twilioSid, twilioAuth) : null;
+    const hasTwilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && twilioFrom);
 
-    if (!apiKey && !twilioClient) return;
+    if (!apiKey && !hasTwilio) return;
 
     // Find all active sheets that have unnotified items
     const sheetsWithPending = await db.listSheetsWithUnnotifiedItems();
     if (sheetsWithPending.length === 0) return;
     console.log(`[CoordinationCron] Found ${sheetsWithPending.length} sheet(s) with pending notifications`);
-    const resend = apiKey ? new Resend(apiKey) : null;
+
+    const resend = apiKey ? getResend() : null;
+    const twilioClient = hasTwilio ? getTwilioClient() : null;
     const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
+
     for (const sheet of sheetsWithPending) {
       const subscribers = await db.listCoordinationSubscribers(sheet.id);
       if (subscribers.length === 0) continue;

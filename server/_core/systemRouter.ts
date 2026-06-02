@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "./trpc";
 import { sql } from "drizzle-orm";
-import { Resend } from "resend";
+// Resend lazy-loaded on first use to avoid OOM on Railway startup
 
 export const systemRouter = router({
   health: publicProcedure
@@ -163,6 +163,7 @@ export const systemRouter = router({
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { error: "RESEND_API_KEY is not set", apiKeySet: false };
     try {
+      const { Resend } = require("resend");
       const resend = new Resend(apiKey);
       const result = await resend.emails.send({
         from: "studioTrac <notifications@studiotrac.app>",

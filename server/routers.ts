@@ -14,8 +14,28 @@ import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
-import { Resend } from "resend";
-import twilio from "twilio";
+// Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
+// The 20MB Twilio package loaded statically was causing the container to crash within ~14s.
+let _resend: import("resend").Resend | null = null;
+function getResend() {
+  if (!_resend) {
+    const { Resend } = require("resend");
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend!;
+}
+let _twilioClient: ReturnType<typeof import("twilio").default> | null = null;
+function getTwilioClient() {
+  if (!_twilioClient) {
+    const twilio = require("twilio");
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (accountSid && authToken) {
+      _twilioClient = twilio(accountSid, authToken);
+    }
+  }
+  return _twilioClient;
+}
 
 /**
  * Helper: resolve the current org's plan limits.
@@ -1142,7 +1162,7 @@ async function sendCoordinationNotification(
   const unnotifiedItems = await db.listUnnotifiedCoordinationItems(sheet.id);
   if (unnotifiedItems.length === 0) return;
 
-  const resend = new Resend(apiKey);
+  const resend = getResend();
   const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
   const sheetUrl = `${baseUrl}/coordination/${sheet.token}`;
   
@@ -1178,11 +1198,9 @@ async function sendCoordinationNotification(
     </div>
   `;
 
-  // Twilio SMS client
-  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
-  const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+  // Twilio SMS client (lazy-cached to avoid OOM on startup)
   const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
-  const twilioClient = (twilioSid && twilioAuth) ? twilio(twilioSid, twilioAuth) : null;
+  const twilioClient = getTwilioClient();
 
   const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. View: ${sheetUrl}`;
 
