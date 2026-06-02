@@ -69,6 +69,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import {
@@ -126,6 +128,7 @@ export default function ProjectDetail() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState<number | null>(null);
   const [expandedConsultant, setExpandedConsultant] = useState<number | null>(null);
   const [taskPrioritySort, setTaskPrioritySort] = useState<"none" | "asc" | "desc">("none");
+  const [completedTasksCollapsed, setCompletedTasksCollapsed] = useState(false);
   const [editingProjectHeader, setEditingProjectHeader] = useState(false);
   const [editHeaderName, setEditHeaderName] = useState("");
   const [editHeaderClient, setEditHeaderClient] = useState("");
@@ -942,11 +945,15 @@ export default function ProjectDetail() {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {[...(projectTasks || [])].sort((a, b) => {
-                    if (taskPrioritySort === "asc") return a.priority - b.priority;
-                    if (taskPrioritySort === "desc") return b.priority - a.priority;
-                    return 0;
-                  }).map((task) => {
+                  {(() => {
+                    const sorted = [...(projectTasks || [])].sort((a, b) => {
+                      if (taskPrioritySort === "asc") return a.priority - b.priority;
+                      if (taskPrioritySort === "desc") return b.priority - a.priority;
+                      return 0;
+                    });
+                    const activeTasks = sorted.filter(t => t.status !== "done");
+                    const doneTasks = sorted.filter(t => t.status === "done");
+                    const renderTask = (task: typeof sorted[0]) => {
                     const isOverdue = task.deadline && isDeadlineOverdueUTC(task.deadline) && task.status !== "done";
                     const isEditing = editingTaskId === task.id;
 
@@ -1104,7 +1111,29 @@ export default function ProjectDetail() {
                         </div>
                       </div>
                     );
-                  })}
+                    }; // end renderTask
+                    return (
+                      <>
+                        {activeTasks.map(renderTask)}
+                        {doneTasks.length > 0 && (
+                          <>
+                            <button
+                              onClick={() => setCompletedTasksCollapsed(c => !c)}
+                              className="w-full flex items-center gap-2 px-6 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                            >
+                              {completedTasksCollapsed ? (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                              Completed ({doneTasks.length})
+                            </button>
+                            {!completedTasksCollapsed && doneTasks.map(renderTask)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </CardContent>
