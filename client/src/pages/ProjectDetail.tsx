@@ -977,6 +977,16 @@ export default function ProjectDetail() {
                             className="font-medium"
                             placeholder="Task title"
                           />
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase">Description</Label>
+                            <Textarea
+                              value={editTaskData.description}
+                              onChange={(e) => setEditTaskData({ ...editTaskData, description: e.target.value })}
+                              placeholder="Task details..."
+                              rows={2}
+                              className="text-sm"
+                            />
+                          </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground uppercase">Assignee</Label>
@@ -1051,6 +1061,9 @@ export default function ProjectDetail() {
                           <p className={`text-sm font-medium ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
                             {task.title}
                           </p>
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 break-words whitespace-pre-wrap">{task.description}</p>
+                          )}
                           <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <User className="h-3 w-3" />
