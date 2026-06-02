@@ -1,5 +1,6 @@
 import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { createPool } from "mysql2";
 import {
   InsertUser, users,
   organizations, InsertOrganization, Organization,
@@ -38,7 +39,16 @@ function isMissingTableError(error: unknown) {
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Use an explicit pool with higher connectionLimit (default is 10 which
+      // causes queuing when multiple concurrent queries are in-flight).
+      const pool = createPool({
+        uri: process.env.DATABASE_URL,
+        connectionLimit: 25,
+        waitForConnections: true,
+        queueLimit: 0,
+        supportBigNumbers: true,
+      });
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
