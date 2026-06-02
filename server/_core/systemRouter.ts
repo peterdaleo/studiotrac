@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "./trpc";
 import { sql } from "drizzle-orm";
+import { Resend } from "resend";
 
 export const systemRouter = router({
   health: publicProcedure
@@ -159,7 +160,6 @@ export const systemRouter = router({
   }),
 
   testEmail: publicProcedure.mutation(async () => {
-    const { Resend } = await import("resend");
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { error: "RESEND_API_KEY is not set", apiKeySet: false };
     try {

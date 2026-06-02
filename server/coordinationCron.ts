@@ -6,56 +6,46 @@
  * 30-minute throttle window that never got a follow-up trigger).
  */
 import cron from "node-cron";
+import { Resend } from "resend";
+import twilio from "twilio";
 import * as db from "./db";
 
 const THIRTY_MINUTES = 30 * 60 * 1000;
 
 async function runCoordinationDigest() {
   try {
-    const { Resend } = await import("resend");
     const apiKey = process.env.RESEND_API_KEY;
 
-    // Twilio SMS client (lazy init)
+    // Twilio SMS client
     const twilioSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
     const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
-    let twilioClient: import("twilio").Twilio | null = null;
-    if (twilioSid && twilioAuth) {
-      const { default: twilio } = await import("twilio");
-      twilioClient = twilio(twilioSid, twilioAuth);
-    }
+    const twilioClient = (twilioSid && twilioAuth) ? twilio(twilioSid, twilioAuth) : null;
 
     if (!apiKey && !twilioClient) return;
 
     // Find all active sheets that have unnotified items
     const sheetsWithPending = await db.listSheetsWithUnnotifiedItems();
     if (sheetsWithPending.length === 0) return;
-
     console.log(`[CoordinationCron] Found ${sheetsWithPending.length} sheet(s) with pending notifications`);
-
     const resend = apiKey ? new Resend(apiKey) : null;
     const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
-
     for (const sheet of sheetsWithPending) {
       const subscribers = await db.listCoordinationSubscribers(sheet.id);
       if (subscribers.length === 0) continue;
-
       const now = new Date();
       const eligibleSubscribers = subscribers.filter(sub => {
         if (!sub.lastNotifiedAt) return true;
         return (now.getTime() - new Date(sub.lastNotifiedAt).getTime()) > THIRTY_MINUTES;
       });
       if (eligibleSubscribers.length === 0) continue;
-
       const unnotifiedItems = await db.listUnnotifiedCoordinationItems(sheet.id);
       if (unnotifiedItems.length === 0) continue;
-
       const sheetUrl = `${baseUrl}/coordination/${sheet.token}`;
       const subject = unnotifiedItems.length === 1
         ? `[${sheet.projectName}] New coordination item from ${unnotifiedItems[0].authorName}`
         : `[${sheet.projectName}] ${unnotifiedItems.length} new coordination updates`;
       const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. View: ${sheetUrl}`;
-
       const itemsHtml = unnotifiedItems.map(item => `
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
           <p style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #0f172a;">
@@ -66,7 +56,6 @@ async function runCoordinationDigest() {
           <p style="margin: 0; font-size: 14px; color: #334155; white-space: pre-wrap;">${item.content.length > 300 ? item.content.slice(0, 300) + "..." : item.content}</p>
         </div>
       `).join("");
-
       const html = `
         <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
@@ -83,11 +72,9 @@ async function runCoordinationDigest() {
           </div>
         </div>
       `;
-
       let anySent = false;
       for (const sub of eligibleSubscribers) {
         let subSent = false;
-
         // Email
         if (sub.email && resend) {
           try {
@@ -107,28 +94,27 @@ async function runCoordinationDigest() {
             console.error(`[CoordinationCron] Exception sending email to ${sub.email}:`, e);
           }
         }
-
-        // SMS
+        // SMS (with 10s timeout to prevent long hangs on Twilio API failures)
         if (sub.phone && twilioClient && twilioFrom) {
           try {
-            const msg = await twilioClient.messages.create({
-              body: smsBody,
-              from: twilioFrom,
-              to: sub.phone,
-            });
+            const smsTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Twilio SMS timeout after 10s")), 10_000)
+            );
+            const msg = await Promise.race([
+              twilioClient.messages.create({ body: smsBody, from: twilioFrom, to: sub.phone }),
+              smsTimeout,
+            ]);
             console.log(`[CoordinationCron] SMS sent to ${sub.phone} for sheet "${sheet.projectName}", sid: ${msg.sid}`);
             subSent = true;
-          } catch (e) {
-            console.error(`[CoordinationCron] Exception sending SMS to ${sub.phone}:`, e);
+          } catch (e: any) {
+            console.error(`[CoordinationCron] SMS failed for ${sub.phone}: ${e?.message ?? e}`);
           }
         }
-
         if (subSent) {
           await db.updateSubscriberLastNotified(sub.id);
           anySent = true;
         }
       }
-
       if (anySent) {
         await db.markCoordinationItemsAsNotified(unnotifiedItems.map(i => i.id));
       }

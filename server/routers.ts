@@ -14,6 +14,8 @@ import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
+import { Resend } from "resend";
+import twilio from "twilio";
 
 /**
  * Helper: resolve the current org's plan limits.
@@ -923,7 +925,6 @@ export const appRouter = router({
       projectId: z.number(),
       projectName: z.string().min(1),
     })).mutation(async ({ input, ctx }) => {
-      const { nanoid } = await import("nanoid");
       const token = nanoid(24);
       const clientToken = nanoid(24);
       return db.createCoordinationSheet({
@@ -1120,7 +1121,6 @@ async function sendCoordinationNotification(
   _item: any,
   _type: "new" | "reply"
 ) {
-  const { Resend } = await import("resend");
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
 
@@ -1178,15 +1178,11 @@ async function sendCoordinationNotification(
     </div>
   `;
 
-  // Twilio SMS client (lazy init)
+  // Twilio SMS client
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
   const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
-  let twilioClient: import("twilio").Twilio | null = null;
-  if (twilioSid && twilioAuth) {
-    const { default: twilio } = await import("twilio");
-    twilioClient = twilio(twilioSid, twilioAuth);
-  }
+  const twilioClient = (twilioSid && twilioAuth) ? twilio(twilioSid, twilioAuth) : null;
 
   const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. View: ${sheetUrl}`;
 
@@ -1215,18 +1211,20 @@ async function sendCoordinationNotification(
       }
     }
 
-    // SMS
+    // SMS (with 10s timeout to prevent long hangs on Twilio API failures)
     if (sub.phone && twilioClient && twilioFrom) {
       try {
-        const msg = await twilioClient.messages.create({
-          body: smsBody,
-          from: twilioFrom,
-          to: sub.phone,
-        });
+        const smsTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Twilio SMS timeout after 10s")), 10_000)
+        );
+        const msg = await Promise.race([
+          twilioClient.messages.create({ body: smsBody, from: twilioFrom, to: sub.phone }),
+          smsTimeout,
+        ]);
         console.log(`[Coordination] SMS sent to ${sub.phone}, sid: ${msg.sid}`);
         subSent = true;
-      } catch (e) {
-        console.error(`[Coordination] Exception sending SMS to ${sub.phone}:`, e);
+      } catch (e: any) {
+        console.error(`[Coordination] SMS failed for ${sub.phone}: ${e?.message ?? e}`);
       }
     }
 
