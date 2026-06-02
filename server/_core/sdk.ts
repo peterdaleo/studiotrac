@@ -83,11 +83,8 @@ class AuthService {
       throw ForbiddenError("User not found");
     }
 
-    // Update last signed in
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: new Date(),
-    });
+    // Note: lastSignedIn is updated at login time in oauth.ts, not on every request.
+    // Updating it here would add an extra DB round-trip to every API call.
 
     return user;
   }
