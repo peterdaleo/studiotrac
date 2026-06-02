@@ -226,8 +226,8 @@ export default function CalendarView() {
   const { data: absences, isLoading: absencesLoading } = trpc.teamAbsences.list.useQuery(absenceQueryInput);
 
   const createAbsence = trpc.teamAbsences.create.useMutation({
-    onSuccess: async () => {
-      await utils.teamAbsences.list.invalidate();
+    onSuccess: () => {
+      utils.teamAbsences.list.invalidate(); // fire-and-forget
       toast.success("Absence added");
       setAbsenceDialogOpen(false);
       setEditingAbsenceId(null);
@@ -237,8 +237,8 @@ export default function CalendarView() {
   });
 
   const updateAbsence = trpc.teamAbsences.update.useMutation({
-    onSuccess: async () => {
-      await utils.teamAbsences.list.invalidate();
+    onSuccess: () => {
+      utils.teamAbsences.list.invalidate(); // fire-and-forget
       toast.success("Absence updated");
       setAbsenceDialogOpen(false);
       setEditingAbsenceId(null);
@@ -248,8 +248,8 @@ export default function CalendarView() {
   });
 
   const deleteAbsence = trpc.teamAbsences.delete.useMutation({
-    onSuccess: async () => {
-      await utils.teamAbsences.list.invalidate();
+    onSuccess: () => {
+      utils.teamAbsences.list.invalidate(); // fire-and-forget
       toast.success("Absence deleted");
     },
     onError: (error) => toast.error(error.message || "Failed to delete absence"),

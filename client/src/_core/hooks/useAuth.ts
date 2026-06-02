@@ -37,7 +37,7 @@ export function useAuth(options?: UseAuthOptions) {
       throw error;
     } finally {
       utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
+      utils.auth.me.invalidate(); // fire-and-forget — cache is already cleared above
     }
   }, [logoutMutation, utils]);
 

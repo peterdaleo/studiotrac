@@ -149,39 +149,31 @@ export default function TimeTracking() {
   };
 
   const startTimer = trpc.timeEntries.startTimer.useMutation({
-    onSuccess: async () => {
+    onSuccess: () => {
       toast.success("Timer started");
-      await utils.timeEntries.activeTimer.invalidate();
+      // Fire-and-forget — don't await so the button unblocks immediately.
+      utils.timeEntries.activeTimer.invalidate();
     },
   });
 
   const stopTimer = trpc.timeEntries.stopTimer.useMutation({
-    onSuccess: async () => {
-      // 1. Imperatively stop the interval — this is the critical step.
-      //    The useEffect cleanup alone is async (waits for a re-render)
-      //    so the interval keeps ticking until React processes the cache
-      //    update. Clearing it here stops the display immediately.
+    onSuccess: () => {
+      // 1. Imperatively stop the interval so the display updates immediately.
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
       }
       // 2. Reset the elapsed display to 00:00:00 right away.
       setTimerElapsed(0);
-      // 3. Set isStopping so the button immediately switches back to Start
-      //    even before the cache invalidation resolves. setData(() => undefined)
-      //    is a no-op in react-query v5, so we use this local flag instead.
+      // 3. Set isStopping so the button immediately switches back to Start.
       setIsStopping(true);
       resetTimerForm();
       toast.success("Timer stopped");
-      window.location.reload();
       // Immediately clear the activeTimer cache so displayedActiveTimer
       // becomes null right away (no waiting for a round-trip).
       utils.timeEntries.activeTimer.setData(undefined, undefined);
-      // Invalidate so a fresh fetch runs in the background to confirm.
-      // The useEffect at line ~237 will clear isStopping once the fresh
-      // query returns undefined, completing the state transition.
+      // Invalidate background queries — all fire-and-forget (no await).
       utils.timeEntries.activeTimer.invalidate();
-      // Invalidate background queries (fire-and-forget).
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
       utils.dashboard.stats.invalidate();
@@ -223,12 +215,13 @@ export default function TimeTracking() {
   });
 
   const updateBillingRate = trpc.teamMembers.update.useMutation({
-    onSuccess: async () => {
+    onSuccess: () => {
       toast.success("Billing rate updated");
       setEditingBillingRateMemberId(null);
       setBillingRateInput("");
-      await utils.timeAnalytics.teamTimeReport.invalidate();
-      await utils.teamMembers.list.invalidate();
+      // Fire-and-forget — don't await so the UI unblocks immediately.
+      utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.teamMembers.list.invalidate();
     },
     onError: (err) => {
       toast.error(err.message || "Failed to update billing rate");
