@@ -178,6 +178,7 @@ export default function TimeTracking() {
       utils.timeAnalytics.teamTimeReport.invalidate();
       utils.dashboard.stats.invalidate();
       // isStopping is cleared by the useEffect once activeTimer.data is gone.
+      window.location.reload();
     },
     onError: () => {
       // If the stop fails, clear the flag so the UI isn't permanently stuck.
