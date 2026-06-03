@@ -1,6 +1,17 @@
-import { Resend } from "resend";
 import * as db from "../db";
 import { ENV } from "./env";
+
+// Lazy-cached Resend instance — avoids loading the ~20MB package at startup.
+// The module is required on first email send, then the instance is reused.
+let _resend: import("resend").Resend | null = null;
+function getResend() {
+  if (!_resend) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Resend } = require("resend") as typeof import("resend");
+    _resend = new Resend(ENV.resendApiKey);
+  }
+  return _resend;
+}
 
 type InviteRole = "user" | "pm" | "admin";
 
@@ -43,7 +54,7 @@ function buildInviteHtml(params: SendTeamInviteEmailParams) {
       <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);">
         <div style="padding: 32px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff;">
           <div style="display: inline-block; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">studioTrac invitation</div>
-          <h1 style="margin: 16px 0 0; font-size: 30px; line-height: 1.2;">You’ve been invited to join studioTrac</h1>
+          <h1 style="margin: 16px 0 0; font-size: 30px; line-height: 1.2;">You've been invited to join studioTrac</h1>
           <p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: rgba(255, 255, 255, 0.84);">Set up your account to access your studio workspace, collaborate with your team, and start managing projects.</p>
         </div>
         <div style="padding: 32px;">
@@ -91,9 +102,9 @@ export async function sendTeamInviteEmail(params: SendTeamInviteEmailParams) {
     return { sent: false as const, reason: "missing_api_key" as const };
   }
 
-  const resend = new Resend(ENV.resendApiKey);
+  const resend = getResend();
   const roleLabel = getRoleLabel(params.role);
-  const subject = `You’ve been invited to join studioTrac as ${roleLabel}`;
+  const subject = `You've been invited to join studioTrac as ${roleLabel}`;
   const text = buildInviteText(params);
   const html = buildInviteHtml(params);
 
@@ -197,7 +208,7 @@ export async function sendBillingMilestoneEmail(params: SendBillingMilestoneEmai
     return { sent: false as const, reason: "no_recipients" as const };
   }
 
-  const resend = new Resend(ENV.resendApiKey);
+  const resend = getResend();
   const subject = `Billing Milestone: ${params.projectName} has reached ${params.milestonePercentage}% completion`;
   const text = buildBillingMilestoneText(params);
   const html = buildBillingMilestoneHtml(params);

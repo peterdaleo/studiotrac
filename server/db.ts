@@ -1159,28 +1159,41 @@ export async function deleteConsultantPayment(id: number) {
 export async function getProjectNetIncome(projectId: number) {
   const db = await getDb();
   if (!db) return { feesCollected: 0, consultantPaymentsTotal: 0, netIncome: 0, consultants: [] as any[] };
-  
-  // Get paid invoices
-  const paidInvoices = await db.select().from(invoices).where(and(eq(invoices.projectId, projectId), eq(invoices.status, 'paid')));
+
+  // Run all three queries in parallel instead of sequentially
+  const [paidInvoices, contracts, allPayments] = await Promise.all([
+    db.select().from(invoices).where(and(eq(invoices.projectId, projectId), eq(invoices.status, 'paid'))),
+    db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId)),
+    // Fetch all payments for this project's contracts in one query using a subquery
+    db.select({ consultantId: consultantPayments.consultantId, amount: consultantPayments.amount, id: consultantPayments.id, paidDate: consultantPayments.paidDate, notes: consultantPayments.notes })
+      .from(consultantPayments)
+      .innerJoin(consultantContracts, eq(consultantPayments.consultantId, consultantContracts.id))
+      .where(eq(consultantContracts.projectId, projectId)),
+  ]);
+
   const feesCollected = paidInvoices.reduce((sum, i) => sum + i.amount, 0);
-  
-  // Get all consultants and their payments
-  const contracts = await db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId));
+
+  // Group payments by consultantId in memory
+  const paymentsByConsultant = new Map<number, typeof allPayments>();
+  for (const p of allPayments) {
+    const list = paymentsByConsultant.get(p.consultantId) ?? [];
+    list.push(p);
+    paymentsByConsultant.set(p.consultantId, list);
+  }
+
   let consultantPaymentsTotal = 0;
-  const consultantsWithPayments = [];
-  
-  for (const contract of contracts) {
-    const payments = await db.select().from(consultantPayments).where(eq(consultantPayments.consultantId, contract.id));
+  const consultantsWithPayments = contracts.map(contract => {
+    const payments = paymentsByConsultant.get(contract.id) ?? [];
     const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
     consultantPaymentsTotal += totalPaid;
-    consultantsWithPayments.push({
+    return {
       ...contract,
       payments,
       totalPaid,
       remaining: contract.contractAmount - totalPaid,
-    });
-  }
-  
+    };
+  });
+
   return {
     feesCollected,
     consultantPaymentsTotal,
