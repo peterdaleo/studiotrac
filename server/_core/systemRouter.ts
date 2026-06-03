@@ -179,46 +179,4 @@ export const systemRouter = router({
       return { error: e?.message, results };
     }
   }),
-
-  diagCoordination: publicProcedure.query(async () => {
-    try {
-      const db_module = await import("../db");
-      const subscribers = await db_module.listCoordinationSubscribers(1);
-      const unnotified = await db_module.listUnnotifiedCoordinationItems(1);
-      const sheets = await db_module.listSheetsWithUnnotifiedItems();
-      return {
-        subscribers: subscribers.map(s => ({ id: s.id, email: s.email, phone: s.phone, lastNotifiedAt: s.lastNotifiedAt })),
-        unnotifiedItemCount: unnotified.length,
-        unnotifiedItemIds: unnotified.map(i => i.id),
-        sheetsWithPending: sheets.map(s => ({ id: s.id, projectName: s.projectName })),
-        resendKeySet: !!process.env.RESEND_API_KEY,
-        resendKeyPrefix: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 8) + "..." : null,
-      };
-    } catch (e: any) {
-      return { error: e?.message };
-    }
-  }),
-
-  testEmail: publicProcedure.mutation(async () => {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return { error: "RESEND_API_KEY is not set", apiKeySet: false };
-    try {
-      const { Resend } = require("resend");
-      const resend = new Resend(apiKey);
-      const result = await resend.emails.send({
-        from: "studioTrac <notifications@studiotrac.app>",
-        to: "peter.daleo@gmail.com",
-        subject: "[StudioTrac] Coordination Sheet Email Test",
-        html: "<p>This is a test email from the StudioTrac coordination sheet notification system. If you received this, email notifications are working correctly.</p>",
-      });
-      return { 
-        apiKeySet: true, 
-        apiKeyPrefix: apiKey.substring(0, 8) + "...",
-        result: result.data ? { id: result.data.id } : null,
-        error: result.error ? JSON.stringify(result.error) : null
-      };
-    } catch (e: any) {
-      return { apiKeySet: true, error: e?.message, stack: e?.stack?.substring(0, 500) };
-    }
-  }),
 });
