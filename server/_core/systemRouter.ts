@@ -178,6 +178,25 @@ export const systemRouter = router({
     }
   }),
 
+  diagCoordination: publicProcedure.query(async () => {
+    try {
+      const { default: db_module } = await import("../db");
+      const subscribers = await db_module.listCoordinationSubscribers(1);
+      const unnotified = await db_module.listUnnotifiedCoordinationItems(1);
+      const sheets = await db_module.listSheetsWithUnnotifiedItems();
+      return {
+        subscribers: subscribers.map(s => ({ id: s.id, email: s.email, phone: s.phone, lastNotifiedAt: s.lastNotifiedAt })),
+        unnotifiedItemCount: unnotified.length,
+        unnotifiedItemIds: unnotified.map(i => i.id),
+        sheetsWithPending: sheets.map(s => ({ id: s.id, projectName: s.projectName })),
+        resendKeySet: !!process.env.RESEND_API_KEY,
+        resendKeyPrefix: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 8) + "..." : null,
+      };
+    } catch (e: any) {
+      return { error: e?.message };
+    }
+  }),
+
   testEmail: publicProcedure.mutation(async () => {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { error: "RESEND_API_KEY is not set", apiKeySet: false };
