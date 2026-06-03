@@ -1,3 +1,5 @@
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 import { z } from "zod";
 import { publicProcedure, router } from "./trpc";
 import { sql } from "drizzle-orm";
@@ -180,7 +182,7 @@ export const systemRouter = router({
 
   diagCoordination: publicProcedure.query(async () => {
     try {
-      const { default: db_module } = await import("../db");
+      const db_module = await import("../db");
       const subscribers = await db_module.listCoordinationSubscribers(1);
       const unnotified = await db_module.listUnnotifiedCoordinationItems(1);
       const sheets = await db_module.listSheetsWithUnnotifiedItems();

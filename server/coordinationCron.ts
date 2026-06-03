@@ -7,6 +7,8 @@
  *
  * Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
  */
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 import cron from "node-cron";
 import * as db from "./db";
 
