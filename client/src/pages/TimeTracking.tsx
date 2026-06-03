@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Play, Square, Clock, Plus, Calendar, ChevronLeft, ChevronRight, Timer, Trash2, Edit2, Check, X, Pencil, Download, Users, FileSpreadsheet, ChevronsUpDown } from "lucide-react";
+import { Play, Square, Clock, Plus, Calendar, ChevronLeft, ChevronRight, Timer, Trash2, Edit2, Check, X, Pencil, Download, Users, FileSpreadsheet, ChevronsUpDown, RotateCcw } from "lucide-react";
 import { PROJECT_PHASES, type ProjectPhase, getPhaseLabel } from "@shared/constants";
 import { toast } from "sonner";
 
@@ -468,6 +468,30 @@ export default function TimeTracking() {
           {formatDuration(entry.durationMinutes)}
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {!displayedActiveTimer && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-emerald-600"
+                  disabled={startTimer.isPending}
+                  onClick={() => {
+                    if (!entry.projectId) { toast.error("No project on this entry"); return; }
+                    startTimer.mutate({
+                      projectId: entry.projectId,
+                      description: entry.description ?? undefined,
+                      billable: entry.billable ?? true,
+                      phase: (entry.phase ?? undefined) as ProjectPhase | undefined,
+                    });
+                  }}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Resume timer</TooltipContent>
+            </Tooltip>
+          )}
           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => startEditing(entry)}>
             <Pencil className="h-3 w-3" />
           </Button>
