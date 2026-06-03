@@ -161,6 +161,17 @@ export const systemRouter = router({
       await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries (projectId)`).catch(() => {});
       results.push("idx_time_entries_project index ensured");
 
+      // Coordination sheet views table for unread badge tracking
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS coordination_sheet_views (
+        id int AUTO_INCREMENT NOT NULL,
+        sheetId int NOT NULL,
+        userId int NOT NULL,
+        lastViewedAt timestamp NOT NULL DEFAULT (now()),
+        CONSTRAINT coordination_sheet_views_id PRIMARY KEY(id),
+        CONSTRAINT coordination_sheet_views_unique UNIQUE(sheetId, userId)
+      )`);
+      results.push("coordination_sheet_views table ensured");
+
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };

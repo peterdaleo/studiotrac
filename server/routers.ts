@@ -940,6 +940,20 @@ export const appRouter = router({
       db.getCoordinationSheetByProject(input.projectId)
     ),
 
+    // Authenticated: get unread item count for a coordination sheet
+    unreadCount: protectedProcedure
+      .input(z.object({ sheetId: z.number() }))
+      .query(({ input, ctx }) =>
+        db.getCoordinationUnreadCount(input.sheetId, ctx.user.id)
+      ),
+
+    // Authenticated: mark a coordination sheet as viewed (resets unread badge)
+    markViewed: protectedProcedure
+      .input(z.object({ sheetId: z.number() }))
+      .mutation(({ input, ctx }) =>
+        db.markCoordinationSheetViewed(input.sheetId, ctx.user.id)
+      ),
+
     // Admin: create sheet for a project
     create: adminOrPmProcedure.input(z.object({
       projectId: z.number(),

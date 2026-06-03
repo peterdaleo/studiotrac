@@ -2174,8 +2174,9 @@ export async function getAllActiveTimers(organizationId: number): Promise<{ user
 import {
   coordinationSheets, InsertCoordinationSheet, CoordinationSheet,
   coordinationItems, InsertCoordinationItem, CoordinationItem,
-  coordinationAttachments, InsertCoordinationAttachment, CoordinationAttachment,
+  coordinationAttachments, InsertCoordinationAttachment,
   coordinationSubscribers, InsertCoordinationSubscriber, CoordinationSubscriber,
+  coordinationSheetViews,
 } from "../drizzle/schema";
 
 // ── Sheet CRUD ──────────────────────────────────────────────────
@@ -2493,5 +2494,39 @@ export async function listSheetsWithUnnotifiedItems(): Promise<CoordinationSheet
   } catch (error) {
     if (isMissingTableError(error)) return [];
     throw error;
+  }
+}
+
+// ── Sheet View Tracking (unread badge) ──────────────────────────
+export async function markCoordinationSheetViewed(sheetId: number, userId: number): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.execute(
+      sql`INSERT INTO coordination_sheet_views (sheetId, userId, lastViewedAt)
+          VALUES (${sheetId}, ${userId}, NOW())
+          ON DUPLICATE KEY UPDATE lastViewedAt = NOW()`
+    );
+  } catch (error) {
+    if (isMissingTableError(error)) return;
+    throw error;
+  }
+}
+
+export async function getCoordinationUnreadCount(sheetId: number, userId: number): Promise<number> {
+  try {
+    const db = await getDb();
+    const rows = await db.execute(
+      sql`SELECT COUNT(*) as cnt FROM coordination_items ci
+          WHERE ci.sheetId = ${sheetId}
+            AND ci.createdAt > COALESCE(
+              (SELECT lastViewedAt FROM coordination_sheet_views WHERE sheetId = ${sheetId} AND userId = ${userId}),
+              '1970-01-01'
+            )`
+    );
+    const row = (rows as any)[0]?.[0];
+    return Number(row?.cnt ?? 0);
+  } catch (error) {
+    if (isMissingTableError(error)) return 0;
+    return 0;
   }
 }

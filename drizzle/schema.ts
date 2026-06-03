@@ -375,3 +375,11 @@ export const coordinationSubscribers = mysqlTable("coordination_subscribers", {
 });
 export type CoordinationSubscriber = typeof coordinationSubscribers.$inferSelect;
 export type InsertCoordinationSubscriber = typeof coordinationSubscribers.$inferInsert;
+
+export const coordinationSheetViews = mysqlTable("coordination_sheet_views", {
+  id: int("id").autoincrement().primaryKey(),
+  sheetId: int("sheetId").notNull(),
+  userId: int("userId").notNull(),
+  lastViewedAt: timestamp("lastViewedAt").defaultNow().notNull(),
+});
+export type CoordinationSheetView = typeof coordinationSheetViews.$inferSelect;

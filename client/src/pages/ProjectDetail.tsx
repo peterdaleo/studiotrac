@@ -315,6 +315,13 @@ export default function ProjectDetail() {
 
   // ── Coordination Sheet ──
   const { data: coordinationSheet } = trpc.coordination.getForProject.useQuery({ projectId });
+  const { data: coordinationUnread = 0 } = trpc.coordination.unreadCount.useQuery(
+    { sheetId: coordinationSheet?.id ?? 0 },
+    { enabled: !!coordinationSheet?.id }
+  );
+  const markCoordinationViewed = trpc.coordination.markViewed.useMutation({
+    onSuccess: () => utils.coordination.unreadCount.invalidate({ sheetId: coordinationSheet?.id }),
+  });
   const createCoordinationSheet = trpc.coordination.create.useMutation({
     onSuccess: () => {
       utils.coordination.getForProject.invalidate({ projectId });
@@ -730,10 +737,18 @@ export default function ProjectDetail() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => window.open(`/coordination/${coordinationSheet.token}`, '_blank')}
-                className="gap-1.5"
+                onClick={() => {
+                  if (coordinationSheet?.id) markCoordinationViewed.mutate({ sheetId: coordinationSheet.id });
+                  window.open(`/coordination/${coordinationSheet.token}`, '_blank');
+                }}
+                className="gap-1.5 relative"
               >
                 <MessageSquare className="h-3.5 w-3.5" /> Coordination
+                {coordinationUnread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
+                    {coordinationUnread > 99 ? "99+" : coordinationUnread}
+                  </span>
+                )}
               </Button>
               <Button 
                 variant="ghost" 
