@@ -456,6 +456,22 @@ export default function CoordinationSheet() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Powered-by badge — rendered once at the very bottom of the page */}
+      <footer className="mt-10 pb-8 flex justify-center">
+        <a
+          href="https://studiotrac.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+            <rect width="24" height="24" rx="6" fill="#0f172a"/>
+            <path d="M7 8h10M7 12h7M7 16h5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <span>Powered by <span className="font-medium text-slate-500">studioTrac</span></span>
+        </a>
+      </footer>
     </div>
   );
 }
@@ -1127,25 +1143,9 @@ function ItemRow({
         </DialogContent>
       </Dialog>
 
-      {/* Powered-by badge */}
-      <footer className="mt-10 pb-8 flex justify-center">
-        <a
-          href="https://studiotrac.app"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-            <rect width="24" height="24" rx="6" fill="#0f172a"/>
-            <path d="M7 8h10M7 12h7M7 16h5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          <span>Powered by <span className="font-medium text-slate-500">studioTrac</span></span>
-        </a>
-      </footer>
     </div>
   );
 }
-
 function SubscribeForm({
   token,
   subscribers,
