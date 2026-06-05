@@ -46,6 +46,7 @@ import {
   Eye,
   EyeOff,
   Phone,
+  Download,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
@@ -269,6 +270,41 @@ export default function CoordinationSheet() {
               <p className="text-xs text-muted-foreground">{isClientView ? "Client View" : "Coordination Sheet"}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Save to Desktop shortcut */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  const url = window.location.href;
+                  const name = sheet.projectName.replace(/[^\w\s-]/g, "").trim() || "Coordination Sheet";
+                  const ua = navigator.userAgent.toLowerCase();
+                  const isMac = ua.includes("mac") && !ua.includes("iphone") && !ua.includes("ipad");
+                  if (isMac) {
+                    // .webloc is a macOS Internet Location file (XML plist)
+                    const content = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>URL</key>\n\t<string>${url}</string>\n</dict>\n</plist>`;
+                    const blob = new Blob([content], { type: "application/octet-stream" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${name}.webloc`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  } else {
+                    // .url is a Windows Internet Shortcut (also opens on Linux)
+                    const content = `[InternetShortcut]\nURL=${url}\n`;
+                    const blob = new Blob([content], { type: "application/octet-stream" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${name}.url`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  }
+                  toast.success("Shortcut downloaded — drag it to your desktop!");
+                }}
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Save to Desktop</span>
+              </Button>
               <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
