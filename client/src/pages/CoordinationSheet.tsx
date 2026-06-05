@@ -46,7 +46,7 @@ import {
   Eye,
   EyeOff,
   Phone,
-  Download,
+  Monitor,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
@@ -270,11 +270,11 @@ export default function CoordinationSheet() {
               <p className="text-xs text-muted-foreground">{isClientView ? "Client View" : "Coordination Sheet"}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* Save to Desktop shortcut */}
+              {/* Create Desktop Shortcut */}
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-800 font-medium shadow-sm"
                 onClick={() => {
                   const url = window.location.href;
                   const name = sheet.projectName.replace(/[^\w\s-]/g, "").trim() || "Coordination Sheet";
@@ -302,8 +302,8 @@ export default function CoordinationSheet() {
                   toast.success("Shortcut downloaded — drag it to your desktop!");
                 }}
               >
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Save to Desktop</span>
+                <Monitor className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Create Desktop Shortcut</span>
               </Button>
               <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
                 <DialogTrigger asChild>
