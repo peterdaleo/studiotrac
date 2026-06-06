@@ -1198,7 +1198,9 @@ function SubscribeForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
-  const canSubmit = (email.trim() || phone.trim()) && !isPending;
+  const [smsConsent, setSmsConsent] = useState(false);
+  const hasPhone = phone.trim().length > 0;
+  const canSubmit = (email.trim() || phone.trim()) && !isPending && (!hasPhone || smsConsent);
 
   return (
     <div className="space-y-4">
@@ -1216,7 +1218,7 @@ function SubscribeForm({
           placeholder="+1 555 000 0000 (optional)"
           type="tel"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => { setPhone(e.target.value); if (!e.target.value.trim()) setSmsConsent(false); }}
         />
         <Input
           placeholder="Name (optional)"
@@ -1225,6 +1227,28 @@ function SubscribeForm({
           className="sm:col-span-2"
         />
       </div>
+      {/* SMS consent — shown only when a phone number is entered */}
+      {hasPhone && (
+        <div className="space-y-1.5">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={smsConsent}
+              onChange={(e) => setSmsConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-blue-600"
+            />
+            <span className="text-xs text-slate-700 leading-snug">
+              I agree to receive text message notifications about this project. Msg frequency varies. Msg &amp; data rates may apply.
+            </span>
+          </label>
+          <p className="text-[11px] text-muted-foreground leading-snug pl-6">
+            <a href="https://studiotrac.app/terms.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-700">Terms</a>
+            {" | "}
+            <a href="https://studiotrac.app/privacy.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-700">Privacy</a>
+            {" | Reply STOP to unsubscribe."}
+          </p>
+        </div>
+      )}
       <Button
         size="sm"
         disabled={!canSubmit}
@@ -1233,6 +1257,7 @@ function SubscribeForm({
           setEmail("");
           setPhone("");
           setName("");
+          setSmsConsent(false);
         }}
         className="gap-1.5 w-full"
       >
