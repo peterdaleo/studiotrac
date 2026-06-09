@@ -163,6 +163,10 @@ export const systemRouter = router({
       await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries (projectId)`).catch(() => {});
       results.push("idx_time_entries_project index ensured");
 
+      // Add isInternal column to projects for overhead/internal time tracking
+      await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS isInternal boolean NOT NULL DEFAULT false`).catch(() => {});
+      results.push("projects.isInternal column ensured");
+
       // Coordination sheet views table for unread badge tracking
       await db.execute(sql`CREATE TABLE IF NOT EXISTS coordination_sheet_views (
         id int AUTO_INCREMENT NOT NULL,

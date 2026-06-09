@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
@@ -401,9 +401,20 @@ export default function TimeTracking() {
               <Select value={editData.projectId} onValueChange={(v) => setEditData(prev => ({ ...prev, projectId: v }))}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {projects.data?.map((p: any) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Client Projects</SelectLabel>
+                    {projects.data?.filter((p: any) => !p.isInternal).map((p: any) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                  {projects.data?.some((p: any) => p.isInternal) && (
+                    <SelectGroup>
+                      <SelectLabel>Internal / Overhead</SelectLabel>
+                      {projects.data?.filter((p: any) => p.isInternal).map((p: any) => (
+                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -546,10 +557,10 @@ export default function TimeTracking() {
                       />
                       <CommandList>
                         <CommandEmpty>No projects found.</CommandEmpty>
-                        <CommandGroup>
+                        <CommandGroup heading="Client Projects">
                           {projects.data
                             ?.filter((p: any) =>
-                              p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
+                              !p.isInternal && p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
                             )
                             .map((p: any) => (
                               <CommandItem
@@ -566,6 +577,28 @@ export default function TimeTracking() {
                               </CommandItem>
                             ))}
                         </CommandGroup>
+                        {projects.data?.some((p: any) => p.isInternal) && (
+                          <CommandGroup heading="Internal / Overhead">
+                            {projects.data
+                              ?.filter((p: any) =>
+                                p.isInternal && p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
+                              )
+                              .map((p: any) => (
+                                <CommandItem
+                                  key={p.id}
+                                  value={p.name}
+                                  onSelect={() => {
+                                    setManualProjectId(p.id.toString());
+                                    setManualProjectSearch("");
+                                    setManualProjectOpen(false);
+                                  }}
+                                >
+                                  <Check className={`mr-2 h-4 w-4 ${manualProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                  {p.name}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        )}
                       </CommandList>
                     </Command>
                   </PopoverContent>
@@ -667,10 +700,10 @@ export default function TimeTracking() {
                             />
                             <CommandList>
                               <CommandEmpty>No projects found.</CommandEmpty>
-                              <CommandGroup>
+                              <CommandGroup heading="Client Projects">
                                 {projects.data
                                   ?.filter((p: any) =>
-                                    p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
+                                    !p.isInternal && p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
                                   )
                                   .map((p: any) => (
                                     <CommandItem
@@ -680,10 +713,6 @@ export default function TimeTracking() {
                                         setTimerProjectId(p.id.toString());
                                         setTimerProjectSearch("");
                                         setTimerProjectOpen(false);
-                                        // Do NOT touch isStopping here — it is only cleared by the
-                                        // useEffect that confirms activeTimer.data is undefined.
-                                        // Clearing it here while the cache still holds the just-stopped
-                                        // timer causes the UI to briefly show the old timer as running.
                                       }}
                                     >
                                       <Check className={`mr-2 h-4 w-4 ${timerProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
@@ -691,6 +720,28 @@ export default function TimeTracking() {
                                     </CommandItem>
                                   ))}
                               </CommandGroup>
+                              {projects.data?.some((p: any) => p.isInternal) && (
+                                <CommandGroup heading="Internal / Overhead">
+                                  {projects.data
+                                    ?.filter((p: any) =>
+                                      p.isInternal && p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
+                                    )
+                                    .map((p: any) => (
+                                      <CommandItem
+                                        key={p.id}
+                                        value={p.name}
+                                        onSelect={() => {
+                                          setTimerProjectId(p.id.toString());
+                                          setTimerProjectSearch("");
+                                          setTimerProjectOpen(false);
+                                        }}
+                                      >
+                                        <Check className={`mr-2 h-4 w-4 ${timerProjectId === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                        {p.name}
+                                      </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                              )}
                             </CommandList>
                           </Command>
                         </PopoverContent>
