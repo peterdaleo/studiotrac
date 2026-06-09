@@ -106,7 +106,7 @@ export default function Projects() {
   const utils = trpc.useUtils();
 
   const { maxProjects } = useSubscription();
-  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed" && !p.isInternal).length; // NULL = non-internal
+  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed" && p.isInternal !== true).length;
   const atProjectLimit = activeProjectCount >= maxProjects;
 
   const createProject = trpc.projects.create.useMutation({
@@ -159,15 +159,17 @@ export default function Projects() {
     // When the user explicitly filters by "completed", show all matching in main list
     if (statusFilter === "completed") {
       return {
-        activeFiltered: applySort(projects.filter((p) => !p.isInternal && p.status === "completed" && matchesFilter(p))), // NULL = non-internal
+        activeFiltered: applySort(projects.filter((p) => p.status === "completed" && matchesFilter(p))),
         archivedFiltered: [],
-        internalFiltered: applySort(projects.filter((p) => p.isInternal && matchesFilter(p))),
+        internalFiltered: [],
       };
     }
 
-    const active = projects.filter((p) => !p.isInternal && p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p)); // NULL = non-internal
-    const archived = projects.filter((p) => !p.isInternal && p.status === "completed" && matchesFilter(p)); // NULL = non-internal
-    const internal = projects.filter((p) => !!p.isInternal && matchesFilter(p));
+    // Split into client projects (isInternal falsy) vs internal (isInternal strictly true)
+    // Treat NULL/undefined as false so pre-migration rows always show as client projects
+    const active = projects.filter((p) => p.isInternal !== true && p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p));
+    const archived = projects.filter((p) => p.isInternal !== true && p.status === "completed" && matchesFilter(p));
+    const internal = projects.filter((p) => p.isInternal === true && matchesFilter(p));
 
     return {
       activeFiltered: applySort(active),

@@ -83,7 +83,7 @@ export default function Home() {
 
   // Most recently updated active projects first
   const recentProjects = projects
-    ?.filter((p) => p.status !== "completed" && !p.isInternal)
+    ?.filter((p) => p.status !== "completed" && p.isInternal !== true)
     .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
     .slice(0, 5) ?? [];
   const upcomingDeadlines = allTasks
@@ -95,7 +95,7 @@ export default function Home() {
     ?.filter((t) => t.status !== "done" && t.deadline && isDeadlineOverdueUTC(t.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()) ?? [];
   const delayedProjects = projects?.filter(
-    (p) => !p.isInternal && p.status !== "completed" && p.deadline && isDeadlineOverdueUTC(p.deadline)
+    (p) => p.isInternal !== true && p.status !== "completed" && p.deadline && isDeadlineOverdueUTC(p.deadline)
   ).length ?? 0;
 
   if (statsLoading || projectsLoading) {
@@ -149,7 +149,7 @@ export default function Home() {
     { name: "Completed", value: stats.completed, fill: "#94a3b8" },
   ].filter((d) => d.value > 0);
 
-  const phaseData = projects?.filter((p) => !p.isInternal).reduce((acc, p) => {
+  const phaseData = projects?.filter((p) => p.isInternal !== true).reduce((acc, p) => {
     const label = getPhaseShortLabel(p.phase);
     const existing = acc.find((a) => a.phase === label);
     if (existing) existing.count++;

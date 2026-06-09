@@ -403,14 +403,14 @@ export default function TimeTracking() {
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Client Projects</SelectLabel>
-                    {projects.data?.filter((p: any) => !p.isInternal).map((p: any) => (
+                    {projects.data?.filter((p: any) => p.isInternal !== true).map((p: any) => (
                       <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                     ))}
                   </SelectGroup>
-                  {projects.data?.some((p: any) => p.isInternal) && (
+                  {projects.data?.some((p: any) => p.isInternal === true) && (
                     <SelectGroup>
                       <SelectLabel>Internal / Overhead</SelectLabel>
-                      {projects.data?.filter((p: any) => p.isInternal).map((p: any) => (
+                      {projects.data?.filter((p: any) => p.isInternal === true).map((p: any) => (
                         <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                       ))}
                     </SelectGroup>
@@ -560,7 +560,7 @@ export default function TimeTracking() {
                         <CommandGroup heading="Client Projects">
                           {projects.data
                             ?.filter((p: any) =>
-                              !p.isInternal && p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
+                              p.isInternal !== true && p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
                             )
                             .map((p: any) => (
                               <CommandItem
@@ -577,11 +577,11 @@ export default function TimeTracking() {
                               </CommandItem>
                             ))}
                         </CommandGroup>
-                        {projects.data?.some((p: any) => p.isInternal) && (
+                        {projects.data?.some((p: any) => p.isInternal === true) && (
                           <CommandGroup heading="Internal / Overhead">
                             {projects.data
                               ?.filter((p: any) =>
-                                p.isInternal && p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
+                                p.isInternal === true && p.name.toLowerCase().includes(manualProjectSearch.toLowerCase())
                               )
                               .map((p: any) => (
                                 <CommandItem
@@ -703,7 +703,7 @@ export default function TimeTracking() {
                               <CommandGroup heading="Client Projects">
                                 {projects.data
                                   ?.filter((p: any) =>
-                                    !p.isInternal && p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
+                                    p.isInternal !== true && p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
                                   )
                                   .map((p: any) => (
                                     <CommandItem
@@ -720,11 +720,11 @@ export default function TimeTracking() {
                                     </CommandItem>
                                   ))}
                               </CommandGroup>
-                              {projects.data?.some((p: any) => p.isInternal) && (
+                              {projects.data?.some((p: any) => p.isInternal === true) && (
                                 <CommandGroup heading="Internal / Overhead">
                                   {projects.data
                                     ?.filter((p: any) =>
-                                      p.isInternal && p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
+                                      p.isInternal === true && p.name.toLowerCase().includes(timerProjectSearch.toLowerCase())
                                     )
                                     .map((p: any) => (
                                       <CommandItem
