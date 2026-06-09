@@ -85,8 +85,6 @@ export default function Projects() {
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [sortBy, setSortBy] = useState<"default" | "alpha" | "deadline">("default");
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [internalExpanded, setInternalExpanded] = useState(false);
-  const [isInternalProject, setIsInternalProject] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -106,7 +104,7 @@ export default function Projects() {
   const utils = trpc.useUtils();
 
   const { maxProjects } = useSubscription();
-  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed" && p.isInternal !== true).length;
+  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed").length;
   const atProjectLimit = activeProjectCount >= maxProjects;
 
   const createProject = trpc.projects.create.useMutation({
@@ -144,8 +142,8 @@ export default function Projects() {
     return list;
   };
 
-  const { activeFiltered, archivedFiltered, internalFiltered } = useMemo(() => {
-    if (!projects) return { activeFiltered: [], archivedFiltered: [], internalFiltered: [] };
+  const { activeFiltered, archivedFiltered } = useMemo(() => {
+    if (!projects) return { activeFiltered: [], archivedFiltered: [] };
 
     const matchesFilter = (p: (typeof projects)[0]) => {
       if (phaseFilter !== "all" && p.phase !== phaseFilter) return false;
@@ -161,20 +159,15 @@ export default function Projects() {
       return {
         activeFiltered: applySort(projects.filter((p) => p.status === "completed" && matchesFilter(p))),
         archivedFiltered: [],
-        internalFiltered: [],
       };
     }
 
-    // Split into client projects (isInternal falsy) vs internal (isInternal strictly true)
-    // Treat NULL/undefined as false so pre-migration rows always show as client projects
-    const active = projects.filter((p) => p.isInternal !== true && p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p));
-    const archived = projects.filter((p) => p.isInternal !== true && p.status === "completed" && matchesFilter(p));
-    const internal = projects.filter((p) => p.isInternal === true && matchesFilter(p));
+    const active = projects.filter((p) => p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p));
+    const archived = projects.filter((p) => p.status === "completed" && matchesFilter(p));
 
     return {
       activeFiltered: applySort(active),
       archivedFiltered: applySort(archived),
-      internalFiltered: applySort(internal),
     };
   }, [projects, statusFilter, phaseFilter, search, sortBy]);
 
@@ -186,15 +179,13 @@ export default function Projects() {
     const fd = new FormData(e.currentTarget);
     createProject.mutate({
       name: fd.get("name") as string,
-      clientName: isInternalProject ? undefined : ((fd.get("clientName") as string) || undefined),
-      address: isInternalProject ? undefined : ((fd.get("address") as string) || undefined),
+      clientName: (fd.get("clientName") as string) || undefined,
+      address: (fd.get("address") as string) || undefined,
       projectManagerId: fd.get("projectManagerId") ? Number(fd.get("projectManagerId")) : undefined,
-      phase: isInternalProject ? undefined : ((fd.get("phase") as any) || "pre_design"),
+      phase: (fd.get("phase") as any) || "pre_design",
       description: (fd.get("description") as string) || undefined,
       deadline: fd.get("deadline") ? new Date(fd.get("deadline") as string) : undefined,
-      isInternal: isInternalProject || undefined,
     });
-    setIsInternalProject(false);
   };
 
   const renderGridCard = (project: NonNullable<typeof projects>[0]) => {
@@ -350,7 +341,6 @@ export default function Projects() {
 
   const activeCount = activeFiltered.length;
   const archivedCount = archivedFiltered.length;
-  const internalCount = internalFiltered.length;
   const totalArchived = projects?.filter((p) => p.status === "completed").length ?? 0;
 
   return (
@@ -374,67 +364,46 @@ export default function Projects() {
               <DialogTitle>Create New Project</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
-              {/* Internal/Overhead toggle */}
-              <label className="flex items-center gap-2 cursor-pointer py-1 px-3 rounded-md border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={isInternalProject}
-                  onChange={(e) => setIsInternalProject(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 accent-indigo-600"
-                />
-                <span className="text-sm font-medium text-slate-700">Internal / Overhead</span>
-                <span className="text-xs text-muted-foreground ml-auto">Non-billable firm time</span>
-              </label>
-
               <div className="space-y-2">
-                <Label htmlFor="name">{isInternalProject ? "Category Name" : "Project Name"}</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder={isInternalProject ? "e.g., Business Development, Firm Management, HR" : "e.g., Riverside Cultural Center"}
-                  required
-                />
+                <Label htmlFor="name">Project Name</Label>
+                <Input id="name" name="name" placeholder="e.g., Riverside Cultural Center" required />
               </div>
-              {!isInternalProject && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="clientName">Client</Label>
-                      <Input id="clientName" name="clientName" placeholder="Client name" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="projectManagerId">Project Manager</Label>
-                      <select name="projectManagerId" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                        <option value="">Select PM</option>
-                        {teamMembers?.map((m) => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input id="address" name="address" placeholder="Project address" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phase">Starting Phase</Label>
-                      <select name="phase" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                        {PROJECT_PHASES.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="deadline">Deadline</Label>
-                      <Input id="deadline" name="deadline" type="date" />
-                    </div>
-                  </div>
-                </>
-              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="clientName">Client</Label>
+                  <Input id="clientName" name="clientName" placeholder="Client name" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="projectManagerId">Project Manager</Label>
+                  <select name="projectManagerId" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="">Select PM</option>
+                    {teamMembers?.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input id="address" name="address" placeholder="Project address" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phase">Starting Phase</Label>
+                  <select name="phase" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                    {PROJECT_PHASES.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="deadline">Deadline</Label>
+                  <Input id="deadline" name="deadline" type="date" />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" name="description" placeholder={isInternalProject ? "What does this category cover?" : "Brief project description..."} rows={3} />
+                <Textarea id="description" name="description" placeholder="Brief project description..." rows={3} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
@@ -614,39 +583,6 @@ export default function Projects() {
 
               {archivedExpanded && archivedCount === 0 && (
                 <p className="text-sm text-muted-foreground px-1 py-2">No archived projects match your current filters.</p>
-              )}
-            </div>
-          )}
-
-          {/* Internal / Overhead Section */}
-          {internalCount > 0 && (
-            <div className="mt-2">
-              <div className="flex items-center justify-between py-2 px-1">
-                <button
-                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setInternalExpanded((v) => !v)}
-                >
-                  {internalExpanded
-                    ? <ChevronDown className="h-4 w-4" />
-                    : <ChevronRight className="h-4 w-4" />}
-                  <FolderKanban className="h-4 w-4" />
-                  Internal / Overhead ({internalCount})
-                </button>
-              </div>
-              {internalExpanded && (
-                viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-2">
-                    {internalFiltered.map(renderGridCard)}
-                  </div>
-                ) : (
-                  <Card className="border-0 shadow-sm mt-2">
-                    <CardContent className="p-0">
-                      <div className="divide-y">
-                        {internalFiltered.map(renderCompactRow)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
               )}
             </div>
           )}

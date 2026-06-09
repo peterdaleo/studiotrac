@@ -140,18 +140,17 @@ export default function ProjectDetail() {
   const canViewProjectFinancials = effectiveRole === "admin" || effectiveRole === "pm";
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
-  const isInternalProject = !!project?.isInternal;
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
   const { data: notes } = trpc.notes.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const { data: shareTokens } = trpc.shareTokens.list.useQuery({ projectId });
   const { data: projectFinancialSummary } = trpc.projects.financialSummary.useQuery(
     { id: projectId },
-    { enabled: canViewProjectFinancials && !isInternalProject },
+    { enabled: canViewProjectFinancials },
   );
-  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
-  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
-  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
+  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
+  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
+  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials });
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
   const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
   const utils = trpc.useUtils();
@@ -519,12 +518,7 @@ export default function ProjectDetail() {
             ) : (
               <div className="group flex items-start gap-1">
                 <div>
-                  <div className="flex items-center gap-3">
-                    <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-                    {isInternalProject && (
-                      <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-600 bg-indigo-50">Internal</Badge>
-                    )}
-                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
                   <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
                     {project.clientName && <span>{project.clientName}</span>}
                     {project.address && (
@@ -1517,7 +1511,7 @@ export default function ProjectDetail() {
               </div>
 
               {/* Budget bar — visible to all; dollar amounts shown only to admins */}
-              {!isInternalProject && burnRate && (
+              {burnRate && (
                 <>
                   <Separator />
                   <BudgetBar
@@ -1527,21 +1521,11 @@ export default function ProjectDetail() {
                   />
                 </>
               )}
-              {/* Overhead cost for internal projects */}
-              {isInternalProject && burnRate && canViewProjectFinancials && (
-                <>
-                  <Separator />
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Total Overhead Cost</span>
-                    <span className="font-semibold">${(burnRate.laborCost ?? 0).toLocaleString()}</span>
-                  </div>
-                </>
-              )}
             </CardContent>
           </Card>
 
           {/* Project Financial Summary — PM only (admin sees full Budget & Invoices card instead) */}
-          {!isInternalProject && effectiveRole === "pm" && projectFinancialSummary && (
+          {effectiveRole === "pm" && projectFinancialSummary && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-3">
@@ -1668,8 +1652,8 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
-          {/* Budget & Invoices — admin and PM (hidden for internal projects) */}
-          {!isInternalProject && canViewProjectFinancials && 
+          {/* Budget & Invoices — admin and PM */}
+          {canViewProjectFinancials && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">

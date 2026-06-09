@@ -334,11 +334,10 @@ export const appRouter = router({
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
       driveFolderUrl: z.string().optional().nullable(),
-      isInternal: z.boolean().optional(),
     })).mutation(async ({ input, ctx }) => {
       const limits = await getOrgPlanLimits(ctx);
       const allProjects = await db.listProjects(undefined, ctx.organizationId);
-      const activeProjects = allProjects.filter((p: any) => p.status !== "completed" && !p.isInternal); // NULL treated as false (non-internal)
+      const activeProjects = allProjects.filter((p: any) => p.status !== "completed");
       if (activeProjects.length >= limits.maxProjects) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -366,7 +365,6 @@ export const appRouter = router({
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
       driveFolderUrl: z.string().optional().nullable(),
-      isInternal: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
 

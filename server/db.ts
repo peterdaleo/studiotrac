@@ -804,8 +804,7 @@ async function recalcProjectInvoiced(projectId: number) {
 export async function getFinancialOverview(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { projects: [], totals: { contracted: 0, invoiced: 0, outstanding: 0, paid: 0, consultantPaid: 0, netIncome: 0 } };
-  const notInternalCond = sql`(${projects.isInternal} = false OR ${projects.isInternal} IS NULL)`;
-  const pWhere = orgId ? and(notInternalCond, eq(projects.organizationId, orgId)) : notInternalCond;
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db.select().from(projects).where(pWhere).orderBy(desc(projects.updatedAt));
   const allInvoices = await db.select().from(invoices).orderBy(desc(invoices.invoiceDate));
   const allContracts = await db.select().from(consultantContracts);
@@ -866,8 +865,7 @@ export async function getFinancialOverview(orgId?: number | null) {
 export async function getExportProjectsSummary(orgId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  const notInternalCond = sql`(${projects.isInternal} = false OR ${projects.isInternal} IS NULL)`;
-  const pWhere = orgId ? and(notInternalCond, eq(projects.organizationId, orgId)) : notInternalCond;
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db.select().from(projects).where(pWhere).orderBy(asc(projects.name));
   const allMembers = await db.select().from(teamMembers);
   return allProjects.map(p => {
@@ -940,8 +938,7 @@ export async function getExportTeamWorkload(orgId?: number | null) {
 export async function getDashboardStats(orgId?: number | null) {
   const db = await getDb();
   if (!db) return { totalProjects: 0, onTrack: 0, delayed: 0, onHold: 0, completed: 0, totalTasks: 0, overdueTasks: 0, completedTasks: 0 };
-  const internalFilter = sql`(${projects.isInternal} = false OR ${projects.isInternal} IS NULL)`;
-  const projectWhere = orgId ? and(eq(projects.organizationId, orgId), internalFilter) : internalFilter;
+  const projectWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const taskWhere = orgId ? eq(tasks.organizationId, orgId) : undefined;
   const projectStats = await db.select({
     total: sql<number>`count(*)`,
@@ -1540,8 +1537,7 @@ export async function getTrueProfitability(orgId?: number | null) {
   let firmLaborCost = 0;
   let firmConsultantCost = 0;
   
-  const clientProjects = allProjects.filter(p => !p.isInternal); // isInternal is now always false/true after migration backfill
-  const projectProfitability = clientProjects.map(p => {
+  const projectProfitability = allProjects.map(p => {
     const paidInvoices = allInvoices.filter(i => i.projectId === p.id && i.status === 'paid');
     const feesCollected = paidInvoices.reduce((s, i) => s + i.amount, 0);
     
@@ -1916,12 +1912,11 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
 > {
   const db = await getDb();
   if (!db) return [];
-  // 1. All client projects (id + contractedFee) — exclude internal/overhead
-  const notInternalCond2 = sql`(${projects.isInternal} = false OR ${projects.isInternal} IS NULL)`;
-  const pWhere2 = orgId ? and(notInternalCond2, eq(projects.organizationId, orgId)) : notInternalCond2;
+  // 1. All projects (id + contractedFee)
+  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db
     .select({ id: projects.id, contractedFee: projects.contractedFee })
-    .from(projects).where(pWhere2);
+    .from(projects).where(pWhere);
 
   if (allProjects.length === 0) return [];
 

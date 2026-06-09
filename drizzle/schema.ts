@@ -98,7 +98,6 @@ export const projects = mysqlTable("projects", {
   contractedFee: int("contractedFee").default(0).notNull(),
   invoicedAmount: int("invoicedAmount").default(0).notNull(),
   driveFolderUrl: varchar("driveFolderUrl", { length: 2048 }),
-  isInternal: boolean("isInternal").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
