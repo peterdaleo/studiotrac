@@ -338,7 +338,7 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const limits = await getOrgPlanLimits(ctx);
       const allProjects = await db.listProjects(undefined, ctx.organizationId);
-      const activeProjects = allProjects.filter((p: any) => p.status !== "completed" && !p.isInternal);
+      const activeProjects = allProjects.filter((p: any) => p.status !== "completed" && !p.isInternal); // NULL treated as false (non-internal)
       if (activeProjects.length >= limits.maxProjects) {
         throw new TRPCError({
           code: "FORBIDDEN",

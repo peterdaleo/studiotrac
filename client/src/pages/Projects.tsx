@@ -106,7 +106,7 @@ export default function Projects() {
   const utils = trpc.useUtils();
 
   const { maxProjects } = useSubscription();
-  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed" && !p.isInternal).length;
+  const activeProjectCount = (projects ?? []).filter((p: any) => p.status !== "completed" && !p.isInternal).length; // NULL = non-internal
   const atProjectLimit = activeProjectCount >= maxProjects;
 
   const createProject = trpc.projects.create.useMutation({
@@ -159,15 +159,15 @@ export default function Projects() {
     // When the user explicitly filters by "completed", show all matching in main list
     if (statusFilter === "completed") {
       return {
-        activeFiltered: applySort(projects.filter((p) => !p.isInternal && p.status === "completed" && matchesFilter(p))),
+        activeFiltered: applySort(projects.filter((p) => !p.isInternal && p.status === "completed" && matchesFilter(p))), // NULL = non-internal
         archivedFiltered: [],
         internalFiltered: applySort(projects.filter((p) => p.isInternal && matchesFilter(p))),
       };
     }
 
-    const active = projects.filter((p) => !p.isInternal && p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p));
-    const archived = projects.filter((p) => !p.isInternal && p.status === "completed" && matchesFilter(p));
-    const internal = projects.filter((p) => p.isInternal && matchesFilter(p));
+    const active = projects.filter((p) => !p.isInternal && p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p)); // NULL = non-internal
+    const archived = projects.filter((p) => !p.isInternal && p.status === "completed" && matchesFilter(p)); // NULL = non-internal
+    const internal = projects.filter((p) => !!p.isInternal && matchesFilter(p));
 
     return {
       activeFiltered: applySort(active),
