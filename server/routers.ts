@@ -1218,7 +1218,7 @@ async function sendCoordinationNotification(
   const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
   const twilioClient = getTwilioClient();
 
-  const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. View: ${sheetUrl}`;
+  const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. Check your email or log in to studioTrac to view.`;
 
   // Send to eligible subscribers
   let anySent = false;
