@@ -973,6 +973,16 @@ export const appRouter = router({
       });
     }),
 
+    // Admin: update sheet settings (e.g. sharedFolderUrl)
+    update: adminOrPmProcedure.input(z.object({
+      id: z.number(),
+      sharedFolderUrl: z.string().url().optional().nullable(),
+    })).mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await db.updateCoordinationSheet(id, data);
+      return { success: true };
+    }),
+
     // Admin: delete sheet
     delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       // Images are stored as base64 in DB, so deleting the sheet cascades cleanup

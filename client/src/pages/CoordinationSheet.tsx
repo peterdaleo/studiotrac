@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  FolderOpen,
   Image as ImageIcon,
   Link2,
   Mail,
@@ -270,6 +271,18 @@ export default function CoordinationSheet() {
               <p className="text-xs text-muted-foreground">{isClientView ? "Client View" : "Coordination Sheet"}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Shared Folder link */}
+              {sheet.sharedFolderUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 hover:text-emerald-800 font-medium shadow-sm"
+                  onClick={() => window.open(sheet.sharedFolderUrl!, '_blank')}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Project Files</span>
+                </Button>
+              )}
               {/* Create Desktop Shortcut */}
               <Button
                 variant="outline"

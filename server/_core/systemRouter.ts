@@ -163,6 +163,13 @@ export const systemRouter = router({
       await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries (projectId)`).catch(() => {});
       results.push("idx_time_entries_project index ensured");
 
+      // Add isInternal column to projects for overhead/internal time tracking
+      // Use nullable first so ADD COLUMN IF NOT EXISTS works on non-empty tables, then backfill + set NOT NULL
+      await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS isInternal boolean DEFAULT false`).catch(() => {});
+      await db.execute(sql`UPDATE projects SET isInternal = false WHERE isInternal IS NULL`);
+      await db.execute(sql`ALTER TABLE projects MODIFY COLUMN isInternal boolean NOT NULL DEFAULT false`).catch(() => {});
+      results.push("projects.isInternal column ensured and backfilled");
+
       // Coordination sheet views table for unread badge tracking
       await db.execute(sql`CREATE TABLE IF NOT EXISTS coordination_sheet_views (
         id int AUTO_INCREMENT NOT NULL,
@@ -173,6 +180,14 @@ export const systemRouter = router({
         CONSTRAINT coordination_sheet_views_unique UNIQUE(sheetId, userId)
       )`);
       results.push("coordination_sheet_views table ensured");
+
+      // Add sharedFolderUrl column to coordination_sheets if missing
+      try {
+        await db.execute(sql`ALTER TABLE coordination_sheets ADD COLUMN sharedFolderUrl varchar(2048)`);
+        results.push("coordination_sheets sharedFolderUrl column added");
+      } catch {
+        results.push("coordination_sheets sharedFolderUrl column already exists");
+      }
 
       return { success: true, results };
     } catch (e: any) {

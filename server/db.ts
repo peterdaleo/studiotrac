@@ -2193,6 +2193,12 @@ export async function createCoordinationSheet(data: InsertCoordinationSheet): Pr
   }
 }
 
+export async function updateCoordinationSheet(id: number, data: Partial<Pick<InsertCoordinationSheet, "sharedFolderUrl" | "projectName" | "isActive">>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(coordinationSheets).set(data).where(eq(coordinationSheets.id, id));
+}
+
 export async function getCoordinationSheetByToken(token: string): Promise<CoordinationSheet | null> {
   try {
     const db = await getDb();

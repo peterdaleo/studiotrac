@@ -140,17 +140,18 @@ export default function ProjectDetail() {
   const canViewProjectFinancials = effectiveRole === "admin" || effectiveRole === "pm";
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
+  const isInternalProject = !!project?.isInternal;
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
   const { data: notes } = trpc.notes.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const { data: shareTokens } = trpc.shareTokens.list.useQuery({ projectId });
   const { data: projectFinancialSummary } = trpc.projects.financialSummary.useQuery(
     { id: projectId },
-    { enabled: canViewProjectFinancials },
+    { enabled: canViewProjectFinancials && !isInternalProject },
   );
-  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
-  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials });
-  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials });
+  const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
+  const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
+  const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
   const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
   const utils = trpc.useUtils();
@@ -350,6 +351,21 @@ export default function ProjectDetail() {
     toast.success("Client coordination link copied");
   };
 
+  const [folderUrlInput, setFolderUrlInput] = React.useState("");
+  const [showFolderInput, setShowFolderInput] = React.useState(false);
+  const updateCoordinationSheet = trpc.coordination.update.useMutation({
+    onSuccess: () => {
+      utils.coordination.getForProject.invalidate({ projectId });
+      setShowFolderInput(false);
+      toast.success("Shared folder link saved");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  // Sync input when sheet loads
+  React.useEffect(() => {
+    if (coordinationSheet?.sharedFolderUrl) setFolderUrlInput(coordinationSheet.sharedFolderUrl);
+  }, [coordinationSheet?.sharedFolderUrl]);
+
   const createClientLink = trpc.shareTokens.createClientLink.useMutation({
     onSuccess: () => {
       if (project?.clientName) utils.shareTokens.listForClient.invalidate({ clientName: project.clientName });
@@ -518,7 +534,12 @@ export default function ProjectDetail() {
             ) : (
               <div className="group flex items-start gap-1">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+                    {isInternalProject && (
+                      <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-600 bg-indigo-50">Internal</Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
                     {project.clientName && <span>{project.clientName}</span>}
                     {project.address && (
@@ -769,6 +790,59 @@ export default function ProjectDetail() {
                 >
                   <Eye className="h-3.5 w-3.5" />
                 </Button>
+              )}
+              {/* Shared Folder link button — visible to all if set */}
+              {coordinationSheet.sharedFolderUrl && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => window.open(coordinationSheet.sharedFolderUrl!, '_blank')}
+                  title="Open shared project folder"
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {/* Admin/PM: set shared folder URL */}
+              {(isAdmin || effectiveRole === "pm") && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-8 w-8 ${showFolderInput ? "text-emerald-600 bg-emerald-50" : "text-muted-foreground"}`}
+                    onClick={() => setShowFolderInput(v => !v)}
+                    title={coordinationSheet.sharedFolderUrl ? "Edit shared folder link" : "Add shared folder link"}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </Button>
+                  {showFolderInput && (
+                    <div className="flex items-center gap-1 ml-1">
+                      <Input
+                        className="h-7 text-xs w-52"
+                        placeholder="https://drive.google.com/..."
+                        value={folderUrlInput}
+                        onChange={e => setFolderUrlInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") updateCoordinationSheet.mutate({ id: coordinationSheet.id, sharedFolderUrl: folderUrlInput || null });
+                          if (e.key === "Escape") setShowFolderInput(false);
+                        }}
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-emerald-600"
+                        disabled={updateCoordinationSheet.isPending}
+                        onClick={() => updateCoordinationSheet.mutate({ id: coordinationSheet.id, sharedFolderUrl: folderUrlInput || null })}
+                      ><Check className="h-3.5 w-3.5" /></Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => setShowFolderInput(false)}
+                      ><X className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  )}
+                </>
               )}
               {(isAdmin || effectiveRole === "pm") && (
                 <Button
@@ -1511,7 +1585,7 @@ export default function ProjectDetail() {
               </div>
 
               {/* Budget bar — visible to all; dollar amounts shown only to admins */}
-              {burnRate && (
+              {!isInternalProject && burnRate && (
                 <>
                   <Separator />
                   <BudgetBar
@@ -1521,11 +1595,21 @@ export default function ProjectDetail() {
                   />
                 </>
               )}
+              {/* Overhead cost for internal projects */}
+              {isInternalProject && burnRate && canViewProjectFinancials && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Total Overhead Cost</span>
+                    <span className="font-semibold">${(burnRate.laborCost ?? 0).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
           {/* Project Financial Summary — PM only (admin sees full Budget & Invoices card instead) */}
-          {effectiveRole === "pm" && projectFinancialSummary && (
+          {!isInternalProject && effectiveRole === "pm" && projectFinancialSummary && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-3">
@@ -1652,8 +1736,8 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
-          {/* Budget & Invoices — admin and PM */}
-          {canViewProjectFinancials && 
+          {/* Budget & Invoices — admin and PM (hidden for internal projects) */}
+          {!isInternalProject && canViewProjectFinancials && 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">

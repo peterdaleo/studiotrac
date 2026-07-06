@@ -326,6 +326,7 @@ export const coordinationSheets = mysqlTable("coordination_sheets", {
   clientToken: varchar("clientToken", { length: 128 }),
   projectName: varchar("projectName", { length: 500 }).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
+  sharedFolderUrl: varchar("sharedFolderUrl", { length: 2048 }),
   createdById: int("createdById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
