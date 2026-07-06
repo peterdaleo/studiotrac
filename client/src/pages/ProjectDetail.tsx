@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BudgetBar } from "@/components/BudgetBar";
 import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
