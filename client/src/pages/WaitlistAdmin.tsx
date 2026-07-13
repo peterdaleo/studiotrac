@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,88 +46,17 @@ function downloadCSV(filename: string, csvContent: string) {
   URL.revokeObjectURL(url);
 }
 
-// ── Password gate ──────────────────────────────────────────────────
-
-const ADMIN_PASSWORD = "studiotrac-admin-2024";
-
-function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem("waitlist_admin_unlocked", "1");
-      onUnlock();
-    } else {
-      setError(true);
-      setPassword("");
-    }
-  }
-
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="w-full max-w-sm border shadow-md">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Waitlist Admin</CardTitle>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Enter the admin password to view waitlist signups.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="admin-password">
-                Password
-              </label>
-              <input
-                id="admin-password"
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError(false);
-                }}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                placeholder="Enter admin password"
-                autoFocus
-              />
-              {error && (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Incorrect password. Please try again.
-                </p>
-              )}
-            </div>
-            <Button type="submit" className="w-full">
-              Unlock
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // ── Main page ──────────────────────────────────────────────────────
 
 export default function WaitlistAdmin() {
   const { user } = useAuth({ redirectOnUnauthenticated: true });
   const isSuperAdmin = user?.isSuperAdmin ?? false;
 
-  // Check session-level password gate
-  const [unlocked, setUnlocked] = useState(
-    () => sessionStorage.getItem("waitlist_admin_unlocked") === "1",
-  );
-
   const [isExporting, setIsExporting] = useState(false);
 
   const { data: signups, isLoading, refetch, isFetching } = trpc.waitlist.list.useQuery(
     undefined,
-    { enabled: isSuperAdmin && unlocked },
+    { enabled: isSuperAdmin },
   );
 
   // Super-admin guard
@@ -148,15 +76,6 @@ export default function WaitlistAdmin() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    );
-  }
-
-  // Password gate
-  if (!unlocked) {
-    return (
-      <div className="p-6">
-        <PasswordGate onUnlock={() => setUnlocked(true)} />
       </div>
     );
   }
