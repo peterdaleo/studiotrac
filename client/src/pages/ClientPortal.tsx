@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,8 @@ import {
   Clock,
   Shield,
   Layers,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useParams } from "wouter";
 import { PROJECT_PHASES, getPhaseLabel } from "@shared/constants";
@@ -252,6 +255,50 @@ function ProjectCard({ project, notes, files }: { project: any; notes: any[]; fi
   );
 }
 
+// ── Completed projects collapsible section ─────────────────────────
+function CompletedProjectsSection({
+  projects,
+  hasActiveBefore,
+}: {
+  projects: { project: any; notes: any[]; files: any[] }[];
+  hasActiveBefore: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      {hasActiveBefore && <Separator className="my-8" />}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-2 w-full text-left group py-2"
+      >
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+        )}
+        <span className="text-sm font-semibold text-slate-500 group-hover:text-slate-700 transition-colors">
+          Completed Projects ({projects.length})
+        </span>
+        <Badge variant="outline" className="text-xs text-slate-400 border-slate-200 ml-1">
+          {expanded ? "Hide" : "Show"}
+        </Badge>
+      </button>
+
+      {expanded && (
+        <div className="mt-6 space-y-0">
+          {projects.map(({ project, notes, files }, idx) => (
+            <div key={project.id ?? idx}>
+              {idx > 0 && <Separator className="my-8" />}
+              <ProjectCard project={project} notes={notes} files={files} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main portal component ───────────────────────────────────────────
 export default function ClientPortal() {
   const params = useParams<{ token: string }>();
@@ -328,12 +375,26 @@ export default function ClientPortal() {
                 </div>
 
                 {/* Project list */}
-                {clientData.projects.map(({ project, notes, files }, idx) => (
-                  <div key={project.id ?? idx}>
-                    {idx > 0 && <Separator className="my-8" />}
-                    <ProjectCard project={project} notes={notes} files={files} />
-                  </div>
-                ))}
+                {(() => {
+                  const activeProjects = clientData.projects.filter(({ project }) => project.status !== "completed");
+                  const completedProjects = clientData.projects.filter(({ project }) => project.status === "completed");
+                  return (
+                    <>
+                      {/* Active projects — always expanded */}
+                      {activeProjects.map(({ project, notes, files }, idx) => (
+                        <div key={project.id ?? idx}>
+                          {idx > 0 && <Separator className="my-8" />}
+                          <ProjectCard project={project} notes={notes} files={files} />
+                        </div>
+                      ))}
+
+                      {/* Completed projects — collapsed by default */}
+                      {completedProjects.length > 0 && (
+                        <CompletedProjectsSection projects={completedProjects} hasActiveBefore={activeProjects.length > 0} />
+                      )}
+                    </>
+                  );
+                })()}
               </>
             );
           })()
