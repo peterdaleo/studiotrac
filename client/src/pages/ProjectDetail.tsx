@@ -160,6 +160,9 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.projects.get.invalidate({ id: projectId });
       utils.projects.list.invalidate();
+      utils.projects.financialSummary.invalidate({ id: projectId });
+      utils.netIncome.project.invalidate({ projectId });
+      utils.financials.overview.invalidate();
       toast.success("Project updated");
     },
     onError: (err) => {
