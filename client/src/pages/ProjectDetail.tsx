@@ -234,6 +234,9 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
+      utils.projects.financialSummary.invalidate({ id: projectId });
+      utils.projects.get.invalidate({ id: projectId });
+      utils.financials.overview.invalidate();
       setConsultantDialogOpen(false);
       toast.success("Consultant added");
     },
@@ -243,6 +246,9 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
+      utils.projects.financialSummary.invalidate({ id: projectId });
+      utils.projects.get.invalidate({ id: projectId });
+      utils.financials.overview.invalidate();
       toast.success("Consultant updated");
     },
   });
@@ -251,6 +257,9 @@ export default function ProjectDetail() {
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
+      utils.projects.financialSummary.invalidate({ id: projectId });
+      utils.projects.get.invalidate({ id: projectId });
+      utils.financials.overview.invalidate();
       toast.success("Consultant removed");
     },
   });
