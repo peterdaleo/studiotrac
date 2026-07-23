@@ -256,7 +256,8 @@ export default function ProjectDetail() {
   });
 
   const createPayment = trpc.consultantPayments.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      utils.consultantPayments.list.invalidate({ consultantId: variables.consultantId });
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
       utils.financials.overview.invalidate();
@@ -267,6 +268,7 @@ export default function ProjectDetail() {
 
   const deletePayment = trpc.consultantPayments.delete.useMutation({
     onSuccess: () => {
+      utils.consultantPayments.list.invalidate();
       utils.consultants.list.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
       utils.financials.overview.invalidate();
@@ -2110,7 +2112,7 @@ function ConsultantExpanded({ consultant, projectId, isAdmin, paymentDialogOpen,
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium">${(p.amount / 100).toLocaleString()}</span>
-                  <span className="text-[10px] text-muted-foreground">{new Date(p.paymentDate).toLocaleDateString()}</span>
+                  <span className="text-[10px] text-muted-foreground">{new Date(p.paymentDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}</span>
                 </div>
                 {p.notes && <p className="text-[10px] text-muted-foreground truncate">{p.notes}</p>}
               </div>
