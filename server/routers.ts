@@ -703,12 +703,12 @@ export const appRouter = router({
 
   // ── Consultant Contracts ─────────────────────────────────────
   consultants: router({
-    list: adminProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+    list: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
       const limits = await getOrgPlanLimits(ctx);
       requireFeature(limits.hasConsultantManagement, "Consultant Management");
       return db.listConsultantContracts(input.projectId);
     }),
-    create: adminProcedure.input(z.object({
+    create: adminOrPmProcedure.input(z.object({
       projectId: z.number(),
       name: z.string().min(1),
       discipline: z.string().min(1),
@@ -720,7 +720,7 @@ export const appRouter = router({
       requireFeature(limits.hasConsultantManagement, "Consultant Management");
       return db.createConsultantContract(input);
     }),
-    update: adminProcedure.input(z.object({
+    update: adminOrPmProcedure.input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
       discipline: z.string().min(1).optional(),
@@ -731,19 +731,19 @@ export const appRouter = router({
       const { id, ...data } = input;
       return db.updateConsultantContract(id, data);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantContract(input.id)),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantContract(input.id)),
   }),
 
-  // ── Consultant Payments ─────────────────────────────────────
+  // ── Consultant Payments ─────────────────────────────
   consultantPayments: router({
-    list: adminProcedure.input(z.object({ consultantId: z.number() })).query(({ input }) => db.listConsultantPayments(input.consultantId)),
-    create: adminProcedure.input(z.object({
+    list: adminOrPmProcedure.input(z.object({ consultantId: z.number() })).query(({ input }) => db.listConsultantPayments(input.consultantId)),
+    create: adminOrPmProcedure.input(z.object({
       consultantId: z.number(),
       amount: z.number().min(1),
       paymentDate: z.date().optional(),
       notes: z.string().optional(),
     })).mutation(({ input }) => db.createConsultantPayment(input)),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantPayment(input.id)),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantPayment(input.id)),
   }),
 
   // ── Net Income ──────────────────────────────────────────────
