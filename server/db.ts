@@ -2606,3 +2606,15 @@ export async function getProjectTeamAvgRate(projectId: number): Promise<number> 
   if (rates.length === 0) return 0;
   return Math.round(rates.reduce((sum, r) => sum + r, 0) / rates.length);
 }
+
+export async function pinCoordinationItem(itemId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(coordinationItems).set({ pinnedAt: new Date() }).where(eq(coordinationItems.id, itemId));
+}
+
+export async function unpinCoordinationItem(itemId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(coordinationItems).set({ pinnedAt: null }).where(eq(coordinationItems.id, itemId));
+}

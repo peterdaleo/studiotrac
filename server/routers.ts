@@ -1174,18 +1174,15 @@ export const appRouter = router({
     pinItem: adminOrPmProcedure.input(z.object({
       itemId: z.number(),
     })).mutation(async ({ input }) => {
-      const db_inst = await getDb();
-      if (!db_inst) throw new Error("Database not available");
-      await db_inst.update(coordinationItems).set({ pinnedAt: new Date() }).where(eq(coordinationItems.id, input.itemId));
+      await db.pinCoordinationItem(input.itemId);
       return { success: true };
     }),
     // Admin/PM: unpin an item
     unpinItem: adminOrPmProcedure.input(z.object({
       itemId: z.number(),
     })).mutation(async ({ input }) => {
-      const db_inst = await getDb();
-      if (!db_inst) throw new Error("Database not available");
-      await db_inst.update(coordinationItems).set({ pinnedAt: null }).where(eq(coordinationItems.id, input.itemId));
+      await db.unpinCoordinationItem(input.itemId);
+            return { success: true };
     }),
   }),
 
