@@ -48,6 +48,7 @@ import {
   EyeOff,
   Phone,
   Monitor,
+  Pin,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
@@ -168,6 +169,16 @@ export default function CoordinationSheet() {
     onError: (e) => toast.error(e.message),
   });
 
+  const pinItem = trpc.coordination.pinItem.useMutation({
+    onSuccess: () => { refetch(); toast.success("Item pinned"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const unpinItem = trpc.coordination.unpinItem.useMutation({
+    onSuccess: () => { refetch(); toast.success("Item unpinned"); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const toggleExpanded = (id: number) => {
     setExpandedItems(prev => {
       const next = new Set(prev);
@@ -195,8 +206,13 @@ export default function CoordinationSheet() {
         top.push(item);
       }
     }
-    // Sort: urgent first, then by date desc
+    // Sort: pinned first (by pinnedAt DESC), then urgent, then by date desc
     top.sort((a, b) => {
+      const aPinned = !!a.pinnedAt;
+      const bPinned = !!b.pinnedAt;
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      if (aPinned && bPinned) return new Date(b.pinnedAt).getTime() - new Date(a.pinnedAt).getTime();
       if (a.isUrgent && !b.isUrgent) return -1;
       if (!a.isUrgent && b.isUrgent) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -437,12 +453,13 @@ export default function CoordinationSheet() {
             onUpdateItem={updateItem}
             onDeleteItem={deleteItem}
             onUploadAttachment={uploadAttachment}
-            onAddLink={addLink}
+                        onAddLink={addLink}
             onDeleteAttachment={deleteAttachment}
             isClientView={isClientView}
+            onPinItem={pinItem}
+            onUnpinItem={unpinItem}
           />
         ))}
-
         {/* Addressed (collapsed) */}
         {filteredAddressedItems.length > 0 && (
           <div className="pt-2">
@@ -476,6 +493,8 @@ export default function CoordinationSheet() {
                     onAddLink={addLink}
                     onDeleteAttachment={deleteAttachment}
                     isClientView={isClientView}
+                    onPinItem={pinItem}
+                    onUnpinItem={unpinItem}
                   />
                 ))}
               </div>
@@ -674,6 +693,8 @@ function ItemRow({
   onAddLink,
   onDeleteAttachment,
   isClientView = false,
+  onPinItem,
+  onUnpinItem,
 }: {
   item: any;
   replies: any[];
@@ -692,6 +713,8 @@ function ItemRow({
   onAddLink: any;
   onDeleteAttachment: any;
   isClientView?: boolean;
+  onPinItem?: any;
+  onUnpinItem?: any;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [linkUrl, setLinkUrl] = useState("");
@@ -756,7 +779,9 @@ function ItemRow({
   return (
     <div
       className={`rounded-xl border transition-all ${
-        item.isUrgent
+        item.pinnedAt
+          ? "border-blue-300 bg-blue-50/30 shadow-sm shadow-blue-100"
+          : item.isUrgent
           ? "border-amber-300 bg-amber-50/30 shadow-sm shadow-amber-100"
           : item.isAddressed
           ? "border-emerald-200 bg-emerald-50/20"
@@ -772,6 +797,11 @@ function ItemRow({
         <div className="shrink-0 text-muted-foreground">
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </div>
+
+        {/* Pinned indicator */}
+        {item.pinnedAt && (
+          <Pin className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+        )}
 
         {/* Urgent indicator */}
         {item.isUrgent && (
@@ -802,6 +832,18 @@ function ItemRow({
 
         {/* Inline action buttons (always visible, stop propagation) */}
         <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {/* Pin/Unpin button (admin/PM only - shown when not client view) */}
+          {!isClientView && !item.parentId && onPinItem && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-6 w-6 ${item.pinnedAt ? "text-blue-600 bg-blue-50" : "text-muted-foreground"} hover:text-blue-700 hover:bg-blue-50`}
+              title={item.pinnedAt ? "Unpin item" : "Pin to top"}
+              onClick={() => item.pinnedAt ? onUnpinItem.mutate({ itemId: item.id }) : onPinItem.mutate({ itemId: item.id })}
+            >
+              <Pin className="h-3 w-3" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"

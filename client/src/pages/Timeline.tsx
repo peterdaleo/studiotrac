@@ -205,7 +205,7 @@ export default function Timeline() {
               {/* Month Headers */}
               <div className="flex border-b border-border">
                 <div className="w-[260px] shrink-0 px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-r border-border">
-                  Project
+                  {groupBy === "project" ? "Project" : "Team Member"}
                 </div>
                 <div className="flex-1 flex relative">
                   {months.map((month, i) => (
@@ -219,8 +219,89 @@ export default function Timeline() {
                 </div>
               </div>
 
-              {/* Project Rows */}
-              {filteredProjects.length === 0 ? (
+              {/* Member Rows (Group by Team Member) */}
+              {groupBy === "member" && (() => {
+                if (!ganttData?.members || ganttData.members.length === 0) {
+                  return <div className="py-12 text-center text-muted-foreground">No team members to display</div>;
+                }
+                return ganttData.members.map(member => {
+                  // Find all projects this member is assigned to (via tasks)
+                  const memberTasks = ganttData.tasks.filter(t => t.assigneeId === member.id);
+                  const projectMap = new Map<number, { project: typeof ganttData.projects[0]; firstAssigned: Date; lastDeadline: Date | null }>();
+                  for (const task of memberTasks) {
+                    const project = ganttData.projects.find(p => p.id === task.projectId);
+                    if (!project) continue;
+                    if (filterStatus !== "all" && project.status !== filterStatus) continue;
+                    const existing = projectMap.get(project.id);
+                    const taskCreated = new Date(task.createdAt);
+                    const taskDeadline = task.deadline ? new Date(task.deadline) : null;
+                    if (!existing) {
+                      projectMap.set(project.id, { project, firstAssigned: taskCreated, lastDeadline: taskDeadline });
+                    } else {
+                      if (taskCreated < existing.firstAssigned) existing.firstAssigned = taskCreated;
+                      if (taskDeadline && (!existing.lastDeadline || taskDeadline > existing.lastDeadline)) existing.lastDeadline = taskDeadline;
+                    }
+                  }
+                  const projectBars = Array.from(projectMap.values());
+                  if (projectBars.length === 0) return null;
+                  return (
+                    <div key={member.id}>
+                      {/* Member row */}
+                      <div className="flex border-b border-border/50 bg-muted/20">
+                        <div className="w-[260px] shrink-0 px-3 py-3 border-r border-border">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0" style={{ backgroundColor: member.avatarColor || "#6366f1" }}>
+                              {member.name.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium truncate block">{member.name}</span>
+                              <span className="text-[10px] text-muted-foreground">{projectBars.length} project(s)</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex-1 relative py-3">
+                          <div className="absolute inset-0 flex pointer-events-none">
+                            {months.map((_, i) => <div key={i} className="flex-1 border-r border-border/30 last:border-r-0" />)}
+                          </div>
+                          {todayPosition && <div className="absolute top-0 bottom-0 w-px bg-red-400 z-10 pointer-events-none" style={{ left: todayPosition }} />}
+                        </div>
+                      </div>
+                      {/* Project sub-bars for this member */}
+                      {projectBars.map(({ project, firstAssigned, lastDeadline }) => {
+                        const projEnd = lastDeadline || (project.deadline ? new Date(project.deadline) : null);
+                        const bar = getBarPosition(firstAssigned, projEnd);
+                        if (!bar) return null;
+                        const phaseColor = PHASE_COLORS[project.phase] || "#6366f1";
+                        return (
+                          <div key={`${member.id}-${project.id}`} className="flex border-b border-border/20 hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/projects/${project.id}`)}>
+                            <div className="w-[260px] shrink-0 px-3 py-1.5 border-r border-border pl-10">
+                              <span className="text-[11px] text-muted-foreground truncate block">{project.name}</span>
+                            </div>
+                            <div className="flex-1 relative py-1.5">
+                              <div className="absolute inset-0 flex pointer-events-none">
+                                {months.map((_, i) => <div key={i} className="flex-1 border-r border-border/20 last:border-r-0" />)}
+                              </div>
+                              {todayPosition && <div className="absolute top-0 bottom-0 w-px bg-red-400/40 z-10 pointer-events-none" style={{ left: todayPosition }} />}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="absolute top-1/2 -translate-y-1/2 h-4 rounded-sm" style={{ left: bar.left, width: bar.width, backgroundColor: phaseColor, opacity: 0.7 }} />
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p className="text-xs font-medium">{project.name}</p>
+                                  <p className="text-xs text-muted-foreground">First assigned: {firstAssigned.toLocaleDateString()}{projEnd && ` — Last deadline: ${projEnd.toLocaleDateString()}`}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                });
+              })()}
+
+              {/* Project Rows (Group by Project) */}
+              {groupBy === "project" && (filteredProjects.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
                   No projects to display in this view
                 </div>
@@ -445,7 +526,7 @@ export default function Timeline() {
                     </div>
                   );
                 })
-              )}
+              ))}
             </div>
           </div>
 
