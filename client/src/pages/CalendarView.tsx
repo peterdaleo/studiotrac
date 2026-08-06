@@ -24,6 +24,8 @@ import {
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { isSameDayUTCvsLocal } from "@/lib/utils";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -177,6 +179,8 @@ function sortEvents(a: CalendarEvent, b: CalendarEvent) {
 export default function CalendarView() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const isAdmin = useEffectiveAdmin(user?.role);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date());
@@ -654,7 +658,7 @@ export default function CalendarView() {
                                 </div>
 
                                 <div className="flex items-center gap-1">
-                                  {event.approvalStatus === "pending" && event.absenceId && (
+                                  {isAdmin && event.approvalStatus === "pending" && event.absenceId && (
                                     <>
                                       <Button
                                         variant="outline"
