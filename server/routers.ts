@@ -344,6 +344,10 @@ export const appRouter = router({
           message: `Your plan allows up to ${limits.maxProjects} active projects. Upgrade to add more.`,
         });
       }
+      // Auto-set start date to today if not provided
+      if (!input.startDate) {
+        input.startDate = new Date();
+      }
       return db.createProject(input, ctx.organizationId);
     }),
     update: adminOrPmProcedure.input(z.object({

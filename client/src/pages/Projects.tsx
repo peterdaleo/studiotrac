@@ -251,7 +251,7 @@ export default function Projects() {
               );
             })()}
 
-            {daysUntilDeadline !== null && (
+            {daysUntilDeadline !== null && project.status !== "completed" && (
               <div className="flex items-center gap-1.5 text-xs">
                 <Calendar className="h-3 w-3 text-muted-foreground" />
                 <span className={daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}>
@@ -306,11 +306,13 @@ export default function Projects() {
           );
         })()}
         {daysUntilDeadline !== null ? (
-          <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}`}>
-            {daysUntilDeadline < 0
+          <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 && project.status !== "completed" ? "text-red-600 font-medium" : daysUntilDeadline <= 14 && project.status !== "completed" ? "text-amber-600" : "text-muted-foreground"}`}>
+            {daysUntilDeadline < 0 && project.status !== "completed"
               ? `${Math.abs(daysUntilDeadline)}d overdue`
-              : daysUntilDeadline === 0
+              : daysUntilDeadline === 0 && project.status !== "completed"
               ? "Due today"
+              : project.status === "completed"
+              ? "Completed"
               : `${daysUntilDeadline}d left`}
           </span>
         ) : (

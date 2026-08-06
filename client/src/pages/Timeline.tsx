@@ -221,127 +221,217 @@ export default function Timeline() {
                   const taskCount = ganttData?.tasks.filter(t => t.projectId === project.id).length ?? 0;
                   const phaseColor = PHASE_COLORS[project.phase] || "#6366f1";
 
+                  // Build per-member sub-bars for this project
+                  const projectTasks = ganttData?.tasks.filter(t => t.projectId === project.id) ?? [];
+                  const memberMap = new Map<number, { member: typeof ganttData.members[0]; firstAssigned: Date; lastDeadline: Date | null }>();
+                  for (const task of projectTasks) {
+                    if (!task.assigneeId) continue;
+                    const existing = memberMap.get(task.assigneeId);
+                    const taskCreated = new Date(task.createdAt);
+                    const taskDeadline = task.deadline ? new Date(task.deadline) : null;
+                    if (!existing) {
+                      const member = ganttData?.members.find(m => m.id === task.assigneeId);
+                      if (member) {
+                        memberMap.set(task.assigneeId, {
+                          member,
+                          firstAssigned: taskCreated,
+                          lastDeadline: taskDeadline,
+                        });
+                      }
+                    } else {
+                      if (taskCreated < existing.firstAssigned) existing.firstAssigned = taskCreated;
+                      if (taskDeadline && (!existing.lastDeadline || taskDeadline > existing.lastDeadline)) existing.lastDeadline = taskDeadline;
+                    }
+                  }
+                  const memberBars = Array.from(memberMap.values());
+
                   return (
-                    <div
-                      key={project.id}
-                      className="flex border-b border-border/50 hover:bg-muted/30 transition-colors group cursor-pointer"
-                      onClick={() => navigate(`/projects/${project.id}`)}
-                    >
-                      {/* Project Info */}
-                      <div className="w-[260px] shrink-0 px-3 py-3 border-r border-border">
-                        <div className="flex items-start gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{project.name}</span>
-                              {hasConflict && (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>Resource conflict detected</TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${STATUS_BADGE_COLORS[project.status] || ""}`}>
-                                {project.status.replace("_", " ")}
-                              </Badge>
-                              <span className="text-[10px] text-muted-foreground">
-                                {getPhaseLabel(project.phase)}
-                              </span>
+                    <div key={project.id}>
+                      {/* Project row */}
+                      <div
+                        className="flex border-b border-border/50 hover:bg-muted/30 transition-colors group cursor-pointer"
+                        onClick={() => navigate(`/projects/${project.id}`)}
+                      >
+                        {/* Project Info */}
+                        <div className="w-[260px] shrink-0 px-3 py-3 border-r border-border">
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium truncate">{project.name}</span>
+                                {hasConflict && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>Resource conflict detected</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${STATUS_BADGE_COLORS[project.status] || ""}`}>
+                                  {project.status.replace("_", " ")}
+                                </Badge>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {getPhaseLabel(project.phase)}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
+
+                        {/* Gantt Bar */}
+                        <div className="flex-1 relative py-3">
+                          {/* Grid lines for months */}
+                          <div className="absolute inset-0 flex pointer-events-none">
+                            {months.map((_, i) => (
+                              <div key={i} className="flex-1 border-r border-border/30 last:border-r-0" />
+                            ))}
+                          </div>
+
+                          {/* Today line */}
+                          {todayPosition && (
+                            <div
+                              className="absolute top-0 bottom-0 w-px bg-red-400 z-10 pointer-events-none"
+                              style={{ left: todayPosition }}
+                            />
+                          )}
+
+                          {/* Project bar */}
+                          {bar && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-md transition-all group-hover:h-8 ${hasConflict ? "ring-2 ring-amber-400 ring-offset-1" : ""}`}
+                                  style={{
+                                    left: bar.left,
+                                    width: bar.width,
+                                    backgroundColor: phaseColor,
+                                    opacity: project.status === "on_hold" ? 0.5 : 0.85,
+                                  }}
+                                >
+                                  {/* Completion fill */}
+                                  <div
+                                    className="absolute inset-y-0 left-0 rounded-l-md bg-white/20"
+                                    style={{ width: `${project.completionPercentage}%` }}
+                                  />
+                                  {/* Label inside bar */}
+                                  <div className="absolute inset-0 flex items-center px-2 overflow-hidden">
+                                    <span className="text-[10px] font-medium text-white truncate">
+                                      {project.completionPercentage}%
+                                    </span>
+                                  </div>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">{project.name}</p>
+                                  <p className="text-xs">{project.clientName}</p>
+                                  <div className="flex gap-3 text-xs">
+                                    <span>Start: {project.startDate ? new Date(project.startDate).toLocaleDateString() : "N/A"}</span>
+                                    <span>End: {project.deadline ? new Date(project.deadline).toLocaleDateString() : "N/A"}</span>
+                                  </div>
+                                  <div className="flex gap-3 text-xs">
+                                    <span>Phase: {getPhaseLabel(project.phase)}</span>
+                                    <span>{project.completionPercentage}% complete</span>
+                                  </div>
+                                  <p className="text-xs">{taskCount} active task(s)</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+
+                          {/* Task markers */}
+                          {ganttData?.tasks
+                            .filter(t => t.projectId === project.id && t.deadline)
+                            .map(task => {
+                              const taskDay = (new Date(task.deadline!).getTime() - startDate.getTime()) / 86400000;
+                              if (taskDay < 0 || taskDay > totalDays) return null;
+                              const taskLeft = `${(taskDay / totalDays) * 100}%`;
+                              const isOverdue = task.status !== "done" && new Date(task.deadline!) < new Date();
+                              return (
+                                <Tooltip key={task.id}>
+                                  <TooltipTrigger asChild>
+                                    <div
+                                      className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full z-10 ${isOverdue ? "bg-red-500" : "bg-white border-2 border-slate-400"}`}
+                                      style={{ left: taskLeft }}
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs font-medium">{task.title}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Due: {new Date(task.deadline!).toLocaleDateString()}
+                                      {isOverdue && " (Overdue)"}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                        </div>
                       </div>
 
-                      {/* Gantt Bar */}
-                      <div className="flex-1 relative py-3">
-                        {/* Grid lines for months */}
-                        <div className="absolute inset-0 flex pointer-events-none">
-                          {months.map((_, i) => (
-                            <div key={i} className="flex-1 border-r border-border/30 last:border-r-0" />
-                          ))}
-                        </div>
-
-                        {/* Today line */}
-                        {todayPosition && (
+                      {/* Staff member sub-bars */}
+                      {memberBars.map(({ member, firstAssigned, lastDeadline }) => {
+                        const memberEnd = lastDeadline || (project.deadline ? new Date(project.deadline) : null);
+                        const memberBar = getBarPosition(firstAssigned, memberEnd);
+                        if (!memberBar) return null;
+                        return (
                           <div
-                            className="absolute top-0 bottom-0 w-px bg-red-400 z-10 pointer-events-none"
-                            style={{ left: todayPosition }}
-                          />
-                        )}
-
-                        {/* Project bar */}
-                        {bar && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-md transition-all group-hover:h-8 ${hasConflict ? "ring-2 ring-amber-400 ring-offset-1" : ""}`}
-                                style={{
-                                  left: bar.left,
-                                  width: bar.width,
-                                  backgroundColor: phaseColor,
-                                  opacity: project.status === "on_hold" ? 0.5 : 0.85,
-                                }}
-                              >
-                                {/* Completion fill */}
+                            key={`${project.id}-${member.id}`}
+                            className="flex border-b border-border/20 bg-muted/10"
+                          >
+                            {/* Member name */}
+                            <div className="w-[260px] shrink-0 px-3 py-1.5 border-r border-border pl-8">
+                              <div className="flex items-center gap-2">
                                 <div
-                                  className="absolute inset-y-0 left-0 rounded-l-md bg-white/20"
-                                  style={{ width: `${project.completionPercentage}%` }}
-                                />
-                                {/* Label inside bar */}
-                                <div className="absolute inset-0 flex items-center px-2 overflow-hidden">
-                                  <span className="text-[10px] font-medium text-white truncate">
-                                    {project.completionPercentage}%
-                                  </span>
+                                  className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-semibold shrink-0"
+                                  style={{ backgroundColor: member.avatarColor || "#6366f1" }}
+                                >
+                                  {member.name.charAt(0)}
                                 </div>
+                                <span className="text-[11px] text-muted-foreground truncate">{member.name}</span>
                               </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              <div className="space-y-1">
-                                <p className="font-semibold">{project.name}</p>
-                                <p className="text-xs">{project.clientName}</p>
-                                <div className="flex gap-3 text-xs">
-                                  <span>Start: {project.startDate ? new Date(project.startDate).toLocaleDateString() : "N/A"}</span>
-                                  <span>End: {project.deadline ? new Date(project.deadline).toLocaleDateString() : "N/A"}</span>
-                                </div>
-                                <div className="flex gap-3 text-xs">
-                                  <span>Phase: {getPhaseLabel(project.phase)}</span>
-                                  <span>{project.completionPercentage}% complete</span>
-                                </div>
-                                <p className="text-xs">{taskCount} active task(s)</p>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
+                            </div>
 
-                        {/* Task markers */}
-                        {ganttData?.tasks
-                          .filter(t => t.projectId === project.id && t.deadline)
-                          .map(task => {
-                            const taskDay = (new Date(task.deadline!).getTime() - startDate.getTime()) / 86400000;
-                            if (taskDay < 0 || taskDay > totalDays) return null;
-                            const taskLeft = `${(taskDay / totalDays) * 100}%`;
-                            const isOverdue = task.status !== "done" && new Date(task.deadline!) < new Date();
-                            return (
-                              <Tooltip key={task.id}>
+                            {/* Member bar */}
+                            <div className="flex-1 relative py-1.5">
+                              {/* Grid lines */}
+                              <div className="absolute inset-0 flex pointer-events-none">
+                                {months.map((_, i) => (
+                                  <div key={i} className="flex-1 border-r border-border/20 last:border-r-0" />
+                                ))}
+                              </div>
+                              {/* Today line */}
+                              {todayPosition && (
+                                <div
+                                  className="absolute top-0 bottom-0 w-px bg-red-400/40 z-10 pointer-events-none"
+                                  style={{ left: todayPosition }}
+                                />
+                              )}
+                              {/* Bar */}
+                              <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div
-                                    className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full z-10 ${isOverdue ? "bg-red-500" : "bg-white border-2 border-slate-400"}`}
-                                    style={{ left: taskLeft }}
+                                    className="absolute top-1/2 -translate-y-1/2 h-4 rounded-sm"
+                                    style={{
+                                      left: memberBar.left,
+                                      width: memberBar.width,
+                                      backgroundColor: member.avatarColor || "#6366f1",
+                                      opacity: 0.6,
+                                    }}
                                   />
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="text-xs font-medium">{task.title}</p>
+                                <TooltipContent side="top">
+                                  <p className="text-xs font-medium">{member.name}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    Due: {new Date(task.deadline!).toLocaleDateString()}
-                                    {isOverdue && " (Overdue)"}
+                                    First assigned: {firstAssigned.toLocaleDateString()}
+                                    {memberEnd && ` — Last deadline: ${memberEnd.toLocaleDateString()}`}
                                   </p>
                                 </TooltipContent>
                               </Tooltip>
-                            );
-                          })}
-                      </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })
@@ -370,6 +460,10 @@ export default function Timeline() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <AlertTriangle className="h-3 w-3 text-amber-500" />
               Resource Conflict
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-4 h-2.5 rounded-sm bg-indigo-400 opacity-60" />
+              Staff Member
             </div>
           </div>
         </CardContent>
