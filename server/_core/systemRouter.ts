@@ -189,6 +189,30 @@ export const systemRouter = router({
         results.push("coordination_sheets sharedFolderUrl column already exists");
       }
 
+      // Create project_team_members table if not exists
+      try {
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS project_team_members (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          projectId INT NOT NULL,
+          teamMemberId INT NOT NULL,
+          role ENUM('designer','pm','production') NOT NULL,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          UNIQUE KEY unique_assignment (projectId, teamMemberId, role)
+        )`);
+        results.push("project_team_members table created or already exists");
+      } catch (e: any) {
+        results.push("project_team_members: " + e?.message);
+      }
+
+      // Migrate existing projectManagerId assignments to project_team_members
+      try {
+        await db.execute(sql`INSERT IGNORE INTO project_team_members (projectId, teamMemberId, role)
+          SELECT id, projectManagerId, 'pm' FROM projects WHERE projectManagerId IS NOT NULL`);
+        results.push("Migrated existing PM assignments to project_team_members");
+      } catch (e: any) {
+        results.push("PM migration: " + e?.message);
+      }
+
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };

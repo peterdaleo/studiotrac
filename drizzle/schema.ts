@@ -384,3 +384,14 @@ export const coordinationSheetViews = mysqlTable("coordination_sheet_views", {
   lastViewedAt: timestamp("lastViewedAt").defaultNow().notNull(),
 });
 export type CoordinationSheetView = typeof coordinationSheetViews.$inferSelect;
+
+// ── Project Team Members ─────────────────────────────────────────
+export const projectTeamMembers = mysqlTable("project_team_members", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  teamMemberId: int("teamMemberId").notNull(),
+  role: mysqlEnum("role", ["designer", "pm", "production"]).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ProjectTeamMember = typeof projectTeamMembers.$inferSelect;
+export type InsertProjectTeamMember = typeof projectTeamMembers.$inferInsert;

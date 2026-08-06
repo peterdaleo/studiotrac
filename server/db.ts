@@ -21,6 +21,7 @@ import {
   billingDepartmentEmails, InsertBillingDepartmentEmail,
   waitlistSignups, InsertWaitlistSignup, WaitlistSignup,
   subscriptions, InsertSubscription, Subscription,
+  projectTeamMembers, InsertProjectTeamMember, ProjectTeamMember,
 } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -2552,4 +2553,56 @@ export async function getCoordinationUnreadCount(sheetId: number, userId: number
     if (isMissingTableError(error)) return 0;
     return 0;
   }
+}
+
+// ── Project Team Members ─────────────────────────────────────────
+export async function listProjectTeamMembers(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projectTeamMembers).where(eq(projectTeamMembers.projectId, projectId)).orderBy(asc(projectTeamMembers.createdAt));
+}
+
+export async function listProjectsForTeamMember(teamMemberId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projectTeamMembers).where(eq(projectTeamMembers.teamMemberId, teamMemberId)).orderBy(desc(projectTeamMembers.createdAt));
+}
+
+export async function addProjectTeamMember(data: { projectId: number; teamMemberId: number; role: "designer" | "pm" | "production" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Check if this exact assignment already exists
+  const existing = await db.select().from(projectTeamMembers).where(
+    and(
+      eq(projectTeamMembers.projectId, data.projectId),
+      eq(projectTeamMembers.teamMemberId, data.teamMemberId),
+      eq(projectTeamMembers.role, data.role),
+    )
+  ).limit(1);
+  if (existing.length > 0) return { id: existing[0].id };
+  const result = await db.insert(projectTeamMembers).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function removeProjectTeamMember(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(projectTeamMembers).where(eq(projectTeamMembers.id, id));
+}
+
+export async function getProjectTeamAvgRate(projectId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  // Get unique team member IDs assigned to this project
+  const assignments = await db.select({ teamMemberId: projectTeamMembers.teamMemberId })
+    .from(projectTeamMembers)
+    .where(eq(projectTeamMembers.projectId, projectId));
+  if (assignments.length === 0) return 0;
+  const memberIds = [...new Set(assignments.map(a => a.teamMemberId))];
+  const members = await db.select({ billingRate: teamMembers.billingRate })
+    .from(teamMembers)
+    .where(inArray(teamMembers.id, memberIds));
+  const rates = members.map(m => m.billingRate).filter(r => r > 0);
+  if (rates.length === 0) return 0;
+  return Math.round(rates.reduce((sum, r) => sum + r, 0) / rates.length);
 }

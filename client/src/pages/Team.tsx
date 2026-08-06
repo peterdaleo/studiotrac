@@ -278,13 +278,34 @@ export default function Team() {
     [selectedMemberTasks]
   );
 
+  // Fetch formal project team assignments for the selected member
+  const { data: memberTeamAssignments } = trpc.projectTeam.listByMember.useQuery(
+    { teamMemberId: selectedMemberId! },
+    { enabled: !!selectedMemberId }
+  );
   const selectedMemberProjects = useMemo(() => {
     if (!selectedMemberId || !allTasks || !projects) return [];
     // Include projects where the member has an assigned task
     const projectIds = new Set(allTasks.filter((t) => t.assigneeId === selectedMemberId).map((t) => t.projectId));
-    // Also include projects where the member is the assigned Project Manager
+    // Also include projects from formal team assignments
+    if (memberTeamAssignments) {
+      memberTeamAssignments.forEach(a => projectIds.add(a.projectId));
+    }
+    // Also include projects where the member is the assigned Project Manager (legacy)
     return projects.filter((p) => projectIds.has(p.id) || p.projectManagerId === selectedMemberId);
-  }, [selectedMemberId, allTasks, projects]);
+  }, [selectedMemberId, allTasks, projects, memberTeamAssignments]);
+
+  // Build a role map for the selected member
+  const memberRoleMap = useMemo(() => {
+    const map = new Map<number, string[]>();
+    if (!memberTeamAssignments) return map;
+    for (const a of memberTeamAssignments) {
+      const existing = map.get(a.projectId);
+      if (existing) existing.push(a.role);
+      else map.set(a.projectId, [a.role]);
+    }
+    return map;
+  }, [memberTeamAssignments]);
 
   const workloadChartData = useMemo(() => {
     // Use first name + last initial to disambiguate members with the same first name
@@ -527,7 +548,16 @@ export default function Team() {
                           >
                             <div className={`h-2 w-2 rounded-full shrink-0 ${statusDotMap[p.status] ?? "bg-slate-400"}`} />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{p.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium truncate">{p.name}</p>
+                                {memberRoleMap.get(p.id)?.map(role => (
+                                  <span key={role} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+                                    role === 'designer' ? 'bg-blue-100 text-blue-700' :
+                                    role === 'pm' ? 'bg-purple-100 text-purple-700' :
+                                    'bg-emerald-100 text-emerald-700'
+                                  }`}>{role === 'designer' ? 'Designer' : role === 'pm' ? 'PM' : 'Production'}</span>
+                                ))}
+                              </div>
                               <p className="text-xs text-muted-foreground">{getPhaseShortLabel(p.phase)} - {p.completionPercentage}%</p>
                             </div>
                           </button>

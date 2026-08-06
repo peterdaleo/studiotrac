@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BudgetBar } from "@/components/BudgetBar";
 import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
@@ -102,6 +102,138 @@ const taskStatusOptions = [
   { value: "in_progress", label: "In Progress" },
   { value: "done", label: "Done" },
 ];
+
+function TimeLeftInBudget({ projectId, burnRate }: { projectId: number; burnRate: { contractedFee: number; laborCost: number; consultantCost: number } }) {
+  const { data: avgRate } = trpc.projectTeam.avgRate.useQuery({ projectId });
+  // Budget remaining = contractedFee - consultantCost - laborCost
+  // Consultant fees deducted from budget whether paid or not
+  const budgetRemaining = Math.max(0, burnRate.contractedFee - burnRate.consultantCost - burnRate.laborCost);
+  if (burnRate.contractedFee === 0) return null;
+  if (!avgRate || avgRate === 0) {
+    return (
+      <div className="flex items-center justify-between text-xs mt-2">
+        <span className="text-muted-foreground">Time remaining</span>
+        <span className="text-muted-foreground italic">Set team rates to estimate</span>
+      </div>
+    );
+  }
+  // avgRate is in cents/hour, budgetRemaining is in cents
+  const hoursRemaining = budgetRemaining / avgRate;
+  const hours = Math.floor(hoursRemaining);
+  const minutes = Math.round((hoursRemaining - hours) * 60);
+  return (
+    <div className="flex items-center justify-between text-xs mt-2">
+      <span className="text-muted-foreground">Time remaining in budget</span>
+      <span className={`font-semibold ${hoursRemaining < 10 ? 'text-red-600' : hoursRemaining < 40 ? 'text-amber-600' : 'text-emerald-600'}`}>
+        ~{hours}h {minutes}m
+      </span>
+    </div>
+  );
+}
+
+const ROLE_LABELS: Record<string, string> = { designer: "Designer", pm: "PM", production: "Production" };
+const ROLE_COLORS: Record<string, string> = { designer: "bg-blue-100 text-blue-700", pm: "bg-purple-100 text-purple-700", production: "bg-emerald-100 text-emerald-700" };
+
+function ProjectTeamSection({ projectId, teamMembers, canEdit }: { projectId: number; teamMembers: { id: number; name: string }[]; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const { data: assignments } = trpc.projectTeam.list.useQuery({ projectId });
+  const addMember = trpc.projectTeam.add.useMutation({
+    onSuccess: () => { utils.projectTeam.list.invalidate({ projectId }); utils.projectTeam.avgRate.invalidate({ projectId }); },
+  });
+  const removeMember = trpc.projectTeam.remove.useMutation({
+    onSuccess: () => { utils.projectTeam.list.invalidate({ projectId }); utils.projectTeam.avgRate.invalidate({ projectId }); },
+  });
+  const [adding, setAdding] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<string>("");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+
+  const handleAdd = () => {
+    if (!selectedMember || selectedRoles.length === 0) return;
+    selectedRoles.forEach(role => {
+      addMember.mutate({ projectId, teamMemberId: Number(selectedMember), role: role as any });
+    });
+    setSelectedMember("");
+    setSelectedRoles([]);
+    setAdding(false);
+  };
+
+  // Group assignments by member
+  const grouped = useMemo(() => {
+    if (!assignments) return [];
+    const map = new Map<number, { teamMemberId: number; name: string; roles: { id: number; role: string }[] }>();
+    for (const a of assignments) {
+      const existing = map.get(a.teamMemberId);
+      const memberName = teamMembers.find(m => m.id === a.teamMemberId)?.name ?? `Member #${a.teamMemberId}`;
+      if (existing) {
+        existing.roles.push({ id: a.id, role: a.role });
+      } else {
+        map.set(a.teamMemberId, { teamMemberId: a.teamMemberId, name: memberName, roles: [{ id: a.id, role: a.role }] });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignments, teamMembers]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Project Team</span>
+        {canEdit && (
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setAdding(!adding)}>
+            {adding ? "Cancel" : "+ Add"}
+          </Button>
+        )}
+      </div>
+      {grouped.length === 0 && !adding && (
+        <p className="text-xs text-muted-foreground">No team members assigned</p>
+      )}
+      {grouped.map(({ teamMemberId, name, roles }) => (
+        <div key={teamMemberId} className="flex items-center justify-between py-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium">{name}</span>
+            <div className="flex gap-1">
+              {roles.map(r => (
+                <span key={r.id} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${ROLE_COLORS[r.role] ?? ""}`}>
+                  {ROLE_LABELS[r.role] ?? r.role}
+                </span>
+              ))}
+            </div>
+          </div>
+          {canEdit && (
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-muted-foreground hover:text-red-500" onClick={() => roles.forEach(r => removeMember.mutate({ id: r.id }))}>
+              ×
+            </Button>
+          )}
+        </div>
+      ))}
+      {adding && (
+        <div className="space-y-2 border rounded-md p-2 bg-muted/30">
+          <Select value={selectedMember} onValueChange={setSelectedMember}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select member" /></SelectTrigger>
+            <SelectContent>
+              {teamMembers.map(m => <SelectItem key={m.id} value={m.id.toString()}>{m.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            {["designer", "pm", "production"].map(role => (
+              <label key={role} className="flex items-center gap-1 text-[10px] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedRoles.includes(role)}
+                  onChange={(e) => setSelectedRoles(prev => e.target.checked ? [...prev, role] : prev.filter(r => r !== role))}
+                  className="h-3 w-3 rounded"
+                />
+                {ROLE_LABELS[role]}
+              </label>
+            ))}
+          </div>
+          <Button size="sm" className="h-6 text-xs w-full" onClick={handleAdd} disabled={!selectedMember || selectedRoles.length === 0}>
+            Add to Team
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
@@ -1571,25 +1703,8 @@ export default function ProjectDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Project Manager</span>
-                  <Select
-                    value={project.projectManagerId?.toString() ?? "none"}
-                    onValueChange={(v) =>
-                      updateProject.mutate({ id: projectId, projectManagerId: v === "none" ? null : Number(v) })
-                    }
-                  >
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Unassigned</SelectItem>
-                      {teamMembers?.map((m) => (
-                        <SelectItem key={m.id} value={m.id.toString()}>{m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Project Team */}
+                <ProjectTeamSection projectId={projectId} teamMembers={teamMembers ?? []} canEdit={canViewProjectFinancials || effectiveRole === "pm"} />
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Phase</span>
@@ -1639,6 +1754,10 @@ export default function ProjectDetail() {
                     isAdmin={canViewProjectFinancials}
                   />
                 </>
+              )}
+              {/* Time Left in Budget — admin/PM only */}
+              {!isInternalProject && burnRate && canViewProjectFinancials && (
+                <TimeLeftInBudget projectId={projectId} burnRate={burnRate} />
               )}
               {/* Overhead cost for internal projects */}
               {isInternalProject && burnRate && canViewProjectFinancials && (

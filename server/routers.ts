@@ -705,6 +705,19 @@ export const appRouter = router({
     data: protectedProcedure.query(({ ctx }) => db.getGanttData(ctx.organizationId)),
   }),
 
+  // ── Project Team Members ────────────────────────────────────
+  projectTeam: router({
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectTeamMembers(input.projectId)),
+    listByMember: protectedProcedure.input(z.object({ teamMemberId: z.number() })).query(({ input }) => db.listProjectsForTeamMember(input.teamMemberId)),
+    add: adminOrPmProcedure.input(z.object({
+      projectId: z.number(),
+      teamMemberId: z.number(),
+      role: z.enum(["designer", "pm", "production"]),
+    })).mutation(({ input }) => db.addProjectTeamMember(input)),
+    remove: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.removeProjectTeamMember(input.id)),
+    avgRate: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectTeamAvgRate(input.projectId)),
+  }),
+
   // ── Consultant Contracts ─────────────────────────────────────
   consultants: router({
     list: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
