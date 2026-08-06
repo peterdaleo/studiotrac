@@ -100,7 +100,8 @@ export default function Home() {
 
   // Projects at 100% completion but not yet archived, with unpaid invoices
   const awaitingPaymentProjects = projects?.filter(
-    (p) => p.status !== "completed" && p.completionPercentage >= 100 && p.contractedFee > 0 && p.invoicedAmount < p.contractedFee
+    (p) => p.status !== "completed" && p.completionPercentage >= 100 &&
+      ((p as any).unpaidInvoiceCount > 0 || (p.contractedFee > 0 && p.invoicedAmount < p.contractedFee))
   ) ?? [];
   const awaitingPaymentTotal = awaitingPaymentProjects.reduce(
     (sum, p) => sum + (p.contractedFee - p.invoicedAmount), 0

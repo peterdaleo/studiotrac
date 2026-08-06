@@ -80,7 +80,10 @@ function isPendingCloseout(project: { completionPercentage: number; status: stri
   return project.completionPercentage >= 100 && project.status !== "completed";
 }
 // Helper: does a project have unpaid invoices?
-function hasUnpaidInvoices(project: { contractedFee: number; invoicedAmount: number }) {
+function hasUnpaidInvoices(project: { contractedFee: number; invoicedAmount: number; unpaidInvoiceCount?: number }) {
+  // Primary check: use unpaidInvoiceCount if available (sent/overdue invoices not yet paid)
+  if (typeof project.unpaidInvoiceCount === 'number') return project.unpaidInvoiceCount > 0;
+  // Fallback: compare invoicedAmount vs contractedFee
   return project.contractedFee > 0 && project.invoicedAmount < project.contractedFee;
 }
 

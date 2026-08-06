@@ -399,7 +399,22 @@ export async function listProjects(filters?: { status?: string; phase?: string; 
   if (filters?.phase) conditions.push(eq(projects.phase, filters.phase as any));
   if (filters?.managerId) conditions.push(eq(projects.projectManagerId, filters.managerId));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  return db.select().from(projects).where(where).orderBy(desc(projects.updatedAt));
+  const rows = await db.select().from(projects).where(where).orderBy(desc(projects.updatedAt));
+  // Attach unpaid invoice count per project
+  if (rows.length === 0) return rows.map(r => ({ ...r, unpaidInvoiceCount: 0 }));
+  const projectIds = rows.map(r => r.id);
+  const unpaidCounts = await db.select({
+    projectId: invoices.projectId,
+    cnt: sql<number>`count(*)`,
+  }).from(invoices)
+    .where(and(
+      inArray(invoices.projectId, projectIds),
+      ne(invoices.status, 'paid'),
+      ne(invoices.status, 'draft'),
+    ))
+    .groupBy(invoices.projectId);
+  const unpaidMap = new Map(unpaidCounts.map(r => [r.projectId, Number(r.cnt)]));
+  return rows.map(r => ({ ...r, unpaidInvoiceCount: unpaidMap.get(r.id) ?? 0 }));
 }
 
 export async function getProject(id: number) {
