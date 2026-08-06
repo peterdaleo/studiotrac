@@ -657,7 +657,7 @@ export default function CalendarView() {
                                   ) : null}
                                 </div>
 
-                                <div className="flex items-center gap-1">
+                                <div className="flex flex-wrap items-center justify-end gap-1">
                                   {isAdmin && event.approvalStatus === "pending" && event.absenceId && (
                                     <>
                                       <Button
