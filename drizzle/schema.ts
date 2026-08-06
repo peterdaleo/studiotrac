@@ -345,6 +345,7 @@ export const coordinationItems = mysqlTable("coordination_items", {
   isAddressed: boolean("isAddressed").default(false).notNull(),
   isNotified: boolean("isNotified").default(false).notNull(),
   visibility: mysqlEnum("visibility", ["internal", "client"]).default("internal").notNull(),
+  pinnedAt: timestamp("pinnedAt"), // nullable — null means not pinned
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   editedAt: timestamp("editedAt"),
 });

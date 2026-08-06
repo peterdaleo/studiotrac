@@ -1168,6 +1168,24 @@ export const appRouter = router({
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await db.removeCoordinationSubscriber(sheet.id, input.emailOrPhone.trim());
       return { success: true };
+
+    }),
+    // Admin/PM: pin an item
+    pinItem: adminOrPmProcedure.input(z.object({
+      itemId: z.number(),
+    })).mutation(async ({ input }) => {
+      const db_inst = await getDb();
+      if (!db_inst) throw new Error("Database not available");
+      await db_inst.update(coordinationItems).set({ pinnedAt: new Date() }).where(eq(coordinationItems.id, input.itemId));
+      return { success: true };
+    }),
+    // Admin/PM: unpin an item
+    unpinItem: adminOrPmProcedure.input(z.object({
+      itemId: z.number(),
+    })).mutation(async ({ input }) => {
+      const db_inst = await getDb();
+      if (!db_inst) throw new Error("Database not available");
+      await db_inst.update(coordinationItems).set({ pinnedAt: null }).where(eq(coordinationItems.id, input.itemId));
     }),
   }),
 

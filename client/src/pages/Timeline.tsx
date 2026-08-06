@@ -31,6 +31,7 @@ export default function Timeline() {
   const [, navigate] = useLocation();
   const [monthOffset, setMonthOffset] = useState(0);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [groupBy, setGroupBy] = useState<"project" | "member">("project");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const today = useMemo(() => new Date(), []);
@@ -137,6 +138,15 @@ export default function Timeline() {
           <p className="text-muted-foreground">Project schedules and resource allocation</p>
         </div>
         <div className="flex items-center gap-3">
+          <Select value={groupBy} onValueChange={(v: any) => setGroupBy(v)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Group by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="project">Group by: Project</SelectItem>
+              <SelectItem value="member">Group by: Team Member</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Filter status" />

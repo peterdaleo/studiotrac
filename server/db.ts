@@ -2311,7 +2311,7 @@ export async function listCoordinationItems(sheetId: number): Promise<Coordinati
     const db = await getDb();
     return db.select().from(coordinationItems)
       .where(eq(coordinationItems.sheetId, sheetId))
-      .orderBy(coordinationItems.createdAt);
+      .orderBy(desc(coordinationItems.pinnedAt), asc(coordinationItems.createdAt));
   } catch (error) {
     if (isMissingTableError(error)) return [];
     throw error;

@@ -155,6 +155,10 @@ export const systemRouter = router({
       await db.execute(sql`ALTER TABLE coordination_items ADD COLUMN visibility enum('internal','client') NOT NULL DEFAULT 'internal'`).catch(() => {});
       results.push("coordination_items visibility column ensured");
 
+      // Add pinnedAt column for pinning coordination items
+      await db.execute(sql`ALTER TABLE coordination_items ADD COLUMN pinnedAt timestamp NULL`).catch(() => {});
+      results.push("coordination_items pinnedAt column ensured");
+
       // Performance indexes for time_entries (fix slow stopTimer/activeTimer queries)
       await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_time_entries_user_end ON time_entries (userId, endTime)`).catch(() => {});
       results.push("idx_time_entries_user_end index ensured");
