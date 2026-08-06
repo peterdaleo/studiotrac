@@ -302,7 +302,7 @@ export default function CalendarView() {
 
     absences?.forEach((absence) => {
       // Hide rejected absences from the calendar
-      if ((absence as any).approvalStatus === "rejected") return;
+      if (absence.approvalStatus === "rejected") return;
       const rangeStart = startOfDay(new Date(absence.startDate));
       const rangeEnd = startOfDay(new Date(absence.endDate));
       let cursor = new Date(rangeStart);
@@ -315,7 +315,7 @@ export default function CalendarView() {
           type: "absence",
           absenceId: absence.id,
           absenceType: absence.absenceType,
-          approvalStatus: (absence as any).approvalStatus ?? "approved",
+          approvalStatus: absence.approvalStatus ?? "approved",
           teamMemberId: absence.teamMemberId,
           teamMemberName: absence.teamMemberName,
           notes: absence.notes,
