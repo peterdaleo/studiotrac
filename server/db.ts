@@ -942,10 +942,11 @@ export async function getDashboardStats(orgId?: number | null) {
   const taskWhere = orgId ? eq(tasks.organizationId, orgId) : undefined;
   const projectStats = await db.select({
     total: sql<number>`count(*)`,
-    onTrack: sql<number>`sum(case when status = 'on_track' then 1 else 0 end)`,
-    delayed: sql<number>`sum(case when status = 'delayed' then 1 else 0 end)`,
-    onHold: sql<number>`sum(case when status = 'on_hold' then 1 else 0 end)`,
+    onTrack: sql<number>`sum(case when status = 'on_track' and completionPercentage < 100 then 1 else 0 end)`,
+    delayed: sql<number>`sum(case when status = 'delayed' and completionPercentage < 100 then 1 else 0 end)`,
+    onHold: sql<number>`sum(case when status = 'on_hold' and completionPercentage < 100 then 1 else 0 end)`,
     completed: sql<number>`sum(case when status = 'completed' then 1 else 0 end)`,
+    pendingCloseout: sql<number>`sum(case when status != 'completed' and completionPercentage >= 100 then 1 else 0 end)`,
   }).from(projects).where(projectWhere);
   const taskStats = await db.select({
     total: sql<number>`count(*)`,
@@ -959,6 +960,7 @@ export async function getDashboardStats(orgId?: number | null) {
     delayed: Number(projectStats[0]?.delayed ?? 0),
     onHold: Number(projectStats[0]?.onHold ?? 0),
     completed: Number(projectStats[0]?.completed ?? 0),
+    pendingCloseout: Number(projectStats[0]?.pendingCloseout ?? 0),
     totalTasks: Number(taskStats[0]?.total ?? 0),
     overdueTasks: Number(taskStats[0]?.overdue ?? 0),
     completedTasks: Number(taskStats[0]?.completed ?? 0),

@@ -95,8 +95,16 @@ export default function Home() {
     ?.filter((t) => t.status !== "done" && t.deadline && isDeadlineOverdueUTC(t.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()) ?? [];
   const delayedProjects = projects?.filter(
-    (p) => p.status !== "completed" && p.deadline && isDeadlineOverdueUTC(p.deadline)
+    (p) => p.status !== "completed" && p.completionPercentage < 100 && p.deadline && isDeadlineOverdueUTC(p.deadline)
   ).length ?? 0;
+
+  // Projects at 100% completion but not yet archived, with unpaid invoices
+  const awaitingPaymentProjects = projects?.filter(
+    (p) => p.status !== "completed" && p.completionPercentage >= 100 && p.contractedFee > 0 && p.invoicedAmount < p.contractedFee
+  ) ?? [];
+  const awaitingPaymentTotal = awaitingPaymentProjects.reduce(
+    (sum, p) => sum + (p.contractedFee - p.invoicedAmount), 0
+  );
 
   if (statsLoading || projectsLoading) {
     return (
@@ -149,7 +157,7 @@ export default function Home() {
     { name: "Completed", value: stats.completed, fill: "#94a3b8" },
   ].filter((d) => d.value > 0);
 
-  const phaseData = projects?.reduce((acc, p) => {
+  const phaseData = projects?.filter(p => p.status !== "completed" && p.completionPercentage < 100).reduce((acc, p) => {
     const label = getPhaseShortLabel(p.phase);
     const existing = acc.find((a) => a.phase === label);
     if (existing) existing.count++;
@@ -288,8 +296,27 @@ export default function Home() {
             Percentage of tasks marked complete across all active projects
           </UITooltipContent>
         </UITooltip>
-      </div>
-
+            </div>
+      {/* Awaiting Payment Card */}
+      {awaitingPaymentProjects.length > 0 && isAdmin && (
+        <Card className="border-0 shadow-sm bg-card hover:shadow-md transition-shadow cursor-default mt-4">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Complete — Awaiting Payment</p>
+                <p className="text-3xl font-bold mt-1 text-amber-600">{awaitingPaymentProjects.length}</p>
+              </div>
+              <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-amber-500" />
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground">
+              <span className="text-amber-600 font-medium">${(awaitingPaymentTotal / 100).toLocaleString()}</span>
+              <span>outstanding receivables</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* Financial KPIs Row - Admin Only */}
       {isAdmin && <div>
         <div className="flex items-center justify-between mb-3">

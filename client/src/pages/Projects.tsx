@@ -68,13 +68,21 @@ const statusColorMap: Record<string, string> = {
   delayed: "bg-red-500/10 text-red-700 border-red-200",
   completed: "bg-slate-500/10 text-slate-600 border-slate-200",
 };
-
 const statusDotMap: Record<string, string> = {
   on_track: "bg-emerald-500",
   on_hold: "bg-amber-500",
   delayed: "bg-red-500",
   completed: "bg-slate-400",
 };
+
+// Helper: is a project 100% complete but not yet archived?
+function isPendingCloseout(project: { completionPercentage: number; status: string }) {
+  return project.completionPercentage >= 100 && project.status !== "completed";
+}
+// Helper: does a project have unpaid invoices?
+function hasUnpaidInvoices(project: { contractedFee: number; invoicedAmount: number }) {
+  return project.contractedFee > 0 && project.invoicedAmount < project.contractedFee;
+}
 
 export default function Projects() {
   const [, setLocation] = useLocation();
@@ -208,11 +216,16 @@ export default function Projects() {
             </div>
             <Badge
               variant="outline"
-              className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
+              className={`text-[10px] shrink-0 ${isPendingCloseout(project) ? "bg-purple-500/10 text-purple-700 border-purple-200" : statusColorMap[project.status] ?? ""}`}
             >
-              {getStatusLabel(project.status)}
+              {isPendingCloseout(project) ? "Pending Closeout" : getStatusLabel(project.status)}
             </Badge>
           </div>
+          {isPendingCloseout(project) && hasUnpaidInvoices(project) && (
+            <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-200 mt-1">
+              Awaiting Payment
+            </Badge>
+          )}
 
           <div className="space-y-3">
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -254,13 +267,17 @@ export default function Projects() {
             {daysUntilDeadline !== null && project.status !== "completed" && (
               <div className="flex items-center gap-1.5 text-xs">
                 <Calendar className="h-3 w-3 text-muted-foreground" />
-                <span className={daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}>
-                  {daysUntilDeadline < 0
-                    ? `${Math.abs(daysUntilDeadline)} days overdue`
-                    : daysUntilDeadline === 0
-                    ? "Due today"
-                    : `${daysUntilDeadline} days remaining`}
-                </span>
+                {isPendingCloseout(project) ? (
+                  <span className="text-purple-600 font-medium">Complete — awaiting closeout</span>
+                ) : (
+                  <span className={daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}>
+                    {daysUntilDeadline < 0
+                      ? `${Math.abs(daysUntilDeadline)} days overdue`
+                      : daysUntilDeadline === 0
+                      ? "Due today"
+                      : `${daysUntilDeadline} days remaining`}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -306,8 +323,10 @@ export default function Projects() {
           );
         })()}
         {daysUntilDeadline !== null ? (
-          <span className={`text-xs w-24 text-right ${daysUntilDeadline < 0 && project.status !== "completed" ? "text-red-600 font-medium" : daysUntilDeadline <= 14 && project.status !== "completed" ? "text-amber-600" : "text-muted-foreground"}`}>
-            {daysUntilDeadline < 0 && project.status !== "completed"
+          <span className={`text-xs w-24 text-right ${isPendingCloseout(project) ? "text-purple-600 font-medium" : daysUntilDeadline < 0 && project.status !== "completed" ? "text-red-600 font-medium" : daysUntilDeadline <= 14 && project.status !== "completed" ? "text-amber-600" : "text-muted-foreground"}`}>
+            {isPendingCloseout(project)
+              ? "Closeout"
+              : daysUntilDeadline < 0 && project.status !== "completed"
               ? `${Math.abs(daysUntilDeadline)}d overdue`
               : daysUntilDeadline === 0 && project.status !== "completed"
               ? "Due today"
@@ -320,10 +339,15 @@ export default function Projects() {
         )}
         <Badge
           variant="outline"
-          className={`text-[10px] shrink-0 ${statusColorMap[project.status] ?? ""}`}
+          className={`text-[10px] shrink-0 ${isPendingCloseout(project) ? "bg-purple-500/10 text-purple-700 border-purple-200" : statusColorMap[project.status] ?? ""}`}
         >
-          {getStatusLabel(project.status)}
+          {isPendingCloseout(project) ? "Pending Closeout" : getStatusLabel(project.status)}
         </Badge>
+        {isPendingCloseout(project) && hasUnpaidInvoices(project) && (
+          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-200 shrink-0">
+            Payment Due
+          </Badge>
+        )}
       </div>
     );
   };

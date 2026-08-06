@@ -268,8 +268,8 @@ export default function Timeline() {
                                 )}
                               </div>
                               <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${STATUS_BADGE_COLORS[project.status] || ""}`}>
-                                  {project.status.replace("_", " ")}
+                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${project.completionPercentage >= 100 ? "bg-purple-500/10 text-purple-700 border-purple-200" : STATUS_BADGE_COLORS[project.status] || ""}`}>
+                                  {project.completionPercentage >= 100 ? "Pending Closeout" : project.status.replace("_", " ")}
                                 </Badge>
                                 <span className="text-[10px] text-muted-foreground">
                                   {getPhaseLabel(project.phase)}

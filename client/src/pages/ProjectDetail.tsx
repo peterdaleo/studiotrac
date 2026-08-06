@@ -904,6 +904,30 @@ export default function ProjectDetail() {
         </div>
       </div>
 
+      {/* Pending Closeout Banner */}
+      {project.completionPercentage >= 100 && project.status !== "completed" && (
+        <Card className="border-0 shadow-sm border-l-4 border-l-purple-500 bg-purple-50/50">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-purple-800">Project Complete — Pending Closeout</p>
+                {project.contractedFee > 0 && project.invoicedAmount < project.contractedFee && (
+                  <p className="text-xs text-purple-600 mt-0.5">
+                    Outstanding: <span className="font-semibold">${((project.contractedFee - project.invoicedAmount) / 100).toLocaleString()}</span> awaiting payment
+                  </p>
+                )}
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-200">
+              {project.contractedFee > 0 && project.invoicedAmount < project.contractedFee ? "Awaiting Payment" : "Ready to Archive"}
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
