@@ -61,6 +61,7 @@ export const teamAbsences = mysqlTable("team_absences", {
   startTimeMinutes: int("startTimeMinutes"),
   endTimeMinutes: int("endTimeMinutes"),
   notes: text("notes"),
+  approvalStatus: mysqlEnum("approvalStatus", ["pending", "approved", "rejected"]).default("approved").notNull(),
   createdById: int("createdById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -211,6 +211,10 @@ export const systemRouter = router({
         results.push("PM migration: " + e?.message);
       }
 
+      // Add approvalStatus column to team_absences for absence approval workflow
+      await db.execute(sql`ALTER TABLE team_absences ADD COLUMN approvalStatus enum('pending','approved','rejected') NOT NULL DEFAULT 'approved'`).catch(() => {});
+      results.push("team_absences approvalStatus column ensured");
+
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };

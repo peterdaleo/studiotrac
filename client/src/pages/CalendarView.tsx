@@ -45,6 +45,7 @@ interface CalendarEvent {
   isOverdue?: boolean;
   absenceId?: number;
   absenceType?: AbsenceType;
+  approvalStatus?: "pending" | "approved" | "rejected";
   teamMemberId?: number;
   teamMemberName?: string;
   notes?: string | null;
@@ -255,6 +256,22 @@ export default function CalendarView() {
     onError: (error) => toast.error(error.message || "Failed to delete absence"),
   });
 
+  const approveAbsence = trpc.teamAbsences.approve.useMutation({
+    onSuccess: () => {
+      utils.teamAbsences.list.invalidate();
+      toast.success("Absence approved");
+    },
+    onError: (error) => toast.error(error.message || "Failed to approve absence"),
+  });
+
+  const rejectAbsence = trpc.teamAbsences.reject.useMutation({
+    onSuccess: () => {
+      utils.teamAbsences.list.invalidate();
+      toast.success("Absence rejected");
+    },
+    onError: (error) => toast.error(error.message || "Failed to reject absence"),
+  });
+
   const events = useMemo(() => {
     const evts: CalendarEvent[] = [];
 
@@ -284,6 +301,8 @@ export default function CalendarView() {
     });
 
     absences?.forEach((absence) => {
+      // Hide rejected absences from the calendar
+      if ((absence as any).approvalStatus === "rejected") return;
       const rangeStart = startOfDay(new Date(absence.startDate));
       const rangeEnd = startOfDay(new Date(absence.endDate));
       let cursor = new Date(rangeStart);
@@ -296,6 +315,7 @@ export default function CalendarView() {
           type: "absence",
           absenceId: absence.id,
           absenceType: absence.absenceType,
+          approvalStatus: (absence as any).approvalStatus ?? "approved",
           teamMemberId: absence.teamMemberId,
           teamMemberName: absence.teamMemberName,
           notes: absence.notes,
@@ -541,7 +561,7 @@ export default function CalendarView() {
                             key={event.id}
                             className={`truncate rounded px-1.5 py-1 text-[9px] leading-tight ${
                               event.type === "absence"
-                                ? ABSENCE_STYLES[event.absenceType ?? "full_day"]
+                                ? `${ABSENCE_STYLES[event.absenceType ?? "full_day"]}${event.approvalStatus === "pending" ? " border-dashed opacity-60" : ""}`
                                 : event.isOverdue
                                 ? "bg-red-100 text-red-700"
                                 : event.type === "project_deadline"
@@ -550,7 +570,7 @@ export default function CalendarView() {
                             }`}
                           >
                             {event.type === "absence"
-                              ? `${ABSENCE_EVENT_LABELS[event.absenceType ?? "full_day"]} · ${event.teamMemberName}`
+                              ? `${event.approvalStatus === "pending" ? "\u23f3 " : ""}${ABSENCE_EVENT_LABELS[event.absenceType ?? "full_day"]} \u00b7 ${event.teamMemberName}`
                               : event.title}
                           </div>
                         ))}
@@ -604,7 +624,7 @@ export default function CalendarView() {
                       ) : (
                         <div className="space-y-3">
                           {selectedAbsences.map((event) => (
-                            <div key={event.id} className="rounded-lg border border-border bg-background p-3">
+                            <div key={event.id} className={`rounded-lg border bg-background p-3 ${event.approvalStatus === "pending" ? "border-dashed border-amber-300" : "border-border"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
@@ -612,6 +632,11 @@ export default function CalendarView() {
                                     <Badge className={ABSENCE_STYLES[event.absenceType ?? "full_day"]}>
                                       {ABSENCE_TYPE_LABELS[event.absenceType ?? "full_day"]}
                                     </Badge>
+                                    {event.approvalStatus === "pending" && (
+                                      <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-[10px]">
+                                        Pending Approval
+                                      </Badge>
+                                    )}
                                   </div>
                                   {event.absenceType === "partial_day" && (
                                     <p className="text-xs text-muted-foreground">
@@ -629,6 +654,26 @@ export default function CalendarView() {
                                 </div>
 
                                 <div className="flex items-center gap-1">
+                                  {event.approvalStatus === "pending" && event.absenceId && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                        onClick={() => approveAbsence.mutate({ id: event.absenceId! })}
+                                      >
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
+                                        onClick={() => rejectAbsence.mutate({ id: event.absenceId! })}
+                                      >
+                                        Reject
+                                      </Button>
+                                    </>
+                                  )}
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditAbsenceDialog(event)}>
                                     <Pencil className="h-4 w-4" />
                                   </Button>

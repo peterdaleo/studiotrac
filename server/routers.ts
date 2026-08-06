@@ -270,15 +270,32 @@ export const appRouter = router({
       endDate: z.date().optional(),
     }).optional()).query(({ input, ctx }) => db.listTeamAbsences(input ?? undefined, ctx.organizationId)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamAbsence(input.id)),
-    create: protectedProcedure.input(teamAbsenceSchema).mutation(({ input, ctx }) =>
-      db.createTeamAbsence({
+    create: protectedProcedure.input(teamAbsenceSchema).mutation(async ({ input, ctx }) => {
+      const isAdmin = ctx.user.role === "admin";
+      const approvalStatus = isAdmin ? "approved" : "pending";
+      const absence = await db.createTeamAbsence({
         ...input,
         notes: input.notes ?? null,
         startTimeMinutes: input.startTimeMinutes ?? null,
         endTimeMinutes: input.endTimeMinutes ?? null,
+        approvalStatus,
         createdById: ctx.user.id,
-      }, ctx.organizationId)
-    ),
+      }, ctx.organizationId);
+      // Notify admins when a non-admin submits a request
+      if (!isAdmin && ctx.organizationId) {
+        const startStr = input.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const endStr = input.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const members = await db.listTeamMembers(ctx.organizationId);
+        const member = members.find(m => m.id === input.teamMemberId);
+        const memberName = member?.name ?? "A team member";
+        await db.createNotification({
+          title: `${memberName} requested time off`,
+          message: `${memberName} requested PTO from ${startStr}\u2013${endStr}. Review in the Calendar.`,
+          type: "general",
+        }, ctx.organizationId);
+      }
+      return absence;
+    }),
     update: protectedProcedure.input(teamAbsenceSchema.safeExtend({ id: z.number() })).mutation(({ input }) => {
       const { id, ...data } = input;
       return db.updateTeamAbsence(id, {
@@ -287,6 +304,46 @@ export const appRouter = router({
         startTimeMinutes: data.startTimeMinutes ?? null,
         endTimeMinutes: data.endTimeMinutes ?? null,
       });
+    }),
+    approve: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await db.updateTeamAbsence(input.id, { approvalStatus: "approved" });
+      // Notify the requesting user
+      const absence = await db.getTeamAbsence(input.id);
+      if (absence && ctx.organizationId) {
+        const startStr = new Date(absence.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const endStr = new Date(absence.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const members = await db.listTeamMembers(ctx.organizationId);
+        const member = members.find(m => m.id === absence.teamMemberId);
+        if (member?.userId) {
+          await db.createNotification({
+            title: "Absence request approved",
+            message: `Your time off request for ${startStr}\u2013${endStr} was approved.`,
+            type: "general",
+            userId: member.userId,
+          }, ctx.organizationId);
+        }
+      }
+      return { success: true };
+    }),
+    reject: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await db.updateTeamAbsence(input.id, { approvalStatus: "rejected" });
+      // Notify the requesting user
+      const absence = await db.getTeamAbsence(input.id);
+      if (absence && ctx.organizationId) {
+        const startStr = new Date(absence.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const endStr = new Date(absence.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        const members = await db.listTeamMembers(ctx.organizationId);
+        const member = members.find(m => m.id === absence.teamMemberId);
+        if (member?.userId) {
+          await db.createNotification({
+            title: "Absence request rejected",
+            message: `Your time off request for ${startStr}\u2013${endStr} was rejected.`,
+            type: "general",
+            userId: member.userId,
+          }, ctx.organizationId);
+        }
+      }
+      return { success: true };
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamAbsence(input.id)),
   }),
