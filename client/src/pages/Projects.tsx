@@ -272,6 +272,8 @@ export default function Projects() {
                 <Calendar className="h-3 w-3 text-muted-foreground" />
                 {isPendingCloseout(project) ? (
                   <span className="text-purple-600 font-medium">Complete — awaiting closeout</span>
+                ) : project.status === "on_hold" ? (
+                  <span className="text-muted-foreground">On Hold</span>
                 ) : (
                   <span className={daysUntilDeadline < 0 ? "text-red-600 font-medium" : daysUntilDeadline <= 14 ? "text-amber-600" : "text-muted-foreground"}>
                     {daysUntilDeadline < 0
@@ -326,9 +328,11 @@ export default function Projects() {
           );
         })()}
         {daysUntilDeadline !== null ? (
-          <span className={`text-xs w-24 text-right ${isPendingCloseout(project) ? "text-purple-600 font-medium" : daysUntilDeadline < 0 && project.status !== "completed" ? "text-red-600 font-medium" : daysUntilDeadline <= 14 && project.status !== "completed" ? "text-amber-600" : "text-muted-foreground"}`}>
+          <span className={`text-xs w-24 text-right ${isPendingCloseout(project) ? "text-purple-600 font-medium" : project.status === "on_hold" ? "text-muted-foreground" : daysUntilDeadline < 0 && project.status !== "completed" ? "text-red-600 font-medium" : daysUntilDeadline <= 14 && project.status !== "completed" ? "text-amber-600" : "text-muted-foreground"}`}>
             {isPendingCloseout(project)
               ? "Closeout"
+              : project.status === "on_hold"
+              ? "On Hold"
               : daysUntilDeadline < 0 && project.status !== "completed"
               ? `${Math.abs(daysUntilDeadline)}d overdue`
               : daysUntilDeadline === 0 && project.status !== "completed"

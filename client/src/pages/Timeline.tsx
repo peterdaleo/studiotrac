@@ -438,7 +438,7 @@ export default function Timeline() {
                               const taskDay = (new Date(task.deadline!).getTime() - startDate.getTime()) / 86400000;
                               if (taskDay < 0 || taskDay > totalDays) return null;
                               const taskLeft = `${(taskDay / totalDays) * 100}%`;
-                              const isOverdue = task.status !== "done" && new Date(task.deadline!) < new Date();
+                              const isOverdue = task.status !== "done" && new Date(task.deadline!) < new Date() && project.status !== "on_hold";
                               return (
                                 <Tooltip key={task.id}>
                                   <TooltipTrigger asChild>

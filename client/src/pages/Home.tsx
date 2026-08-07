@@ -95,7 +95,7 @@ export default function Home() {
     ?.filter((t) => t.status !== "done" && t.deadline && isDeadlineOverdueUTC(t.deadline))
     .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()) ?? [];
   const delayedProjects = projects?.filter(
-    (p) => p.status !== "completed" && p.completionPercentage < 100 && p.deadline && isDeadlineOverdueUTC(p.deadline)
+    (p) => p.status !== "completed" && p.status !== "on_hold" && p.completionPercentage < 100 && p.deadline && isDeadlineOverdueUTC(p.deadline)
   ).length ?? 0;
 
   // Projects at 100% completion but not yet archived, with unpaid invoices
