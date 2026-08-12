@@ -215,18 +215,23 @@ export const systemRouter = router({
       await db.execute(sql`ALTER TABLE team_absences ADD COLUMN approvalStatus enum('pending','approved','rejected') NOT NULL DEFAULT 'approved'`).catch(() => {});
       results.push("team_absences approvalStatus column ensured");
 
-      // Add and backfill the nullable, date-only task start date. Do not hide a
-      // failed DDL statement: a missing mapped column causes task reads to fail.
+      // Add and backfill the nullable, date-only task start date. If the DDL
+      // reports a duplicate-column error, prove that the mapped column is
+      // readable before continuing; do not mask any other schema failure.
       try {
         await db.execute(sql`ALTER TABLE tasks ADD COLUMN startDate date NULL`);
         results.push("tasks startDate column added");
-      } catch (e: any) {
-        const message = e?.message ?? String(e);
-        if (!message.includes("Duplicate column name") && !message.includes("ER_DUP_FIELDNAME")) throw e;
-        results.push("tasks startDate column already exists");
+      } catch (ddlError: any) {
+        try {
+          await db.execute(sql`SELECT startDate FROM tasks LIMIT 1`);
+          results.push("tasks startDate column already exists and is readable");
+        } catch {
+          throw ddlError;
+        }
       }
       await db.execute(sql`UPDATE tasks SET startDate = DATE(createdAt) WHERE startDate IS NULL`);
-      results.push("tasks startDate values backfilled and verified");
+      await db.execute(sql`SELECT startDate FROM tasks LIMIT 1`);
+      results.push("tasks startDate values backfilled and column readability verified");
 
       return { success: true, results };
     } catch (e: any) {
