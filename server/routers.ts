@@ -495,6 +495,7 @@ export const appRouter = router({
       status: z.enum(["todo", "in_progress", "done"]).optional(),
       priority: z.number().min(1).max(20).optional(),
       sortOrder: z.number().optional(),
+      startDate: z.date().optional().nullable(),
       deadline: z.date().optional().nullable(),
     })).mutation(({ input, ctx }) => db.createTask(input, ctx.organizationId)),
     update: protectedProcedure.input(z.object({
@@ -505,6 +506,7 @@ export const appRouter = router({
       status: z.enum(["todo", "in_progress", "done"]).optional(),
       priority: z.number().min(1).max(20).optional(),
       sortOrder: z.number().optional(),
+      startDate: z.date().optional().nullable(),
       deadline: z.date().optional().nullable(),
       completedAt: z.date().optional().nullable(),
     })).mutation(async ({ input, ctx }) => {

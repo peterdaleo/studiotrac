@@ -215,6 +215,11 @@ export const systemRouter = router({
       await db.execute(sql`ALTER TABLE team_absences ADD COLUMN approvalStatus enum('pending','approved','rejected') NOT NULL DEFAULT 'approved'`).catch(() => {});
       results.push("team_absences approvalStatus column ensured");
 
+      // Add and backfill the nullable, date-only task start date.
+      await db.execute(sql`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS startDate date NULL`).catch(() => {});
+      await db.execute(sql`UPDATE tasks SET startDate = DATE(createdAt) WHERE startDate IS NULL`).catch(() => {});
+      results.push("tasks startDate column ensured and existing tasks backfilled");
+
       return { success: true, results };
     } catch (e: any) {
       return { error: e?.message, results };

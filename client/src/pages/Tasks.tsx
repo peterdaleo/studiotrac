@@ -198,6 +198,7 @@ export default function Tasks() {
       title: fd.get("title") as string,
       assigneeId: fd.get("assigneeId") ? Number(fd.get("assigneeId")) : undefined,
       priority: fd.get("priority") ? Number(fd.get("priority")) : 10,
+      startDate: fd.get("startDate") ? new Date(fd.get("startDate") as string) : undefined,
       deadline: fd.get("deadline") ? new Date(fd.get("deadline") as string) : undefined,
       description: (fd.get("description") as string) || undefined,
     });
@@ -258,10 +259,16 @@ export default function Tasks() {
               {getProjectName(task.projectId)}
             </button>
             <span>{getMemberName(task.assigneeId)}</span>
+            {task.startDate && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Start {new Date(task.startDate).toLocaleDateString("en-US", { timeZone: "UTC" })}
+              </span>
+            )}
             {task.deadline && (
               <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
                 <Clock className="h-3 w-3" />
-                {new Date(task.deadline).toLocaleDateString()}
+                Due {new Date(task.deadline).toLocaleDateString("en-US", { timeZone: "UTC" })}
               </span>
             )}
           </div>
@@ -362,9 +369,15 @@ export default function Tasks() {
                   <Input name="priority" type="number" min={1} max={20} defaultValue={10} />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Deadline</Label>
-                <Input name="deadline" type="date" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input name="startDate" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Deadline</Label>
+                  <Input name="deadline" type="date" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>

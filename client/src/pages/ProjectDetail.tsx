@@ -553,6 +553,7 @@ export default function ProjectDetail() {
       title: task.title,
       assigneeId: task.assigneeId,
       priority: task.priority,
+      startDate: task.startDate ? formatDate(task.startDate) : "",
       deadline: task.deadline ? formatDate(task.deadline) : "",
       status: task.status,
       description: task.description || "",
@@ -566,6 +567,7 @@ export default function ProjectDetail() {
       title: editTaskData.title,
       assigneeId: editTaskData.assigneeId || null,
       priority: Number(editTaskData.priority),
+      startDate: editTaskData.startDate ? new Date(editTaskData.startDate) : null,
       deadline: editTaskData.deadline ? new Date(editTaskData.deadline) : null,
       status: editTaskData.status,
       completedAt: editTaskData.status === "done" ? new Date() : null,
@@ -613,6 +615,7 @@ export default function ProjectDetail() {
       title: fd.get("title") as string,
       assigneeId: fd.get("assigneeId") ? Number(fd.get("assigneeId")) : undefined,
       priority: fd.get("priority") ? Number(fd.get("priority")) : 10,
+      startDate: fd.get("startDate") ? new Date(fd.get("startDate") as string) : undefined,
       deadline: fd.get("deadline") ? new Date(fd.get("deadline") as string) : undefined,
       description: (fd.get("description") as string) || undefined,
     });
@@ -1185,9 +1188,15 @@ export default function ProjectDetail() {
                         <Input name="priority" type="number" min={1} max={20} defaultValue={10} />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Deadline</Label>
-                      <Input name="deadline" type="date" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Input name="startDate" type="date" defaultValue={formatDate(new Date())} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Deadline</Label>
+                        <Input name="deadline" type="date" />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Description</Label>
@@ -1253,7 +1262,7 @@ export default function ProjectDetail() {
                               className="text-sm"
                             />
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                             <div className="space-y-1">
                               <Label className="text-[10px] text-muted-foreground uppercase">Assignee</Label>
                               <select
@@ -1275,6 +1284,15 @@ export default function ProjectDetail() {
                                 max={20}
                                 value={editTaskData.priority}
                                 onChange={(e) => setEditTaskData({ ...editTaskData, priority: Number(e.target.value) })}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground uppercase">Start Date</Label>
+                              <Input
+                                type="date"
+                                value={editTaskData.startDate}
+                                onChange={(e) => setEditTaskData({ ...editTaskData, startDate: e.target.value })}
                                 className="h-8 text-xs"
                               />
                             </div>
@@ -1335,10 +1353,16 @@ export default function ProjectDetail() {
                               <User className="h-3 w-3" />
                               {getMemberName(task.assigneeId)}
                             </span>
+                            {task.startDate && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Start {formatDateUTC(task.startDate)}
+                              </span>
+                            )}
                             {task.deadline && (
                               <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
                                 <Clock className="h-3 w-3" />
-                                {formatDateUTC(task.deadline)}
+                                Due {formatDateUTC(task.deadline)}
                               </span>
                             )}
                           </div>

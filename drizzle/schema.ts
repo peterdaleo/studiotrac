@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
+import { date, int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
 // ── Organizations ─────────────────────────────────────────────────
 export const organizations = mysqlTable("organizations", {
   id: int("id").autoincrement().primaryKey(),
@@ -132,6 +132,7 @@ export const tasks = mysqlTable("tasks", {
   status: mysqlEnum("status", ["todo", "in_progress", "done", "overdue"]).default("todo").notNull(),
   priority: int("priority").default(10).notNull(),
   sortOrder: int("sortOrder").default(0).notNull(),
+  startDate: date("startDate", { mode: "date" }),
   deadline: timestamp("deadline"),
   completedAt: timestamp("completedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

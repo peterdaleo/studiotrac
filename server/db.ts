@@ -514,7 +514,9 @@ export async function getTask(id: number) {
 export async function createTask(data: InsertTask, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const values = orgId ? { ...data, organizationId: orgId } : data;
+  // The form defaults to today; retain a server-side fallback for every create path.
+  const taskData = { ...data, startDate: data.startDate ?? new Date() };
+  const values = orgId ? { ...taskData, organizationId: orgId } : taskData;
   const result = await db.insert(tasks).values(values);
   return { id: result[0].insertId };
 }

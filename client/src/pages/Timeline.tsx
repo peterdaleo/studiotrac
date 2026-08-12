@@ -233,12 +233,12 @@ export default function Timeline() {
                     if (!project) continue;
                     if (filterStatus !== "all" && project.status !== filterStatus) continue;
                     const existing = projectMap.get(project.id);
-                    const taskCreated = new Date(task.createdAt);
+                    const taskStart = new Date(task.startDate ?? task.createdAt);
                     const taskDeadline = task.deadline ? new Date(task.deadline) : null;
                     if (!existing) {
-                      projectMap.set(project.id, { project, firstAssigned: taskCreated, lastDeadline: taskDeadline });
+                      projectMap.set(project.id, { project, firstAssigned: taskStart, lastDeadline: taskDeadline });
                     } else {
-                      if (taskCreated < existing.firstAssigned) existing.firstAssigned = taskCreated;
+                      if (taskStart < existing.firstAssigned) existing.firstAssigned = taskStart;
                       if (taskDeadline && (!existing.lastDeadline || taskDeadline > existing.lastDeadline)) existing.lastDeadline = taskDeadline;
                     }
                   }
@@ -288,7 +288,7 @@ export default function Timeline() {
                                 </TooltipTrigger>
                                 <TooltipContent side="top">
                                   <p className="text-xs font-medium">{project.name}</p>
-                                  <p className="text-xs text-muted-foreground">First assigned: {firstAssigned.toLocaleDateString()}{projEnd && ` — Last deadline: ${projEnd.toLocaleDateString()}`}</p>
+                                  <p className="text-xs text-muted-foreground">First task start: {firstAssigned.toLocaleDateString()}{projEnd && ` — Last deadline: ${projEnd.toLocaleDateString()}`}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </div>
@@ -318,19 +318,19 @@ export default function Timeline() {
                   for (const task of projectTasks) {
                     if (!task.assigneeId) continue;
                     const existing = memberMap.get(task.assigneeId);
-                    const taskCreated = new Date(task.createdAt);
+                    const taskStart = new Date(task.startDate ?? task.createdAt);
                     const taskDeadline = task.deadline ? new Date(task.deadline) : null;
                     if (!existing) {
                       const member = ganttData?.members.find(m => m.id === task.assigneeId);
                       if (member) {
                         memberMap.set(task.assigneeId, {
                           member,
-                          firstAssigned: taskCreated,
+                          firstAssigned: taskStart,
                           lastDeadline: taskDeadline,
                         });
                       }
                     } else {
-                      if (taskCreated < existing.firstAssigned) existing.firstAssigned = taskCreated;
+                      if (taskStart < existing.firstAssigned) existing.firstAssigned = taskStart;
                       if (taskDeadline && (!existing.lastDeadline || taskDeadline > existing.lastDeadline)) existing.lastDeadline = taskDeadline;
                     }
                   }
@@ -514,7 +514,7 @@ export default function Timeline() {
                                 <TooltipContent side="top">
                                   <p className="text-xs font-medium">{member.name}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    First assigned: {firstAssigned.toLocaleDateString()}
+                                    First task start: {firstAssigned.toLocaleDateString()}
                                     {memberEnd && ` — Last deadline: ${memberEnd.toLocaleDateString()}`}
                                   </p>
                                 </TooltipContent>
