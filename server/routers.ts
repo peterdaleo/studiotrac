@@ -956,6 +956,14 @@ export const appRouter = router({
 
     // Super-admin only: total count
     count: superAdminProcedure.query(() => db.countWaitlistSignups()),
+
+    // Super-admin only: permanently delete an individual signup
+    delete: superAdminProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        await db.deleteWaitlistSignup(input.id);
+        return { success: true };
+      }),
   }),
 
   // ── Onboarding ─────────────────────────────────────────────────

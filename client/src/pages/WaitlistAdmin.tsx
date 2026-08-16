@@ -14,12 +14,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   AlertCircle,
   Download,
   Loader2,
   Users,
   ClipboardList,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -51,6 +63,7 @@ function downloadCSV(filename: string, csvContent: string) {
 export default function WaitlistAdmin() {
   const { user } = useAuth({ redirectOnUnauthenticated: true });
   const isSuperAdmin = user?.isSuperAdmin ?? false;
+  const utils = trpc.useUtils();
 
   const [isExporting, setIsExporting] = useState(false);
 
@@ -58,6 +71,15 @@ export default function WaitlistAdmin() {
     undefined,
     { enabled: isSuperAdmin },
   );
+
+  const deleteSignup = trpc.waitlist.delete.useMutation({
+    onSuccess: () => {
+      utils.waitlist.list.invalidate();
+      utils.waitlist.count.invalidate();
+      toast.success("Waitlist entry deleted.");
+    },
+    onError: (error) => toast.error(error.message || "Failed to delete waitlist entry."),
+  });
 
   // Super-admin guard
   if (!isSuperAdmin) {
@@ -202,7 +224,8 @@ export default function WaitlistAdmin() {
                   <TableHead>Email</TableHead>
                   <TableHead>Firm Name</TableHead>
                   <TableHead>Firm Size</TableHead>
-                  <TableHead className="pr-6">Signup Date</TableHead>
+                  <TableHead>Signup Date</TableHead>
+                  <TableHead className="w-[72px] pr-6 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -223,7 +246,7 @@ export default function WaitlistAdmin() {
                         {signup.firmSize}
                       </Badge>
                     </TableCell>
-                    <TableCell className="pr-6 text-muted-foreground text-sm">
+                    <TableCell className="text-muted-foreground text-sm">
                       {new Date(signup.createdAt).toLocaleDateString("en-US", {
                         year: "numeric",
                         month: "short",
@@ -231,6 +254,38 @@ export default function WaitlistAdmin() {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
+                    </TableCell>
+                    <TableCell className="pr-6 text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Delete waitlist entry for ${signup.email}`}
+                            disabled={deleteSignup.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete waitlist entry?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to permanently delete the signup for {signup.name} ({signup.email})? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteSignup.mutate({ id: signup.id })}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete entry
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}

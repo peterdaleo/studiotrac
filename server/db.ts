@@ -2014,6 +2014,12 @@ export async function countWaitlistSignups(): Promise<number> {
   return row?.count ?? 0;
 }
 
+export async function deleteWaitlistSignup(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(waitlistSignups).where(eq(waitlistSignups.id, id));
+}
+
 // ── Subscriptions ──────────────────────────────────────────────────
 export async function updateUserStripeCustomerId(userId: number, stripeCustomerId: string) {
   const db = await getDb();
