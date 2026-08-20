@@ -424,7 +424,20 @@ export async function getProject(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
-  return result[0];
+  const project = result[0];
+  if (!project) return undefined;
+
+  // Sent and overdue invoices remain unpaid, even when invoicing has reached
+  // the full contract fee. Exclude drafts because they have not been issued.
+  const [unpaid] = await db.select({
+    count: sql<number>`count(*)`,
+  }).from(invoices).where(and(
+    eq(invoices.projectId, id),
+    ne(invoices.status, "paid"),
+    ne(invoices.status, "draft"),
+  ));
+
+  return { ...project, unpaidInvoiceCount: Number(unpaid?.count ?? 0) };
 }
 
 export async function createProject(data: InsertProject, orgId?: number | null) {
