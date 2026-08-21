@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Play, Square, Clock, Plus, Calendar, ChevronLeft, ChevronRight, Timer, Trash2, Edit2, Check, X, Pencil, Download, Users, FileSpreadsheet, ChevronsUpDown, RotateCcw } from "lucide-react";
@@ -94,6 +95,7 @@ export default function TimeTracking() {
   const [reportEndDate, setReportEndDate] = useState<string>("");
   const [reportProjectFilter, setReportProjectFilter] = useState<string>("all"); // "all" = all projects
   const [projectFilterOpen, setProjectFilterOpen] = useState(false);
+  const [selectedReportMember, setSelectedReportMember] = useState<{ id: number; name: string; title?: string | null } | null>(null);
   const [editingBillingRateMemberId, setEditingBillingRateMemberId] = useState<number | null>(null);
   const [billingRateInput, setBillingRateInput] = useState<string>("");
 
@@ -127,6 +129,46 @@ export default function TimeTracking() {
     return Object.keys(input).length > 0 ? input : undefined;
   }, [reportStartDate, reportEndDate]);
   const teamTimeReport = trpc.timeAnalytics.teamTimeReport.useQuery(teamTimeReportInput, { enabled: isAdmin });
+  const teamMemberTimeLogInput = useMemo(() => ({
+    teamMemberId: selectedReportMember?.id ?? 0,
+    ...(reportStartDate ? { startDate: new Date(reportStartDate + "T00:00:00") } : {}),
+    ...(reportEndDate ? { endDate: new Date(reportEndDate + "T23:59:59") } : {}),
+    ...(reportProjectFilter && reportProjectFilter !== "all" ? { projectId: Number(reportProjectFilter) } : {}),
+  }), [selectedReportMember?.id, reportStartDate, reportEndDate, reportProjectFilter]);
+  const teamMemberTimeLog = trpc.timeAnalytics.teamMemberTimeLog.useQuery(
+    teamMemberTimeLogInput,
+    { enabled: isAdmin && !!selectedReportMember },
+  );
+
+  const exportMemberTimeLog = () => {
+    const report = teamMemberTimeLog.data;
+    if (!report?.member) return;
+    const escapeCSV = (value: unknown) => {
+      const text = String(value ?? "");
+      return text.includes(",") || text.includes('"') || text.includes("\n")
+        ? `"${text.replace(/"/g, '""')}"`
+        : text;
+    };
+    const headers = ["Date", "Project", "Phase", "Description", "Hours", "Billable"];
+    const rows = report.entries.map((entry: any) => [
+      new Date(entry.date).toLocaleDateString("en-US"),
+      entry.projectName,
+      entry.phase ? getPhaseLabel(entry.phase as ProjectPhase) : "",
+      entry.description ?? "",
+      (entry.durationMinutes / 60).toFixed(2),
+      entry.billable ? "Yes" : "No",
+    ].map(escapeCSV).join(","));
+    const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    const dateRange = reportStartDate && reportEndDate ? `${reportStartDate}_to_${reportEndDate}` : "all-time";
+    const projectSuffix = reportProjectFilter && reportProjectFilter !== "all" ? "-project-filtered" : "";
+    anchor.download = `${report.member.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-time-log-${dateRange}${projectSuffix}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${report.member.name}'s time log exported`);
+  };
 
   const weekStart = useMemo(() => {
     const ws = getWeekStart(new Date());
@@ -1025,7 +1067,14 @@ export default function TimeTracking() {
                             <tr key={r.memberId} className="border-b last:border-0 hover:bg-accent/30 transition-colors">
                               <td className="p-3 sticky left-0 z-10 bg-background shadow-[1px_0_0_0_hsl(var(--border))]">
                                 <div>
-                                  <span className="font-medium">{r.memberName}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedReportMember({ id: r.memberId, name: r.memberName, title: r.title })}
+                                    className="font-medium text-left hover:text-primary hover:underline underline-offset-2"
+                                    aria-label={`View ${r.memberName}'s detailed time log`}
+                                  >
+                                    {r.memberName}
+                                  </button>
                                   {r.title && <span className="text-muted-foreground ml-1">({r.title})</span>}
                                 </div>
                               </td>
@@ -1141,6 +1190,71 @@ export default function TimeTracking() {
           </TabsContent>
         )}
       </Tabs>
+
+      <Sheet
+        open={!!selectedReportMember}
+        onOpenChange={(open) => { if (!open) setSelectedReportMember(null); }}
+      >
+        <SheetContent side="right" className="w-full p-0 sm:max-w-2xl flex flex-col">
+          <SheetHeader className="border-b px-6 py-5 text-left">
+            <SheetTitle>{selectedReportMember?.name ?? "Team member"} — Time Log</SheetTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {reportStartDate && reportEndDate
+                ? `${reportStartDate} to ${reportEndDate}`
+                : reportStartDate
+                ? `From ${reportStartDate}`
+                : reportEndDate
+                ? `Through ${reportEndDate}`
+                : "All time"}
+              {reportProjectFilter && reportProjectFilter !== "all" && " · Selected project"}
+            </p>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {teamMemberTimeLog.isLoading ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">Loading time entries...</p>
+            ) : !teamMemberTimeLog.data?.entries.length ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">No completed time entries match the selected filters.</p>
+            ) : (
+              <div className="space-y-3">
+                {teamMemberTimeLog.data.entries.map((entry: any) => (
+                  <div key={entry.id} className="rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{entry.projectName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {formatDate(entry.date)}
+                          {entry.phase ? ` · ${getPhaseLabel(entry.phase as ProjectPhase)}` : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-sm font-semibold">{(entry.durationMinutes / 60).toFixed(2)}h</span>
+                    </div>
+                    {entry.description && <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{entry.description}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t bg-muted/30 px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm">
+                <span className="font-semibold">Totals: {teamMemberTimeLog.data?.totals.totalHours.toFixed(2) ?? "0.00"}h</span>
+                <span className="text-muted-foreground"> · {teamMemberTimeLog.data?.totals.billableHours.toFixed(2) ?? "0.00"}h billable · {teamMemberTimeLog.data?.entries.length ?? 0} entries</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={exportMemberTimeLog}
+                disabled={!teamMemberTimeLog.data?.entries.length}
+              >
+                <Download className="h-3.5 w-3.5" /> Export CSV
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

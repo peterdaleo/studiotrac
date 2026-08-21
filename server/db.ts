@@ -1839,6 +1839,81 @@ export async function seedDemoData() {
 }
 
 
+export async function getTeamMemberTimeLog(
+  teamMemberId: number,
+  startDate?: Date,
+  endDate?: Date,
+  projectId?: number,
+  orgId?: number | null,
+) {
+  const db = await getDb();
+  const empty = {
+    member: null as { id: number; name: string; title: string | null } | null,
+    entries: [] as any[],
+    totals: { totalMinutes: 0, billableMinutes: 0, totalHours: 0, billableHours: 0 },
+  };
+  if (!db) return empty;
+
+  const memberConditions = [eq(teamMembers.id, teamMemberId)];
+  if (orgId) memberConditions.push(eq(teamMembers.organizationId, orgId));
+  const [member] = await db.select().from(teamMembers).where(and(...memberConditions)).limit(1);
+  if (!member) return empty;
+
+  // Match the Team Report's member-to-user fallback behavior so a member's
+  // drill-down always represents the same time records as their report row.
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const emailToUserId = new Map<string, number>();
+  const nameToUserId = new Map<string, number>();
+  for (const user of allUsers) {
+    if (user.email) emailToUserId.set(user.email.toLowerCase(), user.id);
+    if (user.name) nameToUserId.set(user.name.toLowerCase(), user.id);
+  }
+  const memberUserId = member.userId
+    ?? (member.email ? emailToUserId.get(member.email.toLowerCase()) : undefined)
+    ?? nameToUserId.get(member.name.toLowerCase());
+
+  const response = { ...empty, member: { id: member.id, name: member.name, title: member.title } };
+  if (memberUserId === undefined) return response;
+
+  const conditions = [
+    eq(timeEntries.userId, memberUserId),
+    sql`${timeEntries.endTime} IS NOT NULL`,
+  ];
+  if (orgId) conditions.push(eq(timeEntries.organizationId, orgId));
+  if (startDate) conditions.push(gte(timeEntries.startTime, startDate));
+  if (endDate) conditions.push(lte(timeEntries.startTime, endDate));
+  if (projectId) conditions.push(eq(timeEntries.projectId, projectId));
+  const entries = await db.select().from(timeEntries).where(and(...conditions)).orderBy(desc(timeEntries.startTime));
+
+  const projectIds = [...new Set(entries.map(entry => entry.projectId))];
+  const projectRows = projectIds.length > 0
+    ? await db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))
+    : [];
+  const projectNames = new Map(projectRows.map(project => [project.id, project.name]));
+  const totalMinutes = entries.reduce((sum, entry) => sum + entry.durationMinutes, 0);
+  const billableMinutes = entries.filter(entry => entry.billable).reduce((sum, entry) => sum + entry.durationMinutes, 0);
+
+  return {
+    member: response.member,
+    entries: entries.map(entry => ({
+      id: entry.id,
+      date: entry.startTime,
+      projectId: entry.projectId,
+      projectName: projectNames.get(entry.projectId) ?? "Unknown project",
+      phase: entry.phase,
+      description: entry.description,
+      durationMinutes: entry.durationMinutes,
+      billable: entry.billable,
+    })),
+    totals: {
+      totalMinutes,
+      billableMinutes,
+      totalHours: Math.round((totalMinutes / 60) * 100) / 100,
+      billableHours: Math.round((billableMinutes / 60) * 100) / 100,
+    },
+  };
+}
+
 export async function getTeamTimeReport(startDate?: Date, endDate?: Date, orgId?: number | null) {
   const db = await getDb();
   if (!db) return { rows: [] as any[], members: [] as any[], projects: [] as any[] };

@@ -911,6 +911,22 @@ export const appRouter = router({
       requireFeature(limits.hasTeamReport, "Team Reports");
       return db.getTeamTimeReport(input?.startDate, input?.endDate, ctx.organizationId);
     }),
+    teamMemberTimeLog: adminProcedure.input(z.object({
+      teamMemberId: z.number().int().positive(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+      projectId: z.number().int().positive().optional(),
+    })).query(async ({ input, ctx }) => {
+      const limits = await getOrgPlanLimits(ctx);
+      requireFeature(limits.hasTeamReport, "Team Reports");
+      return db.getTeamMemberTimeLog(
+        input.teamMemberId,
+        input.startDate,
+        input.endDate,
+        input.projectId,
+        ctx.organizationId,
+      );
+    }),
   }),
 
   // ── Dashboard ────────────────────────────────────────────────
