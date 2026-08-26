@@ -444,8 +444,24 @@ export async function createProject(data: InsertProject, orgId?: number | null) 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const values = orgId ? { ...data, organizationId: orgId } : data;
-  const result = await db.insert(projects).values(values);
-  return { id: result[0].insertId };
+
+  // Keep the legacy creation-time Project Manager field and the newer project
+  // team list in sync. The transaction prevents a project from being created
+  // without its selected PM assignment if either write fails.
+  return db.transaction(async (tx) => {
+    const result = await tx.insert(projects).values(values);
+    const projectId = result[0].insertId;
+
+    if (data.projectManagerId !== null && data.projectManagerId !== undefined) {
+      await tx.insert(projectTeamMembers).values({
+        projectId,
+        teamMemberId: data.projectManagerId,
+        role: "pm",
+      });
+    }
+
+    return { id: projectId };
+  });
 }
 
 export async function updateProject(id: number, data: Partial<InsertProject>) {
