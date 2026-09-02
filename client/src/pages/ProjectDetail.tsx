@@ -163,7 +163,7 @@ function ProjectTeamSection({ projectId, teamMembers, canEdit }: { projectId: nu
     const map = new Map<number, { teamMemberId: number; name: string; roles: { id: number; role: string }[] }>();
     for (const a of assignments) {
       const existing = map.get(a.teamMemberId);
-      const memberName = teamMembers.find(m => m.id === a.teamMemberId)?.name ?? `Member #${a.teamMemberId}`;
+      const memberName = a.teamMemberName ?? teamMembers.find(m => m.id === a.teamMemberId)?.name ?? "Unknown team member";
       if (existing) {
         existing.roles.push({ id: a.id, role: a.role });
       } else {

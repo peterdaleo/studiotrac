@@ -2673,7 +2673,18 @@ export async function getCoordinationUnreadCount(sheetId: number, userId: number
 export async function listProjectTeamMembers(projectId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(projectTeamMembers).where(eq(projectTeamMembers.projectId, projectId)).orderBy(asc(projectTeamMembers.createdAt));
+  return db.select({
+    id: projectTeamMembers.id,
+    projectId: projectTeamMembers.projectId,
+    teamMemberId: projectTeamMembers.teamMemberId,
+    role: projectTeamMembers.role,
+    createdAt: projectTeamMembers.createdAt,
+    teamMemberName: teamMembers.name,
+  })
+    .from(projectTeamMembers)
+    .leftJoin(teamMembers, eq(projectTeamMembers.teamMemberId, teamMembers.id))
+    .where(eq(projectTeamMembers.projectId, projectId))
+    .orderBy(asc(projectTeamMembers.createdAt));
 }
 
 export async function listProjectsForTeamMember(teamMemberId: number) {
