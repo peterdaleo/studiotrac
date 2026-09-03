@@ -629,8 +629,8 @@ export default function CalendarView() {
                         <div className="space-y-3">
                           {selectedAbsences.map((event) => (
                             <div key={event.id} className={`rounded-lg border bg-background p-3 ${event.approvalStatus === "pending" ? "border-dashed border-amber-300" : "border-border"}`}>
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-1">
+                              <div className="flex flex-col gap-2">
+                                <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <p className="text-sm font-medium">{event.teamMemberName}</p>
                                     <Badge className={ABSENCE_STYLES[event.absenceType ?? "full_day"]}>
@@ -657,7 +657,7 @@ export default function CalendarView() {
                                   ) : null}
                                 </div>
 
-                                <div className="flex flex-wrap items-center justify-end gap-1">
+                                <div className="flex flex-wrap items-center gap-1">
                                   {isAdmin && event.approvalStatus === "pending" && event.absenceId && (
                                     <>
                                       <Button
