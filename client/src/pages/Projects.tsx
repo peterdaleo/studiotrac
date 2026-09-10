@@ -79,6 +79,15 @@ const statusDotMap: Record<string, string> = {
 function isPendingCloseout(project: { completionPercentage: number; status: string }) {
   return project.completionPercentage >= 100 && project.status !== "completed";
 }
+
+// The Delayed filter is an operational view: retain manually marked delayed
+// projects and include active projects whose deadline has passed. Completed,
+// on-hold, and 100% pending-closeout work is not operationally delayed.
+function isDelayedProject(project: { status: string; completionPercentage: number; deadline: Date | string | null }) {
+  if (project.status === "completed" || project.status === "on_hold" || isPendingCloseout(project)) return false;
+  return project.status === "delayed" || (daysUntilUTC(project.deadline) ?? 0) < 0;
+}
+
 // Helper: does a project have unpaid invoices?
 function hasUnpaidInvoices(project: { contractedFee: number; invoicedAmount: number; unpaidInvoiceCount?: number }) {
   // Primary check: use unpaidInvoiceCount if available (sent/overdue invoices not yet paid)
@@ -173,7 +182,12 @@ export default function Projects() {
       };
     }
 
-    const active = projects.filter((p) => p.status !== "completed" && (statusFilter === "all" || p.status === statusFilter) && matchesFilter(p));
+    const active = projects.filter((p) => {
+      if (p.status === "completed" || !matchesFilter(p)) return false;
+      if (statusFilter === "all") return true;
+      if (statusFilter === "delayed") return isDelayedProject(p);
+      return p.status === statusFilter;
+    });
     const archived = projects.filter((p) => p.status === "completed" && matchesFilter(p));
 
     return {
