@@ -417,7 +417,32 @@ export async function listProjects(filters?: { status?: string; phase?: string; 
     ))
     .groupBy(invoices.projectId);
   const unpaidMap = new Map(unpaidCounts.map(r => [r.projectId, Number(r.cnt)]));
-  return rows.map(r => ({ ...r, unpaidInvoiceCount: unpaidMap.get(r.id) ?? 0 }));
+
+  // Project Team is the current assignment source. Prefer its newest PM role
+  // when returning cards, while falling back to the legacy project field for
+  // older projects that have no Project Team entry yet.
+  const pmAssignments = await db.select({
+    projectId: projectTeamMembers.projectId,
+    teamMemberId: projectTeamMembers.teamMemberId,
+  })
+    .from(projectTeamMembers)
+    .where(and(
+      inArray(projectTeamMembers.projectId, projectIds),
+      eq(projectTeamMembers.role, "pm"),
+    ))
+    .orderBy(desc(projectTeamMembers.createdAt), desc(projectTeamMembers.id));
+  const primaryPmByProject = new Map<number, number>();
+  for (const assignment of pmAssignments) {
+    if (!primaryPmByProject.has(assignment.projectId)) {
+      primaryPmByProject.set(assignment.projectId, assignment.teamMemberId);
+    }
+  }
+
+  return rows.map(r => ({
+    ...r,
+    projectManagerId: primaryPmByProject.get(r.id) ?? r.projectManagerId,
+    unpaidInvoiceCount: unpaidMap.get(r.id) ?? 0,
+  }));
 }
 
 export async function getProject(id: number) {
@@ -437,7 +462,20 @@ export async function getProject(id: number) {
     ne(invoices.status, "draft"),
   ));
 
-  return { ...project, unpaidInvoiceCount: Number(unpaid?.count ?? 0) };
+  const [teamPm] = await db.select({ teamMemberId: projectTeamMembers.teamMemberId })
+    .from(projectTeamMembers)
+    .where(and(
+      eq(projectTeamMembers.projectId, id),
+      eq(projectTeamMembers.role, "pm"),
+    ))
+    .orderBy(desc(projectTeamMembers.createdAt), desc(projectTeamMembers.id))
+    .limit(1);
+
+  return {
+    ...project,
+    projectManagerId: teamPm?.teamMemberId ?? project.projectManagerId,
+    unpaidInvoiceCount: Number(unpaid?.count ?? 0),
+  };
 }
 
 export async function createProject(data: InsertProject, orgId?: number | null) {
