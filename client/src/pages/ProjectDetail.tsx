@@ -138,10 +138,20 @@ function ProjectTeamSection({ projectId, teamMembers, canEdit }: { projectId: nu
   const utils = trpc.useUtils();
   const { data: assignments } = trpc.projectTeam.list.useQuery({ projectId });
   const addMember = trpc.projectTeam.add.useMutation({
-    onSuccess: () => { utils.projectTeam.list.invalidate({ projectId }); utils.projectTeam.avgRate.invalidate({ projectId }); },
+    onSuccess: () => {
+      utils.projectTeam.list.invalidate({ projectId });
+      utils.projectTeam.avgRate.invalidate({ projectId });
+      utils.projects.list.invalidate();
+      utils.projects.get.invalidate({ id: projectId });
+    },
   });
   const removeMember = trpc.projectTeam.remove.useMutation({
-    onSuccess: () => { utils.projectTeam.list.invalidate({ projectId }); utils.projectTeam.avgRate.invalidate({ projectId }); },
+    onSuccess: () => {
+      utils.projectTeam.list.invalidate({ projectId });
+      utils.projectTeam.avgRate.invalidate({ projectId });
+      utils.projects.list.invalidate();
+      utils.projects.get.invalidate({ id: projectId });
+    },
   });
   const [adding, setAdding] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string>("");

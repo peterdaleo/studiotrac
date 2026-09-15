@@ -467,7 +467,27 @@ export async function createProject(data: InsertProject, orgId?: number | null) 
 export async function updateProject(id: number, data: Partial<InsertProject>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(projects).set(data).where(eq(projects.id, id));
+
+  return db.transaction(async (tx) => {
+    await tx.update(projects).set(data).where(eq(projects.id, id));
+
+    // The card's primary PM is stored on projects, while the Details panel
+    // displays project_team_members. Keep a directly selected manager present
+    // in both places without disturbing any additional PM team assignments.
+    if (data.projectManagerId !== null && data.projectManagerId !== undefined) {
+      const existingPm = await tx.select({ id: projectTeamMembers.id })
+        .from(projectTeamMembers)
+        .where(and(
+          eq(projectTeamMembers.projectId, id),
+          eq(projectTeamMembers.teamMemberId, data.projectManagerId),
+          eq(projectTeamMembers.role, "pm"),
+        ))
+        .limit(1);
+      if (existingPm.length === 0) {
+        await tx.insert(projectTeamMembers).values({ projectId: id, teamMemberId: data.projectManagerId, role: "pm" });
+      }
+    }
+  });
 }
 
 export async function deleteProject(id: number) {
@@ -2696,23 +2716,66 @@ export async function listProjectsForTeamMember(teamMemberId: number) {
 export async function addProjectTeamMember(data: { projectId: number; teamMemberId: number; role: "designer" | "pm" | "production" }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Check if this exact assignment already exists
-  const existing = await db.select().from(projectTeamMembers).where(
-    and(
-      eq(projectTeamMembers.projectId, data.projectId),
-      eq(projectTeamMembers.teamMemberId, data.teamMemberId),
-      eq(projectTeamMembers.role, data.role),
-    )
-  ).limit(1);
-  if (existing.length > 0) return { id: existing[0].id };
-  const result = await db.insert(projectTeamMembers).values(data);
-  return { id: result[0].insertId };
+
+  return db.transaction(async (tx) => {
+    const existing = await tx.select().from(projectTeamMembers).where(
+      and(
+        eq(projectTeamMembers.projectId, data.projectId),
+        eq(projectTeamMembers.teamMemberId, data.teamMemberId),
+        eq(projectTeamMembers.role, data.role),
+      )
+    ).limit(1);
+
+    const id = existing.length > 0
+      ? existing[0].id
+      : (await tx.insert(projectTeamMembers).values(data))[0].insertId;
+
+    // Adding a PM in the Project Team panel explicitly selects that member as
+    // the project's card-level primary PM as well.
+    if (data.role === "pm") {
+      await tx.update(projects)
+        .set({ projectManagerId: data.teamMemberId })
+        .where(eq(projects.id, data.projectId));
+    }
+
+    return { id };
+  });
 }
 
 export async function removeProjectTeamMember(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(projectTeamMembers).where(eq(projectTeamMembers.id, id));
+
+  return db.transaction(async (tx) => {
+    const assignment = await tx.select().from(projectTeamMembers)
+      .where(eq(projectTeamMembers.id, id))
+      .limit(1);
+    if (assignment.length === 0) return;
+
+    await tx.delete(projectTeamMembers).where(eq(projectTeamMembers.id, id));
+
+    // Only replace the card-level PM if this entry was the current primary PM.
+    // Removing a second PM assignment must not change the displayed manager.
+    if (assignment[0].role === "pm") {
+      const project = await tx.select({ projectManagerId: projects.projectManagerId })
+        .from(projects)
+        .where(eq(projects.id, assignment[0].projectId))
+        .limit(1);
+      if (project[0]?.projectManagerId === assignment[0].teamMemberId) {
+        const nextPm = await tx.select({ teamMemberId: projectTeamMembers.teamMemberId })
+          .from(projectTeamMembers)
+          .where(and(
+            eq(projectTeamMembers.projectId, assignment[0].projectId),
+            eq(projectTeamMembers.role, "pm"),
+          ))
+          .orderBy(desc(projectTeamMembers.createdAt))
+          .limit(1);
+        await tx.update(projects)
+          .set({ projectManagerId: nextPm[0]?.teamMemberId ?? null })
+          .where(eq(projects.id, assignment[0].projectId));
+      }
+    }
+  });
 }
 
 export async function getProjectTeamAvgRate(projectId: number): Promise<number> {
