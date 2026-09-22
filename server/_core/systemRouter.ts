@@ -58,24 +58,6 @@ export const systemRouter = router({
       results.push("contractedFee column ensured");
       await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS invoicedAmount int DEFAULT 0 NOT NULL`).catch(() => results.push("invoicedAmount already exists"));
       results.push("invoicedAmount column ensured");
-
-      // Add billingType before application code reads it. Existing projects are
-      // deliberately preserved as fixed-fee projects for backward compatibility.
-      try {
-        await db.execute(sql`ALTER TABLE projects ADD COLUMN billingType enum('fixed_fee','hourly') NOT NULL DEFAULT 'fixed_fee'`);
-        results.push("projects billingType column added");
-      } catch (ddlError: any) {
-        try {
-          await db.execute(sql`SELECT billingType FROM projects LIMIT 1`);
-          results.push("projects billingType column already exists and is readable");
-        } catch {
-          throw ddlError;
-        }
-      }
-      await db.execute(sql`UPDATE projects SET billingType = 'fixed_fee' WHERE billingType IS NULL`);
-      await db.execute(sql`SELECT billingType FROM projects LIMIT 1`);
-      results.push("projects billingType values verified");
-
       // Add driveFolderUrl column to projects if missing (migration 0007)
       try {
         await db.execute(sql`ALTER TABLE projects ADD COLUMN driveFolderUrl varchar(2048)`);
