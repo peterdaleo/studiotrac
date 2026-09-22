@@ -133,6 +133,11 @@ function TimeLeftInBudget({ projectId, burnRate }: { projectId: number; burnRate
   );
 }
 
+function formatLoggedHours(minutes: number): string {
+  const hours = minutes / 60;
+  return `${hours.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 1 })}h`;
+}
+
 const ROLE_LABELS: Record<string, string> = { designer: "Designer", pm: "PM", production: "Production" };
 const ROLE_COLORS: Record<string, string> = { designer: "bg-blue-100 text-blue-700", pm: "bg-purple-100 text-purple-700", production: "bg-emerald-100 text-emerald-700" };
 
@@ -268,7 +273,6 @@ export default function ProjectDetail() {
   const [editFeeValue, setEditFeeValue] = useState("");
   const [editingBilling, setEditingBilling] = useState(false);
   const [editBillingType, setEditBillingType] = useState<"fixed_fee" | "hourly">("fixed_fee");
-  const [editHourlyRate, setEditHourlyRate] = useState("");
   const [editNte, setEditNte] = useState("");
   const [editRevenueTarget, setEditRevenueTarget] = useState("");
   const [editBillingChangeDate, setEditBillingChangeDate] = useState("");
@@ -305,6 +309,10 @@ export default function ProjectDetail() {
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
   const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
   const { data: billingPhases } = trpc.projects.billingPhases.useQuery({ projectId });
+  const { data: projectHours } = trpc.timeAnalytics.projectBreakdown.useQuery(
+    { projectId },
+    { enabled: canViewProjectFinancials },
+  );
   const utils = trpc.useUtils();
   const isHourlyProject = (project?.billingType ?? burnRate?.billingType) === "hourly";
 
@@ -1824,6 +1832,38 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
+          {canViewProjectFinancials && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  Hours by Team Member
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(!projectHours || projectHours.byMember.length === 0) ? (
+                  <p className="text-sm text-muted-foreground">No time logged on this project yet.</p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Total hours</span>
+                      <span className="font-semibold">{formatLoggedHours(projectHours.totalMinutes)}</span>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      {projectHours.byMember.map((member) => (
+                        <div key={member.userId} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="truncate">{member.name}</span>
+                          <span className="font-mono shrink-0">{formatLoggedHours(member.minutes)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Project Financial Summary — PM only (admin sees full Budget & Invoices card instead) */}
           {!isInternalProject && effectiveRole === "pm" && projectFinancialSummary && (
             <Card className="border-0 shadow-sm">
@@ -1987,7 +2027,6 @@ export default function ProjectDetail() {
                           setEditingBilling(true);
                           setEditBillingType((project.billingType === "hourly" ? "hourly" : "fixed_fee"));
                           setEditFeeValue(((project.contractedFee || 0) / 100).toString());
-                          setEditHourlyRate(((project.hourlyRateCents || 0) / 100).toString());
                           setEditNte(((project.notToExceedCents || 0) / 100).toString());
                           setEditRevenueTarget(((project.revenueTargetCents || 0) / 100).toString());
                           setEditBillingChangeDate(new Date().toISOString().split("T")[0]);
@@ -2007,11 +2046,9 @@ export default function ProjectDetail() {
                       <Input type="number" min={0} step={100} value={editFeeValue} onChange={(e) => setEditFeeValue(e.target.value)} className="h-8 text-xs" />
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Hourly rate ($)</Label>
-                        <Input type="number" min={0} step={1} value={editHourlyRate} onChange={(e) => setEditHourlyRate(e.target.value)} className="h-8 text-xs" />
-                      </div>
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground">Hourly value is calculated from each person’s saved rate in Time Tracking.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Not-to-exceed cap ($)</Label>
                         <Input type="number" min={0} step={100} value={editNte} onChange={(e) => setEditNte(e.target.value)} className="h-8 text-xs" placeholder="Optional" />
@@ -2019,6 +2056,7 @@ export default function ProjectDetail() {
                       <div className="space-y-1">
                         <Label className="text-xs">Revenue target ($)</Label>
                         <Input type="number" min={0} step={100} value={editRevenueTarget} onChange={(e) => setEditRevenueTarget(e.target.value)} className="h-8 text-xs" placeholder="Optional" />
+                      </div>
                       </div>
                     </div>
                   )}
@@ -2040,7 +2078,6 @@ export default function ProjectDetail() {
                           id: projectId,
                           billingType: editBillingType,
                           contractedFee: editBillingType === "fixed_fee" ? Math.round(Number(editFeeValue || 0) * 100) : project.contractedFee,
-                          hourlyRateCents: Math.round(Number(editHourlyRate || 0) * 100),
                           notToExceedCents: Math.round(Number(editNte || 0) * 100),
                           revenueTargetCents: Math.round(Number(editRevenueTarget || 0) * 100),
                           billingChangeDate: typeChanged && editBillingChangeDate ? new Date(`${editBillingChangeDate}T12:00:00`) : undefined,
@@ -2069,7 +2106,7 @@ export default function ProjectDetail() {
                       <span className="text-muted-foreground text-right">
                         {phase.billingType === "fixed_fee"
                           ? (phase.contractedFee > 0 ? `$${(phase.contractedFee / 100).toLocaleString()}` : "No contract sum")
-                          : (phase.hourlyRateCents > 0 ? `$${(phase.hourlyRateCents / 100).toLocaleString()}/hr` : "Hourly")}
+                          : "Team rates"}
                       </span>
                     </div>
                   ))}

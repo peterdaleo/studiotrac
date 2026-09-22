@@ -218,6 +218,7 @@ export default function TimeTracking() {
       utils.timeEntries.activeTimer.invalidate();
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.timeAnalytics.projectBreakdown.invalidate();
       utils.dashboard.stats.invalidate();
       // isStopping is cleared by the useEffect once activeTimer.data is gone.
       window.location.reload();
@@ -234,6 +235,7 @@ export default function TimeTracking() {
       setManualOpen(false);
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.timeAnalytics.projectBreakdown.invalidate();
       utils.dashboard.stats.invalidate();
     },
   });
@@ -244,6 +246,7 @@ export default function TimeTracking() {
       setEditingEntryId(null);
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.timeAnalytics.projectBreakdown.invalidate();
       utils.dashboard.stats.invalidate();
     },
   });
@@ -253,6 +256,7 @@ export default function TimeTracking() {
       toast.success("Entry deleted");
       utils.timeAnalytics.timesheet.invalidate();
       utils.timeAnalytics.teamTimeReport.invalidate();
+      utils.timeAnalytics.projectBreakdown.invalidate();
       utils.dashboard.stats.invalidate();
     },
   });

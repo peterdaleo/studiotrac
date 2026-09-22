@@ -1574,16 +1574,23 @@ export async function stopActiveTimer(userId: number, timerId?: number) {
 }
 
 // ── Time Analytics ────────────────────────────────────────────────
-export async function getProjectTimeBreakdown(projectId: number) {
+export async function getProjectTimeBreakdown(projectId: number, orgId?: number | null) {
   const db = await getDb();
   if (!db) return { totalMinutes: 0, billableMinutes: 0, byMember: [] as any[], byPhase: [] as any[], estimatedHours: 0 };
   
-  const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
-  const members = await db.select().from(teamMembers);
-  const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  const projectWhere = orgId
+    ? and(eq(projects.id, projectId), eq(projects.organizationId, orgId))
+    : eq(projects.id, projectId);
+  const project = await db.select().from(projects).where(projectWhere).limit(1);
+  if (!project[0]) return { totalMinutes: 0, billableMinutes: 0, byMember: [] as any[], byPhase: [] as any[], estimatedHours: 0 };
+
+  const entryConds = [eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`];
+  if (orgId) entryConds.push(eq(timeEntries.organizationId, orgId));
+  const entries = await db.select().from(timeEntries).where(and(...entryConds));
+  const members = await db.select().from(teamMembers).where(orgId ? eq(teamMembers.organizationId, orgId) : undefined);
   
   // Build userId (users.id) -> teamMember lookup for correct member resolution
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(orgId ? eq(users.organizationId, orgId) : undefined);
   const userIdToMember = new Map<number, typeof members[0]>();
   for (const m of members) {
     if (m.userId) {
@@ -1603,10 +1610,10 @@ export async function getProjectTimeBreakdown(projectId: number) {
   const billableMinutes = entries.filter(e => e.billable).reduce((s, e) => s + e.durationMinutes, 0);
   
   // By member
-  const memberMap = new Map<number, { name: string; minutes: number; billableMinutes: number; billingRate: number }>();
+  const memberMap = new Map<number, { name: string; minutes: number; billableMinutes: number }>();
   for (const e of entries) {
     const m = userIdToMember.get(e.userId);
-    if (!memberMap.has(e.userId)) memberMap.set(e.userId, { name: m?.name || 'Unknown', minutes: 0, billableMinutes: 0, billingRate: m?.billingRate || 0 });
+    if (!memberMap.has(e.userId)) memberMap.set(e.userId, { name: m?.name || 'Unknown', minutes: 0, billableMinutes: 0 });
     const rec = memberMap.get(e.userId)!;
     rec.minutes += e.durationMinutes;
     if (e.billable) rec.billableMinutes += e.durationMinutes;
@@ -1623,7 +1630,9 @@ export async function getProjectTimeBreakdown(projectId: number) {
     totalMinutes,
     billableMinutes,
     estimatedHours: project[0]?.estimatedHours || 0,
-    byMember: Array.from(memberMap.entries()).map(([id, data]) => ({ userId: id, ...data })),
+    byMember: Array.from(memberMap.entries())
+      .map(([id, data]) => ({ userId: id, ...data }))
+      .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name)),
     byPhase: Array.from(phaseMap.entries()).map(([phase, minutes]) => ({ phase, minutes })),
   };
 }

@@ -905,7 +905,7 @@ export const appRouter = router({
 
   // ── Time Analytics ──────────────────────────────────────────────
   timeAnalytics: router({
-    projectBreakdown: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectTimeBreakdown(input.projectId)),
+    projectBreakdown: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(({ input, ctx }) => db.getProjectTimeBreakdown(input.projectId, ctx.organizationId)),
     projectLaborCost: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectLaborCost(input.projectId)),
     projectBurnRate: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectBurnRate(input.projectId)),
     allProjectsBudgetSummary: protectedProcedure.query(({ ctx }) => db.getAllProjectsBudgetSummary(ctx.organizationId)),

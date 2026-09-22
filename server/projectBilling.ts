@@ -409,7 +409,6 @@ export async function getProjectBudgetContext(projectId: number) {
     consultantCost: costs.consultantCost,
     totalMinutes: costs.totalMinutes,
     billableMinutes: costs.billableMinutes,
-    hourlyRateCents: project.hourlyRateCents || 0,
     notToExceedCents: project.notToExceedCents || 0,
     revenueTargetCents: project.revenueTargetCents || 0,
     phases: phaseInputs,

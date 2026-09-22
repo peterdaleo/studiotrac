@@ -111,7 +111,7 @@ describe("evaluateBudgetHealth — hourly", () => {
     expect(health.consumedPercent).toBe(110);
   });
 
-  it("uses billed hours times an override rate for billable value when provided", () => {
+  it("uses billable labor value from team member rates and ignores a project rate", () => {
     const health = evaluateBudgetHealth({
       billingType: "hourly",
       contractedFee: 0,
@@ -121,8 +121,8 @@ describe("evaluateBudgetHealth — hourly", () => {
       billableMinutes: 60,
       hourlyRateCents: 17500,
     });
-    expect(health.billableValueCents).toBe(17500);
-    expect(health.marginCents).toBe(7500);
+    expect(health.billableValueCents).toBe(8000);
+    expect(health.marginCents).toBe(-2000);
   });
 });
 

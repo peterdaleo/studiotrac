@@ -207,7 +207,6 @@ export default function Projects() {
     const fd = new FormData(e.currentTarget);
     const billingType = (fd.get("billingType") as "fixed_fee" | "hourly") || "fixed_fee";
     const contractedFeeDollars = Number(fd.get("contractedFee") || 0);
-    const hourlyRateDollars = Number(fd.get("hourlyRate") || 0);
     const notToExceedDollars = Number(fd.get("notToExceed") || 0);
     createProject.mutate({
       name: fd.get("name") as string,
@@ -219,7 +218,6 @@ export default function Projects() {
       deadline: fd.get("deadline") ? new Date(fd.get("deadline") as string) : undefined,
       billingType,
       contractedFee: billingType === "fixed_fee" && contractedFeeDollars > 0 ? Math.round(contractedFeeDollars * 100) : 0,
-      hourlyRateCents: billingType === "hourly" && hourlyRateDollars > 0 ? Math.round(hourlyRateDollars * 100) : 0,
       notToExceedCents: billingType === "hourly" && notToExceedDollars > 0 ? Math.round(notToExceedDollars * 100) : 0,
     });
   };
@@ -483,16 +481,10 @@ export default function Projects() {
               </div>
               )}
               {newProjectBillingType === "hourly" && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="hourlyRate">Hourly rate ($)</Label>
-                  <Input id="hourlyRate" name="hourlyRate" type="number" min={0} step={1} placeholder="Optional" />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="notToExceed">Not-to-exceed cap ($)</Label>
                   <Input id="notToExceed" name="notToExceed" type="number" min={0} step={100} placeholder="Planning only" />
                 </div>
-              </div>
               )}
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>

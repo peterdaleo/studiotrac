@@ -184,13 +184,11 @@ function evaluateFixedPortion(contractedFee: number, totalCost: number) {
   };
 }
 
-function billableValueCents(
-  costs: CostSlice,
-  hourlyRateCents: number,
-): number {
-  if (hourlyRateCents > 0) {
-    return Math.round(((costs.billableMinutes || 0) / 60) * hourlyRateCents);
-  }
+/**
+ * Hourly value is the sum of billable time at each contributor's saved team
+ * billing rate. A project-level rate is intentionally never used here.
+ */
+function billableValueCents(costs: CostSlice): number {
   return costs.billableLaborCost || 0;
 }
 
@@ -232,7 +230,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     billableMinutes: input.billableMinutes || 0,
   };
   const currentTotalCost = costSliceTotal(currentCosts);
-  const currentBillableValue = billableValueCents(currentCosts, input.hourlyRateCents || 0);
+  const currentBillableValue = billableValueCents(currentCosts);
   const currentHours = hoursFromMinutes(currentCosts.totalMinutes);
   const currentBillableHours = hoursFromMinutes(currentCosts.billableMinutes);
 
@@ -259,10 +257,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     const liveTotal = currentBillingType === "hourly" ? hourlyTotal : currentTotalCost;
     const liveHours = hoursFromMinutes(liveCosts.totalMinutes);
     const liveBillableHours = hoursFromMinutes(liveCosts.billableMinutes);
-    const liveBillableValue = billableValueCents(
-      liveCosts,
-      input.hourlyRateCents || hourlyPhases.reduce((sum, phase) => Math.max(sum, phase.hourlyRateCents || 0), 0),
-    );
+    const liveBillableValue = billableValueCents(liveCosts);
     const hourlyKindNow = hourlyKind(percentOf(hourlyTotal, nte));
 
     const statusKind: BudgetStatusKind = currentBillingType === "hourly"
