@@ -89,9 +89,10 @@ function isDelayedProject(project: { status: string; completionPercentage: numbe
 }
 
 // Helper: does a project have unpaid invoices?
-function hasUnpaidInvoices(project: { contractedFee: number; invoicedAmount: number; unpaidInvoiceCount?: number }) {
+function hasUnpaidInvoices(project: { contractedFee: number; invoicedAmount: number; unpaidInvoiceCount?: number; billingType?: string }) {
   // Primary check: use unpaidInvoiceCount if available (sent/overdue invoices not yet paid)
   if (typeof project.unpaidInvoiceCount === 'number') return project.unpaidInvoiceCount > 0;
+  if (project.billingType === "hourly") return false;
   // Fallback: compare invoicedAmount vs contractedFee
   return project.contractedFee > 0 && project.invoicedAmount < project.contractedFee;
 }
@@ -105,6 +106,7 @@ export default function Projects() {
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [sortBy, setSortBy] = useState<"default" | "alpha" | "deadline">("default");
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [newProjectBillingType, setNewProjectBillingType] = useState<"fixed_fee" | "hourly">("fixed_fee");
 
   const { user } = useAuth();
   const isAdmin = useEffectiveAdmin(user?.role);
@@ -116,8 +118,8 @@ export default function Projects() {
   const { data: budgetSummary } = trpc.timeAnalytics.allProjectsBudgetSummary.useQuery();
 
   const budgetMap = useMemo(() => {
-    const m = new Map<number, { contractedFee: number; totalCost: number }>();
-    budgetSummary?.forEach((b) => m.set(b.projectId, { contractedFee: b.contractedFee, totalCost: b.totalCost }));
+    const m = new Map<number, NonNullable<typeof budgetSummary>[number]>();
+    budgetSummary?.forEach((b) => m.set(b.projectId, b));
     return m;
   }, [budgetSummary]);
 
@@ -132,6 +134,7 @@ export default function Projects() {
       utils.projects.list.invalidate();
       utils.dashboard.stats.invalidate();
       setDialogOpen(false);
+      setNewProjectBillingType("fixed_fee");
       toast.success("Project created successfully");
     },
     onError: (err) => {
@@ -202,6 +205,10 @@ export default function Projects() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const billingType = (fd.get("billingType") as "fixed_fee" | "hourly") || "fixed_fee";
+    const contractedFeeDollars = Number(fd.get("contractedFee") || 0);
+    const hourlyRateDollars = Number(fd.get("hourlyRate") || 0);
+    const notToExceedDollars = Number(fd.get("notToExceed") || 0);
     createProject.mutate({
       name: fd.get("name") as string,
       clientName: (fd.get("clientName") as string) || undefined,
@@ -210,6 +217,10 @@ export default function Projects() {
       phase: (fd.get("phase") as any) || "pre_design",
       description: (fd.get("description") as string) || undefined,
       deadline: fd.get("deadline") ? new Date(fd.get("deadline") as string) : undefined,
+      billingType,
+      contractedFee: billingType === "fixed_fee" && contractedFeeDollars > 0 ? Math.round(contractedFeeDollars * 100) : 0,
+      hourlyRateCents: billingType === "hourly" && hourlyRateDollars > 0 ? Math.round(hourlyRateDollars * 100) : 0,
+      notToExceedCents: billingType === "hourly" && notToExceedDollars > 0 ? Math.round(notToExceedDollars * 100) : 0,
     });
   };
 
@@ -269,12 +280,14 @@ export default function Projects() {
               return (
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="text-muted-foreground">Budget</span>
+                    <span className="text-muted-foreground">{b.billingType === "hourly" ? "Hourly" : "Budget"}</span>
                   </div>
                   <BudgetBar
                     contractedFee={b.contractedFee}
                     totalCost={b.totalCost}
                     isAdmin={canViewFinancials}
+                    budgetHealth={b.budgetHealth}
+                    billingType={b.billingType}
                     compact
                   />
                 </div>
@@ -336,6 +349,8 @@ export default function Projects() {
                 contractedFee={b.contractedFee}
                 totalCost={b.totalCost}
                 isAdmin={canViewFinancials}
+                budgetHealth={b.budgetHealth}
+                billingType={b.billingType}
                 compact
               />
             </div>
@@ -400,7 +415,7 @@ export default function Projects() {
             {projects?.length ?? 0} projects in your studio
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setNewProjectBillingType("fixed_fee"); }}>
           <DialogTrigger asChild>
             <Button disabled={atProjectLimit} title={atProjectLimit ? `Your plan allows up to ${maxProjects} active projects` : undefined}>
               <Plus className="h-4 w-4 mr-2" /> New Project
@@ -448,6 +463,37 @@ export default function Projects() {
                   <Input id="deadline" name="deadline" type="date" />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="billingType">Billing type</Label>
+                <select
+                  id="billingType"
+                  name="billingType"
+                  value={newProjectBillingType}
+                  onChange={(e) => setNewProjectBillingType(e.target.value as "fixed_fee" | "hourly")}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="fixed_fee">Fixed fee</option>
+                  <option value="hourly">Hourly / time &amp; materials</option>
+                </select>
+              </div>
+              {newProjectBillingType === "fixed_fee" && (
+              <div className="space-y-2">
+                <Label htmlFor="contractedFee">Contract sum ($)</Label>
+                <Input id="contractedFee" name="contractedFee" type="number" min={0} step={100} placeholder="Optional" />
+              </div>
+              )}
+              {newProjectBillingType === "hourly" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hourlyRate">Hourly rate ($)</Label>
+                  <Input id="hourlyRate" name="hourlyRate" type="number" min={0} step={1} placeholder="Optional" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notToExceed">Not-to-exceed cap ($)</Label>
+                  <Input id="notToExceed" name="notToExceed" type="number" min={0} step={100} placeholder="Planning only" />
+                </div>
+              </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea id="description" name="description" placeholder="Brief project description..." rows={3} />

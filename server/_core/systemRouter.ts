@@ -58,6 +58,59 @@ export const systemRouter = router({
       results.push("contractedFee column ensured");
       await db.execute(sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS invoicedAmount int DEFAULT 0 NOT NULL`).catch(() => results.push("invoicedAmount already exists"));
       results.push("invoicedAmount column ensured");
+
+      try {
+        await db.execute(sql`ALTER TABLE projects ADD COLUMN billingType enum('fixed_fee','hourly') NOT NULL DEFAULT 'fixed_fee'`);
+        results.push("projects billingType column added");
+      } catch {
+        try {
+          await db.execute(sql`SELECT billingType FROM projects LIMIT 1`);
+          results.push("projects billingType column already exists and is readable");
+        } catch (ddlError: any) {
+          results.push("projects billingType: " + (ddlError?.message || "unreadable"));
+        }
+      }
+      await db.execute(sql`ALTER TABLE projects ADD COLUMN hourlyRateCents int NOT NULL DEFAULT 0`).catch(() => {});
+      await db.execute(sql`ALTER TABLE projects ADD COLUMN notToExceedCents int NOT NULL DEFAULT 0`).catch(() => {});
+      await db.execute(sql`ALTER TABLE projects ADD COLUMN revenueTargetCents int NOT NULL DEFAULT 0`).catch(() => {});
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS project_billing_phases (
+          id int AUTO_INCREMENT NOT NULL,
+          organizationId int,
+          projectId int NOT NULL,
+          billingType enum('fixed_fee','hourly') NOT NULL,
+          startedAt timestamp NOT NULL,
+          endedAt timestamp NULL,
+          contractedFee int NOT NULL DEFAULT 0,
+          hourlyRateCents int NOT NULL DEFAULT 0,
+          notToExceedCents int NOT NULL DEFAULT 0,
+          revenueTargetCents int NOT NULL DEFAULT 0,
+          notes text,
+          createdAt timestamp NOT NULL DEFAULT (now()),
+          updatedAt timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT project_billing_phases_id PRIMARY KEY(id)
+        )
+      `).catch((e: any) => results.push("project_billing_phases: " + (e?.message || "exists")));
+      await db.execute(sql`
+        UPDATE projects
+        SET billingType = 'hourly'
+        WHERE (contractedFee IS NULL OR contractedFee = 0)
+          AND billingType = 'fixed_fee'
+          AND id NOT IN (SELECT projectId FROM project_billing_phases)
+      `).catch(() => {});
+      await db.execute(sql`
+        INSERT INTO project_billing_phases (
+          organizationId, projectId, billingType, startedAt, endedAt,
+          contractedFee, hourlyRateCents, notToExceedCents, revenueTargetCents
+        )
+        SELECT
+          organizationId, id, billingType, COALESCE(startDate, createdAt, CURRENT_TIMESTAMP), NULL,
+          contractedFee, hourlyRateCents, notToExceedCents, revenueTargetCents
+        FROM projects
+        WHERE id NOT IN (SELECT projectId FROM project_billing_phases)
+      `).catch((e: any) => results.push("billing phase seed: " + (e?.message || "exists")));
+      results.push("project billing types ensured");
+
       // Add driveFolderUrl column to projects if missing (migration 0007)
       try {
         await db.execute(sql`ALTER TABLE projects ADD COLUMN driveFolderUrl varchar(2048)`);

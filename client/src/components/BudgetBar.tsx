@@ -4,8 +4,13 @@
  * Admins see the full breakdown with dollar amounts.
  * Non-admins see only the bar, a health label, and the consumed percentage —
  * no dollar figures are ever exposed to staff.
+ *
+ * Hourly / time-and-materials projects never render as "Over budget" just
+ * because costs exist. They use a neutral hourly status unless an optional
+ * not-to-exceed cap has been enabled as a planning alert.
  */
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { BudgetHealth, BudgetStatusKind } from "@shared/billing";
 
 interface BudgetBarProps {
   /** Total contracted fee in cents. 0 means "not set". */
@@ -18,19 +23,27 @@ interface BudgetBarProps {
   className?: string;
   /** Compact mode — used in list/card views where vertical space is tight. */
   compact?: boolean;
+  /** Precomputed health from the server. Preferred over local fee/cost math. */
+  budgetHealth?: BudgetHealth | null;
+  /** Current billing type, used only when budgetHealth is unavailable. */
+  billingType?: string | null;
 }
 
 function formatCurrency(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-function getHealthColor(pct: number): {
+function formatHours(hours: number): string {
+  return `${hours.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 1 })}h`;
+}
+
+function getHealthColor(kind: BudgetStatusKind): {
   bar: string;
   label: string;
   text: string;
   badge: string;
 } {
-  if (pct > 100) {
+  if (kind === "over_budget") {
     return {
       bar: "bg-red-500",
       label: "Over budget",
@@ -38,20 +51,52 @@ function getHealthColor(pct: number): {
       badge: "bg-red-50 text-red-700 border-red-200",
     };
   }
-  if (pct >= 90) {
+  if (kind === "hourly_above_nte") {
+    return {
+      bar: "bg-amber-500",
+      label: "Hourly billing — above NTE",
+      text: "text-amber-700",
+      badge: "bg-amber-50 text-amber-700 border-amber-200",
+    };
+  }
+  if (kind === "near_limit" || kind === "hourly_approaching_nte") {
     return {
       bar: "bg-orange-500",
-      label: "Near limit",
+      label: kind === "hourly_approaching_nte" ? "Hourly billing — approaching NTE" : "Near limit",
       text: "text-orange-600",
       badge: "bg-orange-50 text-orange-700 border-orange-200",
     };
   }
-  if (pct >= 75) {
+  if (kind === "watch_budget" || kind === "hourly_watch_nte") {
     return {
       bar: "bg-amber-400",
-      label: "Watch budget",
+      label: kind === "hourly_watch_nte" ? "Hourly billing — watch NTE" : "Watch budget",
       text: "text-amber-600",
       badge: "bg-amber-50 text-amber-700 border-amber-200",
+    };
+  }
+  if (kind === "hourly_no_budget") {
+    return {
+      bar: "bg-sky-500",
+      label: "Hourly billing — no fixed budget",
+      text: "text-sky-700",
+      badge: "bg-sky-50 text-sky-700 border-sky-200",
+    };
+  }
+  if (kind === "hourly_within_nte") {
+    return {
+      bar: "bg-sky-500",
+      label: "Hourly billing — within NTE",
+      text: "text-sky-700",
+      badge: "bg-sky-50 text-sky-700 border-sky-200",
+    };
+  }
+  if (kind === "no_budget") {
+    return {
+      bar: "bg-muted-foreground/20",
+      label: "No budget set",
+      text: "text-muted-foreground",
+      badge: "bg-muted text-muted-foreground border-border",
     };
   }
   return {
@@ -68,9 +113,34 @@ export function BudgetBar({
   isAdmin,
   className = "",
   compact = false,
+  budgetHealth,
+  billingType,
 }: BudgetBarProps) {
-  // If no budget has been set, render a neutral placeholder
-  if (contractedFee <= 0) {
+  const currentType = budgetHealth?.currentBillingType
+    ?? (billingType === "hourly" || billingType === "fixed_fee" ? billingType : undefined);
+  const fallbackKind: BudgetStatusKind = currentType === "hourly"
+    ? "hourly_no_budget"
+    : contractedFee <= 0
+      ? "no_budget"
+      : totalCost > contractedFee
+        ? "over_budget"
+        : "on_budget";
+  const kind: BudgetStatusKind = budgetHealth?.statusKind ?? fallbackKind;
+  const health = getHealthColor(kind);
+  const label = budgetHealth?.statusLabel ?? health.label;
+  const isHourly = currentType === "hourly" || kind.startsWith("hourly_");
+  const usesFixedBudget = budgetHealth ? budgetHealth.usesFixedBudget : (currentType !== "hourly" && contractedFee > 0);
+  const pct = budgetHealth?.consumedPercent ?? (usesFixedBudget && contractedFee > 0 ? Math.round((totalCost / contractedFee) * 100) : null);
+  const remaining = budgetHealth?.remainingCents ?? (usesFixedBudget && contractedFee > 0 ? contractedFee - totalCost : null);
+  const cost = budgetHealth?.costCents ?? totalCost;
+  const displayPct = pct ?? 0;
+  const barWidth = usesFixedBudget || (isHourly && pct !== null)
+    ? Math.min(Math.max(displayPct, 0), 100)
+    : isHourly && cost > 0
+      ? 28
+      : 0;
+
+  if (!usesFixedBudget && !isHourly && contractedFee <= 0) {
     if (compact) {
       return (
         <div className={`flex items-center gap-2 ${className}`}>
@@ -98,13 +168,7 @@ export function BudgetBar({
     );
   }
 
-  const pct = Math.round((totalCost / contractedFee) * 100);
-  const barWidth = Math.min(pct, 100); // cap visual bar at 100%
-  const remaining = contractedFee - totalCost;
-  const health = getHealthColor(pct);
-
   if (compact) {
-    // ── Compact (project card / list row) ──────────────────────────
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -116,42 +180,57 @@ export function BudgetBar({
               />
             </div>
             <span className={`text-[10px] font-mono whitespace-nowrap ${health.text}`}>
-              {pct}%
+              {isHourly && pct === null
+                ? (isAdmin ? formatHours(budgetHealth?.totalHours ?? 0) : "T&M")
+                : `${displayPct}%`}
             </span>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs max-w-[200px]">
-          {isAdmin ? (
-            <div className="space-y-0.5">
-              <p className="font-semibold">{health.label}</p>
-              <p>Budget: {formatCurrency(contractedFee)}</p>
-              <p>Consumed: {formatCurrency(totalCost)} ({pct}%)</p>
-              <p className={remaining < 0 ? "text-red-400" : ""}>
-                {remaining >= 0 ? `Remaining: ${formatCurrency(remaining)}` : `Over by: ${formatCurrency(-remaining)}`}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-0.5">
-              <p className="font-semibold">{health.label}</p>
-              <p>{pct}% of budget consumed</p>
-            </div>
-          )}
+        <TooltipContent side="top" className="text-xs max-w-[240px]">
+          <div className="space-y-0.5">
+            <p className="font-semibold">{label}</p>
+            {isHourly ? (
+              <>
+                <p>{formatHours(budgetHealth?.totalHours ?? 0)} logged · {formatHours(budgetHealth?.billableHours ?? 0)} billable</p>
+                {isAdmin && (
+                  <>
+                    <p>Cost: {formatCurrency(cost)}</p>
+                    <p>Billable value: {formatCurrency(budgetHealth?.billableValueCents ?? 0)}</p>
+                    <p>Margin: {formatCurrency(budgetHealth?.marginCents ?? 0)}</p>
+                  </>
+                )}
+                {budgetHealth?.fixedFeeHealth && (
+                  <p>Closed fixed-fee phase: {budgetHealth.fixedFeeHealth.statusLabel}</p>
+                )}
+              </>
+            ) : isAdmin ? (
+              <>
+                <p>Budget: {formatCurrency(contractedFee)}</p>
+                <p>Consumed: {formatCurrency(cost)} ({displayPct}%)</p>
+                <p className={(remaining ?? 0) < 0 ? "text-red-400" : ""}>
+                  {(remaining ?? 0) >= 0
+                    ? `Remaining: ${formatCurrency(remaining ?? 0)}`
+                    : `Over by: ${formatCurrency(-(remaining ?? 0))}`}
+                </p>
+              </>
+            ) : (
+              <p>{displayPct}% of budget consumed</p>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     );
   }
 
-  // ── Full (project detail sidebar) ──────────────────────────────
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground font-medium">Budget</span>
+        <span className="text-muted-foreground font-medium">{isHourly ? "Hourly billing" : "Budget"}</span>
         <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded border ${health.badge}`}>
-          {health.label}
+          {label}
         </span>
       </div>
 
-      {/* Bar */}
       <div className="relative h-2.5 rounded-full bg-muted overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${health.bar}`}
@@ -159,23 +238,58 @@ export function BudgetBar({
         />
       </div>
 
-      {/* Labels row */}
-      <div className="flex items-center justify-between text-xs">
-        <span className={`font-semibold ${health.text}`}>{pct}% consumed</span>
-        {isAdmin && (
-          <span className="text-muted-foreground">
-            {formatCurrency(totalCost)} / {formatCurrency(contractedFee)}
-          </span>
-        )}
-      </div>
-
-      {/* Admin-only detail line */}
-      {isAdmin && (
-        <p className={`text-xs ${remaining >= 0 ? "text-muted-foreground" : "text-red-600 font-medium"}`}>
-          {remaining >= 0
-            ? `${formatCurrency(remaining)} remaining`
-            : `${formatCurrency(-remaining)} over budget`}
-        </p>
+      {isHourly ? (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <span className={`font-semibold ${health.text}`}>
+              {formatHours(budgetHealth?.totalHours ?? 0)} logged
+            </span>
+            {isAdmin && (
+              <span className="text-muted-foreground">
+                {formatCurrency(cost)} cost
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+            <div className="space-y-0.5 text-xs text-muted-foreground">
+              <p>{formatHours(budgetHealth?.billableHours ?? 0)} billable · {formatCurrency(budgetHealth?.billableValueCents ?? 0)} value</p>
+              <p className={(budgetHealth?.marginCents ?? 0) < 0 ? "text-red-600 font-medium" : ""}>
+                Margin {formatCurrency(budgetHealth?.marginCents ?? 0)}
+              </p>
+              {pct !== null && remaining !== null && (
+                <p className={health.text}>
+                  {displayPct}% of optional NTE · {(remaining ?? 0) >= 0
+                    ? `${formatCurrency(remaining ?? 0)} remaining`
+                    : `${formatCurrency(-(remaining ?? 0))} above NTE`}
+                </p>
+              )}
+            </div>
+          )}
+          {budgetHealth?.fixedFeeHealth && (
+            <p className="text-xs text-muted-foreground">
+              Closed fixed-fee phase: {budgetHealth.fixedFeeHealth.statusLabel}
+              {isAdmin ? ` · ${formatCurrency(budgetHealth.fixedFeeHealth.totalCost)} of ${formatCurrency(budgetHealth.fixedFeeHealth.contractedFee)}` : ""}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <span className={`font-semibold ${health.text}`}>{displayPct}% consumed</span>
+            {isAdmin && (
+              <span className="text-muted-foreground">
+                {formatCurrency(cost)} / {formatCurrency(contractedFee)}
+              </span>
+            )}
+          </div>
+          {isAdmin && remaining !== null && (
+            <p className={`text-xs ${remaining >= 0 ? "text-muted-foreground" : "text-red-600 font-medium"}`}>
+              {remaining >= 0
+                ? `${formatCurrency(remaining)} remaining`
+                : `${formatCurrency(-remaining)} over budget`}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

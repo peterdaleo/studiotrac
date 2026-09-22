@@ -371,6 +371,10 @@ export const appRouter = router({
         billing50: project.billing50,
         billing75: project.billing75,
         billing100: project.billing100,
+        billingType: project.billingType,
+        hourlyRateCents: project.hourlyRateCents,
+        notToExceedCents: project.notToExceedCents,
+        revenueTargetCents: project.revenueTargetCents,
       };
     }),
     create: adminOrPmProcedure.input(z.object({
@@ -390,6 +394,10 @@ export const appRouter = router({
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
+      billingType: z.enum(["fixed_fee", "hourly"]).optional(),
+      hourlyRateCents: z.number().int().min(0).optional(),
+      notToExceedCents: z.number().int().min(0).optional(),
+      revenueTargetCents: z.number().int().min(0).optional(),
       driveFolderUrl: z.string().optional().nullable(),
     })).mutation(async ({ input, ctx }) => {
       const limits = await getOrgPlanLimits(ctx);
@@ -425,6 +433,12 @@ export const appRouter = router({
       billing100: z.boolean().optional(),
       billingOk: z.boolean().optional(),
       contractedFee: z.number().optional(),
+      billingType: z.enum(["fixed_fee", "hourly"]).optional(),
+      hourlyRateCents: z.number().int().min(0).optional(),
+      notToExceedCents: z.number().int().min(0).optional(),
+      revenueTargetCents: z.number().int().min(0).optional(),
+      billingChangeDate: z.date().optional().nullable(),
+      billingChangeNotes: z.string().optional().nullable(),
       driveFolderUrl: z.string().optional().nullable(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -477,6 +491,7 @@ export const appRouter = router({
     }),
     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
     purgeArchived: adminProcedure.mutation(({ ctx }) => db.purgeArchivedProjects(ctx.organizationId)),
+    billingPhases: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectBillingPhases(input.projectId)),
   }),
 
   // ── Tasks ────────────────────────────────────────────────────

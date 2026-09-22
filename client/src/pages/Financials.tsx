@@ -12,6 +12,7 @@ import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, FileText, ArrowUpRig
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import { Link } from "wouter";
 import { getStatusLabel } from "@shared/constants";
+import { getBillingTypeLabel } from "@shared/billing";
 import { toast } from "sonner";
 
 function formatCurrency(cents: number) {
@@ -35,8 +36,8 @@ export default function Financials() {
   const handleExportCSV = async () => {
     const result = await exportQuery.refetch();
     if (!result.data) return;
-    const headers = ["Project", "Client", "Manager", "Status", "Phase", "Completion %", "Contracted Fee", "Invoiced Amount"];
-    const rows = result.data.map(p => [p.name, p.client, p.manager, p.status, p.phase, p.completion, p.contractedFee, p.invoicedAmount]);
+    const headers = ["Project", "Client", "Manager", "Status", "Phase", "Completion %", "Billing Type", "Contracted Fee", "Invoiced Amount"];
+    const rows = result.data.map(p => [p.name, p.client, p.manager, p.status, p.phase, p.completion, p.billingType ?? "", p.contractedFee, p.invoicedAmount]);
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -100,12 +101,14 @@ export default function Financials() {
   const pieData = [
     { name: "Paid", value: totals.paid, color: "#10b981" },
     { name: "Outstanding", value: totals.outstanding, color: "#f59e0b" },
-    { name: "Unbilled", value: Math.max(0, totals.contracted - totals.invoiced), color: "#e2e8f0" },
+    { name: "Unbilled", value: Math.max(0, activeProjects
+      .filter((p) => (p as any).billingType !== "hourly")
+      .reduce((sum, p) => sum + Math.max(0, p.contractedFee - p.totalInvoiced), 0)), color: "#e2e8f0" },
   ].filter(d => d.value > 0);
 
   // Bar chart data for top projects by fee
   const barData = activeProjects
-    .filter(p => p.contractedFee > 0)
+    .filter(p => p.contractedFee > 0 && (p as any).billingType !== "hourly")
     .sort((a, b) => b.contractedFee - a.contractedFee)
     .slice(0, 8)
     .map(p => ({
@@ -139,7 +142,7 @@ export default function Financials() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Contracted</p>
                 <p className="text-2xl font-bold">{formatCurrency(totals.contracted)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{activeProjects.filter(p => p.contractedFee > 0).length} active projects</p>
+                <p className="text-xs text-muted-foreground mt-1">{activeProjects.filter(p => p.contractedFee > 0 && (p as any).billingType !== "hourly").length} active projects</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-blue-500" />
@@ -307,6 +310,7 @@ export default function Financials() {
                 <tr className="border-b text-left">
                   <th className="pb-3 font-medium text-muted-foreground">Project</th>
                   <th className="pb-3 font-medium text-muted-foreground">Status</th>
+                  <th className="pb-3 font-medium text-muted-foreground">Billing</th>
                   <th className="pb-3 font-medium text-muted-foreground text-right">Contracted Fee</th>
                   <th className="pb-3 font-medium text-muted-foreground text-right">Invoiced</th>
                   <th className="pb-3 font-medium text-muted-foreground text-right">Paid</th>
@@ -319,7 +323,8 @@ export default function Financials() {
               </thead>
               <tbody>
                 {projectsData.map(p => {
-                  const billingPct = p.contractedFee > 0 ? (p.totalPaid / p.contractedFee) * 100 : 0;
+                  const isHourly = (p as any).billingType === "hourly";
+                  const billingPct = !isHourly && p.contractedFee > 0 ? (p.totalPaid / p.contractedFee) * 100 : 0;
                   const statusColor = p.status === "on_track" ? "bg-emerald-500/10 text-emerald-700" :
                     p.status === "delayed" ? "bg-red-500/10 text-red-700" :
                     p.status === "on_hold" ? "bg-amber-500/10 text-amber-700" :
@@ -337,7 +342,10 @@ export default function Financials() {
                           {getStatusLabel(p.status)}
                         </Badge>
                       </td>
-                      <td className="py-3 text-right font-mono">{p.contractedFee > 0 ? formatCurrency(p.contractedFee) : "—"}</td>
+                      <td className="py-3">
+                        <span className="text-xs text-muted-foreground">{getBillingTypeLabel((p as any).billingType)}</span>
+                      </td>
+                      <td className="py-3 text-right font-mono">{!isHourly && p.contractedFee > 0 ? formatCurrency(p.contractedFee) : "—"}</td>
                       <td className="py-3 text-right font-mono">{p.totalInvoiced > 0 ? formatCurrency(p.totalInvoiced) : "—"}</td>
                       <td className="py-3 text-right font-mono text-emerald-600">{p.totalPaid > 0 ? formatCurrency(p.totalPaid) : "—"}</td>
                       <td className="py-3 text-right font-mono">
@@ -358,17 +366,21 @@ export default function Financials() {
                         ) : "—"}
                       </td>
                       <td className="py-3 w-36">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div>
-                              <Progress value={Math.min(billingPct, 100)} className="h-2" />
-                              <p className="text-xs text-muted-foreground mt-1">{billingPct.toFixed(0)}% collected</p>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {formatCurrency(p.totalPaid)} of {formatCurrency(p.contractedFee)} collected
-                          </TooltipContent>
-                        </Tooltip>
+                        {isHourly ? (
+                          <p className="text-xs text-muted-foreground">Hourly — no fixed budget</p>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Progress value={Math.min(billingPct, 100)} className="h-2" />
+                                <p className="text-xs text-muted-foreground mt-1">{billingPct.toFixed(0)}% collected</p>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {formatCurrency(p.totalPaid)} of {formatCurrency(p.contractedFee)} collected
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                       </td>
                       <td className="py-3">
                         <Link href={`/projects/${p.id}`}>
@@ -476,7 +488,7 @@ export default function Financials() {
                               <span className="font-medium hover:text-primary cursor-pointer">{p.name}</span>
                             </Link>
                           </td>
-                          <td className="py-3 text-right font-mono">{p.contractedFee > 0 ? formatCurrency(p.contractedFee) : '—'}</td>
+                          <td className="py-3 text-right font-mono">{(p as any).billingType !== 'hourly' && p.contractedFee > 0 ? formatCurrency(p.contractedFee) : ((p as any).billingType === 'hourly' ? 'Hourly' : '—')}</td>
                           <td className="py-3 text-right font-mono text-emerald-600">{p.feesCollected > 0 ? formatCurrency(p.feesCollected) : '—'}</td>
                           <td className="py-3 text-right font-mono text-orange-600">{p.laborCost > 0 ? formatCurrency(p.laborCost) : '—'}</td>
                           <td className="py-3 text-right font-mono text-violet-600">{p.consultantCost > 0 ? formatCurrency(p.consultantCost) : '—'}</td>

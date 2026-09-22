@@ -98,12 +98,39 @@ export const projects = mysqlTable("projects", {
   estimatedHours: int("estimatedHours").default(0).notNull(),
   contractedFee: int("contractedFee").default(0).notNull(),
   invoicedAmount: int("invoicedAmount").default(0).notNull(),
+  billingType: mysqlEnum("billingType", ["fixed_fee", "hourly"]).default("fixed_fee").notNull(),
+  hourlyRateCents: int("hourlyRateCents").default(0).notNull(),
+  notToExceedCents: int("notToExceedCents").default(0).notNull(),
+  revenueTargetCents: int("revenueTargetCents").default(0).notNull(),
   driveFolderUrl: varchar("driveFolderUrl", { length: 2048 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
+// ── Project Billing Phases ────────────────────────────────────────
+/**
+ * Dated billing-term history. Changing a project from fixed fee to hourly
+ * (or the reverse) closes the current phase and opens a new one so the
+ * original agreement is never overwritten.
+ */
+export const projectBillingPhases = mysqlTable("project_billing_phases", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId"),
+  projectId: int("projectId").notNull(),
+  billingType: mysqlEnum("billingType", ["fixed_fee", "hourly"]).notNull(),
+  startedAt: timestamp("startedAt").notNull(),
+  endedAt: timestamp("endedAt"),
+  contractedFee: int("contractedFee").default(0).notNull(),
+  hourlyRateCents: int("hourlyRateCents").default(0).notNull(),
+  notToExceedCents: int("notToExceedCents").default(0).notNull(),
+  revenueTargetCents: int("revenueTargetCents").default(0).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProjectBillingPhase = typeof projectBillingPhases.$inferSelect;
+export type InsertProjectBillingPhase = typeof projectBillingPhases.$inferInsert;
 // ── Invoices ──────────────────────────────────────────────────────
 export const invoices = mysqlTable("invoices", {
   id: int("id").autoincrement().primaryKey(),

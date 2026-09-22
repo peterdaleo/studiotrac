@@ -22,9 +22,26 @@ import {
   waitlistSignups, InsertWaitlistSignup, WaitlistSignup,
   subscriptions, InsertSubscription, Subscription,
   projectTeamMembers, InsertProjectTeamMember, ProjectTeamMember,
+  projectBillingPhases,
 } from "../drizzle/schema";
+import {
+  applyProjectBillingUpdate,
+  getAllProjectsBudgetSummary as getAllProjectsBudgetSummaryFromBilling,
+  getProjectBudgetContext,
+  listProjectBillingPhases,
+  normalizeBillingTerms,
+  seedInitialBillingPhase,
+} from "./projectBilling";
+
+export { listProjectBillingPhases };
+
+export type ProjectUpdateInput = Partial<InsertProject> & {
+  billingChangeDate?: Date | null;
+  billingChangeNotes?: string | null;
+};
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _billingSchemaReady: Promise<void> | null = null;
 
 function isMissingTableError(error: unknown) {
   if (!error || typeof error !== "object") return false;
@@ -35,6 +52,65 @@ function isMissingTableError(error: unknown) {
     maybeError.message?.includes("doesn't exist") === true ||
     maybeError.message?.includes("Unknown column") === true
   );
+}
+
+async function ensureProjectBillingSchema(db: NonNullable<typeof _db>) {
+  try {
+    await db.execute(sql`ALTER TABLE projects ADD COLUMN billingType enum('fixed_fee','hourly') NOT NULL DEFAULT 'fixed_fee'`);
+  } catch {
+    try {
+      await db.execute(sql`SELECT billingType FROM projects LIMIT 1`);
+    } catch (readError) {
+      console.warn("[Database] projects.billingType is missing and could not be added:", readError);
+      return;
+    }
+  }
+  await db.execute(sql`ALTER TABLE projects ADD COLUMN hourlyRateCents int NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE projects ADD COLUMN notToExceedCents int NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE projects ADD COLUMN revenueTargetCents int NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS project_billing_phases (
+      id int AUTO_INCREMENT NOT NULL,
+      organizationId int,
+      projectId int NOT NULL,
+      billingType enum('fixed_fee','hourly') NOT NULL,
+      startedAt timestamp NOT NULL,
+      endedAt timestamp NULL,
+      contractedFee int NOT NULL DEFAULT 0,
+      hourlyRateCents int NOT NULL DEFAULT 0,
+      notToExceedCents int NOT NULL DEFAULT 0,
+      revenueTargetCents int NOT NULL DEFAULT 0,
+      notes text,
+      createdAt timestamp NOT NULL DEFAULT (now()),
+      updatedAt timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT project_billing_phases_id PRIMARY KEY(id)
+    )
+  `).catch((error) => {
+    console.warn("[Database] Could not create project_billing_phases:", error);
+  });
+  await db.execute(sql`CREATE INDEX idx_project_billing_phases_project ON project_billing_phases (projectId, startedAt)`).catch(() => {});
+  // Classify only rows that still have the column default, no contract sum,
+  // and no billing history yet. Existing fee-bearing projects stay fixed fee.
+  await db.execute(sql`
+    UPDATE projects
+    SET billingType = 'hourly'
+    WHERE (contractedFee IS NULL OR contractedFee = 0)
+      AND billingType = 'fixed_fee'
+      AND id NOT IN (SELECT projectId FROM project_billing_phases)
+  `).catch(() => {});
+  await db.execute(sql`
+    INSERT INTO project_billing_phases (
+      organizationId, projectId, billingType, startedAt, endedAt,
+      contractedFee, hourlyRateCents, notToExceedCents, revenueTargetCents
+    )
+    SELECT
+      organizationId, id, billingType, COALESCE(startDate, createdAt, CURRENT_TIMESTAMP), NULL,
+      contractedFee, hourlyRateCents, notToExceedCents, revenueTargetCents
+    FROM projects
+    WHERE id NOT IN (SELECT projectId FROM project_billing_phases)
+  `).catch((error) => {
+    console.warn("[Database] Could not seed project billing phases:", error);
+  });
 }
 
 export async function getDb() {
@@ -54,6 +130,14 @@ export async function getDb() {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
+  }
+  if (_db && !_billingSchemaReady) {
+    _billingSchemaReady = ensureProjectBillingSchema(_db).catch((error) => {
+      console.warn("[Database] Billing schema ensure failed:", error);
+    });
+  }
+  if (_billingSchemaReady) {
+    await _billingSchemaReady;
   }
   return _db;
 }
@@ -481,7 +565,18 @@ export async function getProject(id: number) {
 export async function createProject(data: InsertProject, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const values = orgId ? { ...data, organizationId: orgId } : data;
+  const terms = normalizeBillingTerms({
+    billingType: data.billingType,
+    contractedFee: data.contractedFee,
+    hourlyRateCents: data.hourlyRateCents,
+    notToExceedCents: data.notToExceedCents,
+    revenueTargetCents: data.revenueTargetCents,
+  });
+  const values = {
+    ...data,
+    ...terms,
+    ...(orgId ? { organizationId: orgId } : {}),
+  };
 
   // Keep the legacy creation-time Project Manager field and the newer project
   // team list in sync. The transaction prevents a project from being created
@@ -497,17 +592,53 @@ export async function createProject(data: InsertProject, orgId?: number | null) 
         role: "pm",
       });
     }
+    try {
+      await seedInitialBillingPhase(
+        tx as any,
+        projectId,
+        orgId ?? data.organizationId,
+        terms,
+        data.startDate ?? new Date(),
+      );
+    } catch (error) {
+      console.warn("[Database] Could not seed billing phase on create:", error);
+    }
 
     return { id: projectId };
   });
 }
 
-export async function updateProject(id: number, data: Partial<InsertProject>) {
+export async function updateProject(id: number, data: ProjectUpdateInput) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   return db.transaction(async (tx) => {
-    await tx.update(projects).set(data).where(eq(projects.id, id));
+    const billingFieldsChanged = (
+      data.billingType !== undefined ||
+      data.contractedFee !== undefined ||
+      data.hourlyRateCents !== undefined ||
+      data.notToExceedCents !== undefined ||
+      data.revenueTargetCents !== undefined
+    );
+    let nextData = { ...data };
+    if (billingFieldsChanged) {
+      const [current] = await tx.select().from(projects).where(eq(projects.id, id)).limit(1);
+      if (current) {
+        const billingPatch = await applyProjectBillingUpdate(tx as any, id, current, {
+          billingType: data.billingType as any,
+          contractedFee: data.contractedFee,
+          hourlyRateCents: data.hourlyRateCents,
+          notToExceedCents: data.notToExceedCents,
+          revenueTargetCents: data.revenueTargetCents,
+          billingChangeDate: (data as any).billingChangeDate ?? null,
+          billingChangeNotes: (data as any).billingChangeNotes ?? null,
+        });
+        nextData = { ...nextData, ...billingPatch };
+      }
+    }
+    delete (nextData as any).billingChangeDate;
+    delete (nextData as any).billingChangeNotes;
+    await tx.update(projects).set(nextData).where(eq(projects.id, id));
 
     // The card's primary PM is stored on projects, while the Details panel
     // displays project_team_members. Keep a directly selected manager present
@@ -565,6 +696,7 @@ export async function deleteProject(id: number) {
       console.warn(`[deleteProject] consultant cleanup failed:`, e?.message);
     }
     await safeDel(() => db.delete(timeEntries).where(eq(timeEntries.projectId, id)), 'timeEntries');
+    await safeDel(() => db.delete(projectBillingPhases).where(eq(projectBillingPhases.projectId, id)), 'projectBillingPhases');
     // Final delete of the project itself — use raw SQL as fallback if Drizzle ORM fails
     try {
       await db.delete(projects).where(eq(projects.id, id));
@@ -659,6 +791,7 @@ export async function purgeArchivedProjects(orgId: number) {
       }
       await safeDel(() => db.delete(consultantContracts).where(eq(consultantContracts.projectId, id)));
       await safeDel(() => db.delete(timeEntries).where(eq(timeEntries.projectId, id)));
+      await safeDel(() => db.delete(projectBillingPhases).where(eq(projectBillingPhases.projectId, id)));
       await safeDel(() => db.delete(projects).where(eq(projects.id, id)));
     }
   } finally {
@@ -937,7 +1070,9 @@ export async function getFinancialOverview(orgId?: number | null) {
       projectConsultantPaid += payments.reduce((sum, pay) => sum + pay.amount, 0);
     }
     
-    totalContracted += p.contractedFee;
+    if ((p.billingType ?? 'fixed_fee') !== 'hourly') {
+      totalContracted += p.contractedFee;
+    }
     totalInvoiced += invoicedTotal;
     totalPaid += paidTotal;
     totalConsultantPaid += projectConsultantPaid;
@@ -986,6 +1121,7 @@ export async function getExportProjectsSummary(orgId?: number | null) {
       completion: p.completionPercentage,
       startDate: p.startDate?.toISOString().split('T')[0] || '',
       deadline: p.deadline?.toISOString().split('T')[0] || '',
+      billingType: p.billingType ?? 'fixed_fee',
       contractedFee: (p.contractedFee / 100).toFixed(2),
       invoicedAmount: (p.invoicedAmount / 100).toFixed(2),
     };
@@ -1531,31 +1667,50 @@ export async function getProjectLaborCost(projectId: number) {
 
 export async function getProjectBurnRate(projectId: number) {
   const db = await getDb();
-  if (!db) return { budgetConsumedPercent: 0, timelineElapsedPercent: 0, laborCost: 0, consultantCost: 0, contractedFee: 0 };
-  
-  const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!project[0]) return { budgetConsumedPercent: 0, timelineElapsedPercent: 0, laborCost: 0, consultantCost: 0, contractedFee: 0 };
-  
-  const { totalLaborCost } = await getProjectLaborCost(projectId);
-  
-  // Use contractAmount (contracted fee) for each consultant contract — deducted from budget
-  // regardless of payment status, per business rules.
-  const contracts = await db.select({ contractAmount: consultantContracts.contractAmount }).from(consultantContracts).where(eq(consultantContracts.projectId, projectId));
-  const consultantCost = contracts.reduce((s, c) => s + (c.contractAmount ?? 0), 0);
-  
-  const totalCost = totalLaborCost + consultantCost;
-  const contractedFee = project[0].contractedFee || 1;
-  const budgetConsumedPercent = Math.round((totalCost / contractedFee) * 100);
-  
-  // Timeline elapsed
-  const start = project[0].startDate ? new Date(project[0].startDate).getTime() : Date.now();
-  const end = project[0].deadline ? new Date(project[0].deadline).getTime() : Date.now();
+  const empty = {
+    budgetConsumedPercent: 0,
+    timelineElapsedPercent: 0,
+    laborCost: 0,
+    consultantCost: 0,
+    contractedFee: 0,
+    billingType: "hourly" as const,
+    hourlyRateCents: 0,
+    notToExceedCents: 0,
+    revenueTargetCents: 0,
+    billableLaborCost: 0,
+    totalMinutes: 0,
+    billableMinutes: 0,
+    budgetHealth: null as Awaited<ReturnType<typeof getProjectBudgetContext>>["budgetHealth"] | null,
+    billingPhases: [] as Awaited<ReturnType<typeof getProjectBudgetContext>>["phases"],
+  };
+  if (!db) return empty;
+
+  const context = await getProjectBudgetContext(projectId);
+  if (!context.project) return empty;
+
+  const start = context.project.startDate ? new Date(context.project.startDate).getTime() : Date.now();
+  const end = context.project.deadline ? new Date(context.project.deadline).getTime() : Date.now();
   const now = Date.now();
   const totalDuration = end - start || 1;
   const elapsed = now - start;
   const timelineElapsedPercent = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
-  
-  return { budgetConsumedPercent, timelineElapsedPercent, laborCost: totalLaborCost, consultantCost, contractedFee: project[0].contractedFee || 0 };
+
+  return {
+    budgetConsumedPercent: context.budgetHealth.consumedPercent ?? 0,
+    timelineElapsedPercent,
+    laborCost: context.costs.laborCost,
+    consultantCost: context.costs.consultantCost,
+    contractedFee: context.project.contractedFee || 0,
+    billingType: context.budgetHealth.currentBillingType,
+    hourlyRateCents: context.project.hourlyRateCents || 0,
+    notToExceedCents: context.project.notToExceedCents || 0,
+    revenueTargetCents: context.project.revenueTargetCents || 0,
+    billableLaborCost: context.costs.billableLaborCost,
+    totalMinutes: context.costs.totalMinutes,
+    billableMinutes: context.costs.billableMinutes,
+    budgetHealth: context.budgetHealth,
+    billingPhases: context.phases,
+  };
 }
 
 export async function getFirmUtilization(startDate?: Date, endDate?: Date, orgId?: number | null) {
@@ -1671,6 +1826,7 @@ export async function getTrueProfitability(orgId?: number | null) {
     return {
       id: p.id,
       name: p.name,
+      billingType: p.billingType ?? 'fixed_fee',
       contractedFee: p.contractedFee,
       feesCollected,
       laborCost,
@@ -2091,68 +2247,8 @@ export async function removeBillingDepartmentEmail(id: number) {
  * Returns a lightweight budget summary for every project in one pass.
  * Used by the Projects list page to render BudgetBar without N+1 queries.
  */
-export async function getAllProjectsBudgetSummary(orgId?: number | null): Promise<
-  Array<{ projectId: number; contractedFee: number; totalCost: number }>
-> {
-  const db = await getDb();
-  if (!db) return [];
-  // 1. All projects (id + contractedFee)
-  const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
-  const allProjects = await db
-    .select({ id: projects.id, contractedFee: projects.contractedFee })
-    .from(projects).where(pWhere);
-
-  if (allProjects.length === 0) return [];
-
-  // 2. Labor cost per project: sum(durationMinutes / 60 * billingRate) for completed entries
-  // Build userId -> billingRate map (handles members with NULL userId via email/name fallback)
-  const allMembers = await db.select().from(teamMembers);
-  const budgetAllUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
-  const userIdToBillingRate = new Map<number, number>();
-  for (const m of allMembers) {
-    if (m.userId) userIdToBillingRate.set(m.userId, m.billingRate);
-  }
-  for (const u of budgetAllUsers) {
-    if (userIdToBillingRate.has(u.id)) continue;
-    const byEmail = u.email ? allMembers.find(m => !m.userId && m.email && m.email.toLowerCase() === u.email!.toLowerCase()) : undefined;
-    if (byEmail) { userIdToBillingRate.set(u.id, byEmail.billingRate); continue; }
-    const byName = u.name ? allMembers.find(m => !m.userId && !m.email && m.name.toLowerCase() === u.name!.toLowerCase()) : undefined;
-    if (byName) { userIdToBillingRate.set(u.id, byName.billingRate); }
-  }
-  const laborEntries = await db
-    .select({
-      projectId: timeEntries.projectId,
-      userId: timeEntries.userId,
-      durationMinutes: timeEntries.durationMinutes,
-    })
-    .from(timeEntries)
-    .where(sql`${timeEntries.endTime} IS NOT NULL`);
-  const laborByProject = new Map<number, number>();
-  for (const row of laborEntries) {
-    const billingRate = userIdToBillingRate.get(row.userId) ?? 0;
-    const cost = Math.round(((row.durationMinutes ?? 0) / 60) * billingRate);
-    laborByProject.set(row.projectId, (laborByProject.get(row.projectId) ?? 0) + cost);
-  }
-
-  // 3. Consultant contracted fees per project — use contractAmount regardless of payment status.
-  // This ensures the full consultant obligation is reflected in the budget from day one.
-  const contractRows = await db
-    .select({ projectId: consultantContracts.projectId, contractAmount: consultantContracts.contractAmount })
-    .from(consultantContracts);
-
-  const consultantByProject = new Map<number, number>();
-  for (const c of contractRows) {
-    consultantByProject.set(
-      c.projectId,
-      (consultantByProject.get(c.projectId) ?? 0) + (c.contractAmount ?? 0),
-    );
-  }
-
-  return allProjects.map((p) => ({
-    projectId: p.id,
-    contractedFee: p.contractedFee ?? 0,
-    totalCost: (laborByProject.get(p.id) ?? 0) + (consultantByProject.get(p.id) ?? 0),
-  }));
+export async function getAllProjectsBudgetSummary(orgId?: number | null) {
+  return getAllProjectsBudgetSummaryFromBilling(orgId);
 }
 
 // ── Waitlist Signups ───────────────────────────────────────────────

@@ -101,10 +101,10 @@ export default function Home() {
   // Projects at 100% completion but not yet archived, with unpaid invoices
   const awaitingPaymentProjects = projects?.filter(
     (p) => p.status !== "completed" && p.completionPercentage >= 100 &&
-      ((p as any).unpaidInvoiceCount > 0 || (p.contractedFee > 0 && p.invoicedAmount < p.contractedFee))
+      ((p as any).unpaidInvoiceCount > 0 || ((p as any).billingType !== "hourly" && p.contractedFee > 0 && p.invoicedAmount < p.contractedFee))
   ) ?? [];
   const awaitingPaymentTotal = awaitingPaymentProjects.reduce(
-    (sum, p) => sum + (p.contractedFee - p.invoicedAmount), 0
+    (sum, p) => sum + ((p as any).billingType === "hourly" ? 0 : Math.max(0, p.contractedFee - p.invoicedAmount)), 0
   );
 
   if (statsLoading || projectsLoading) {
@@ -346,7 +346,7 @@ export default function Home() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {financials?.projects.filter(p => p.contractedFee > 0).length ?? 0} projects with fees
+                    {financials?.projects.filter(p => p.contractedFee > 0 && (p as any).billingType !== "hourly").length ?? 0} projects with fees
                   </p>
                 </CardContent>
               </Card>

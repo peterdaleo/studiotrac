@@ -80,6 +80,7 @@ import {
   getPhaseShortLabel,
   getStatusLabel,
 } from "@shared/constants";
+import { BILLING_TYPES, getBillingTypeLabel } from "@shared/billing";
 import { toast } from "sonner";
 import { formatDateUTC, daysUntilUTC, isDeadlineOverdueUTC } from "@/lib/utils";
 
@@ -103,12 +104,13 @@ const taskStatusOptions = [
   { value: "done", label: "Done" },
 ];
 
-function TimeLeftInBudget({ projectId, burnRate }: { projectId: number; burnRate: { contractedFee: number; laborCost: number; consultantCost: number } }) {
+function TimeLeftInBudget({ projectId, burnRate }: { projectId: number; burnRate: { contractedFee: number; laborCost: number; consultantCost: number; billingType?: string } }) {
   const { data: avgRate } = trpc.projectTeam.avgRate.useQuery({ projectId });
+  // Hourly projects have no fixed remaining budget to convert into hours.
+  if (burnRate.billingType === "hourly" || burnRate.contractedFee === 0) return null;
   // Budget remaining = contractedFee - consultantCost - laborCost
   // Consultant fees deducted from budget whether paid or not
   const budgetRemaining = Math.max(0, burnRate.contractedFee - burnRate.consultantCost - burnRate.laborCost);
-  if (burnRate.contractedFee === 0) return null;
   if (!avgRate || avgRate === 0) {
     return (
       <div className="flex items-center justify-between text-xs mt-2">
@@ -264,6 +266,12 @@ export default function ProjectDetail() {
   const [editDescription, setEditDescription] = useState("");
   const [editingFee, setEditingFee] = useState(false);
   const [editFeeValue, setEditFeeValue] = useState("");
+  const [editingBilling, setEditingBilling] = useState(false);
+  const [editBillingType, setEditBillingType] = useState<"fixed_fee" | "hourly">("fixed_fee");
+  const [editHourlyRate, setEditHourlyRate] = useState("");
+  const [editNte, setEditNte] = useState("");
+  const [editRevenueTarget, setEditRevenueTarget] = useState("");
+  const [editBillingChangeDate, setEditBillingChangeDate] = useState("");
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [consultantDialogOpen, setConsultantDialogOpen] = useState(false);
@@ -296,7 +304,9 @@ export default function ProjectDetail() {
   const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
   const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
+  const { data: billingPhases } = trpc.projects.billingPhases.useQuery({ projectId });
   const utils = trpc.useUtils();
+  const isHourlyProject = (project?.billingType ?? burnRate?.billingType) === "hourly";
 
   const updateProject = trpc.projects.update.useMutation({
     onSuccess: () => {
@@ -305,6 +315,9 @@ export default function ProjectDetail() {
       utils.projects.financialSummary.invalidate({ id: projectId });
       utils.netIncome.project.invalidate({ projectId });
       utils.financials.overview.invalidate();
+      utils.timeAnalytics.projectBurnRate.invalidate({ projectId });
+      utils.timeAnalytics.allProjectsBudgetSummary.invalidate();
+      utils.projects.billingPhases.invalidate({ projectId });
       toast.success("Project updated");
     },
     onError: (err) => {
@@ -697,6 +710,9 @@ export default function ProjectDetail() {
                     <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
                     {isInternalProject && (
                       <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-600 bg-indigo-50">Internal</Badge>
+                    )}
+                    {isHourlyProject && (
+                      <Badge variant="outline" className="text-xs border-sky-300 text-sky-700 bg-sky-50">Hourly</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
@@ -1786,6 +1802,8 @@ export default function ProjectDetail() {
                     contractedFee={burnRate.contractedFee}
                     totalCost={burnRate.laborCost + burnRate.consultantCost}
                     isAdmin={canViewProjectFinancials}
+                    budgetHealth={burnRate.budgetHealth}
+                    billingType={burnRate.billingType ?? project.billingType}
                   />
                 </>
               )}
@@ -1945,7 +1963,120 @@ export default function ProjectDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Contracted Fee</span>
+                <span className="text-sm text-muted-foreground">Billing type</span>
+                {editingBilling && canViewProjectFinancials ? (
+                  <Select value={editBillingType} onValueChange={(value) => setEditBillingType(value as "fixed_fee" | "hourly")}>
+                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BILLING_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-semibold">{getBillingTypeLabel(project.billingType)}</span>
+                    {canViewProjectFinancials && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => {
+                          setEditingBilling(true);
+                          setEditBillingType((project.billingType === "hourly" ? "hourly" : "fixed_fee"));
+                          setEditFeeValue(((project.contractedFee || 0) / 100).toString());
+                          setEditHourlyRate(((project.hourlyRateCents || 0) / 100).toString());
+                          setEditNte(((project.notToExceedCents || 0) / 100).toString());
+                          setEditRevenueTarget(((project.revenueTargetCents || 0) / 100).toString());
+                          setEditBillingChangeDate(new Date().toISOString().split("T")[0]);
+                        }}
+                      >
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {editingBilling && canViewProjectFinancials && (
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                  {editBillingType === "fixed_fee" ? (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Contract sum ($)</Label>
+                      <Input type="number" min={0} step={100} value={editFeeValue} onChange={(e) => setEditFeeValue(e.target.value)} className="h-8 text-xs" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Hourly rate ($)</Label>
+                        <Input type="number" min={0} step={1} value={editHourlyRate} onChange={(e) => setEditHourlyRate(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Not-to-exceed cap ($)</Label>
+                        <Input type="number" min={0} step={100} value={editNte} onChange={(e) => setEditNte(e.target.value)} className="h-8 text-xs" placeholder="Optional" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Revenue target ($)</Label>
+                        <Input type="number" min={0} step={100} value={editRevenueTarget} onChange={(e) => setEditRevenueTarget(e.target.value)} className="h-8 text-xs" placeholder="Optional" />
+                      </div>
+                    </div>
+                  )}
+                  {editBillingType !== (project.billingType === "hourly" ? "hourly" : "fixed_fee") && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Change effective date</Label>
+                      <Input type="date" value={editBillingChangeDate} onChange={(e) => setEditBillingChangeDate(e.target.value)} className="h-8 text-xs" />
+                      <p className="text-[11px] text-muted-foreground">The previous agreement is kept in billing history. Hourly work after this date is not measured against the original contract sum.</p>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingBilling(false)}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        const typeChanged = editBillingType !== (project.billingType === "hourly" ? "hourly" : "fixed_fee");
+                        updateProject.mutate({
+                          id: projectId,
+                          billingType: editBillingType,
+                          contractedFee: editBillingType === "fixed_fee" ? Math.round(Number(editFeeValue || 0) * 100) : project.contractedFee,
+                          hourlyRateCents: Math.round(Number(editHourlyRate || 0) * 100),
+                          notToExceedCents: Math.round(Number(editNte || 0) * 100),
+                          revenueTargetCents: Math.round(Number(editRevenueTarget || 0) * 100),
+                          billingChangeDate: typeChanged && editBillingChangeDate ? new Date(`${editBillingChangeDate}T12:00:00`) : undefined,
+                        });
+                        setEditingBilling(false);
+                        setEditingFee(false);
+                      }}
+                    >
+                      Save billing terms
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {(billingPhases?.length ?? 0) > 1 && (
+                <div className="rounded-lg border bg-muted/10 p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Billing history</p>
+                  {billingPhases?.map((phase) => (
+                    <div key={phase.id} className="flex items-start justify-between gap-3 text-xs">
+                      <div>
+                        <p className="font-medium">{getBillingTypeLabel(phase.billingType)}</p>
+                        <p className="text-muted-foreground">
+                          {new Date(phase.startedAt).toLocaleDateString()}
+                          {phase.endedAt ? ` – ${new Date(phase.endedAt).toLocaleDateString()}` : " – present"}
+                        </p>
+                      </div>
+                      <span className="text-muted-foreground text-right">
+                        {phase.billingType === "fixed_fee"
+                          ? (phase.contractedFee > 0 ? `$${(phase.contractedFee / 100).toLocaleString()}` : "No contract sum")
+                          : (phase.hourlyRateCents > 0 ? `$${(phase.hourlyRateCents / 100).toLocaleString()}/hr` : "Hourly")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">{isHourlyProject ? "Retained contract sum" : "Contracted Fee"}</span>
                 {editingFee && canViewProjectFinancials ? (
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">$</span>
@@ -1956,7 +2087,7 @@ export default function ProjectDetail() {
                 ) : (
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-semibold">{project.contractedFee > 0 ? `$${(project.contractedFee / 100).toLocaleString()}` : "Not set"}</span>
-                    {canViewProjectFinancials && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingFee(true); setEditFeeValue((project.contractedFee / 100).toString()); }}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
+                    {canViewProjectFinancials && !isHourlyProject && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingFee(true); setEditFeeValue((project.contractedFee / 100).toString()); }}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
                   </div>
                 )}
               </div>
@@ -1964,7 +2095,7 @@ export default function ProjectDetail() {
                 <span className="text-sm text-muted-foreground">Invoiced</span>
                 <span className="text-sm font-medium text-emerald-600">${(project.invoicedAmount / 100).toLocaleString()}</span>
               </div>
-              {project.contractedFee > 0 && <Progress value={Math.min((project.invoicedAmount / project.contractedFee) * 100, 100)} className="h-2" />}
+              {!isHourlyProject && project.contractedFee > 0 && <Progress value={Math.min((project.invoicedAmount / project.contractedFee) * 100, 100)} className="h-2" />}
               <Separator />
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Invoices</span>
