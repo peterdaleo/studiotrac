@@ -147,6 +147,31 @@ export default function Team() {
     [allActiveTimers]
   );
 
+  const activeProjectDescriptionsByUserId = useMemo(() => {
+    const descriptionsByProjectId = new Map<number, string>();
+    for (const project of projects ?? []) {
+      const description = project.description?.trim();
+      if (description) descriptionsByProjectId.set(project.id, description);
+    }
+
+    const descriptionsByUserId = new Map<number, string[]>();
+    for (const timer of allActiveTimers ?? []) {
+      if (timer.userId == null) continue;
+      const description = descriptionsByProjectId.get(timer.projectId);
+      if (!description) continue;
+
+      const descriptions = descriptionsByUserId.get(timer.userId) ?? [];
+      if (!descriptions.includes(description)) descriptions.push(description);
+      descriptionsByUserId.set(timer.userId, descriptions);
+    }
+
+    const result = new Map<number, string>();
+    descriptionsByUserId.forEach((descriptions, userId) => {
+      result.set(userId, descriptions.join(" · "));
+    });
+    return result;
+  }, [allActiveTimers, projects]);
+
   const atMemberLimit = (teamMembers?.length ?? 0) >= maxTeamMembers;
 
   const createMember = trpc.teamMembers.create.useMutation({
@@ -1142,6 +1167,11 @@ export default function Team() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{member.title ?? "Team Member"}</p>
+                        {member.userId != null && activeUserIds.has(member.userId) && activeProjectDescriptionsByUserId.has(member.userId) && (
+                          <p className="text-xs text-muted-foreground truncate" title={activeProjectDescriptionsByUserId.get(member.userId)}>
+                            {activeProjectDescriptionsByUserId.get(member.userId)}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1224,7 +1254,14 @@ export default function Team() {
                                   </UITooltip>
                                 )}
                               </div>
-                              <span className="font-medium group-hover:text-primary transition-colors truncate max-w-[160px]">{member.name}</span>
+                              <div className="min-w-0">
+                                <span className="font-medium group-hover:text-primary transition-colors truncate max-w-[160px]">{member.name}</span>
+                                {member.userId != null && activeUserIds.has(member.userId) && activeProjectDescriptionsByUserId.has(member.userId) && (
+                                  <p className="text-[11px] text-muted-foreground truncate max-w-[220px]" title={activeProjectDescriptionsByUserId.get(member.userId)}>
+                                    {activeProjectDescriptionsByUserId.get(member.userId)}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="px-4 py-2.5">
