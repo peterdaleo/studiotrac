@@ -147,27 +147,34 @@ export default function Team() {
     [allActiveTimers]
   );
 
-  const activeProjectDescriptionsByUserId = useMemo(() => {
-    const descriptionsByProjectId = new Map<number, string>();
+  const activeProjectsByUserId = useMemo(() => {
+    type ActiveProject = { id: number; name: string; description: string | null };
+    const projectsById = new Map<number, ActiveProject>();
     for (const project of projects ?? []) {
+      const name = project.name.trim();
+      if (!name) continue;
       const description = project.description?.trim();
-      if (description) descriptionsByProjectId.set(project.id, description);
+      projectsById.set(project.id, {
+        id: project.id,
+        name,
+        description: description || null,
+      });
     }
 
-    const descriptionsByUserId = new Map<number, string[]>();
+    const projectsByUserId = new Map<number, Map<number, ActiveProject>>();
     for (const timer of allActiveTimers ?? []) {
       if (timer.userId == null) continue;
-      const description = descriptionsByProjectId.get(timer.projectId);
-      if (!description) continue;
+      const project = projectsById.get(timer.projectId);
+      if (!project) continue;
 
-      const descriptions = descriptionsByUserId.get(timer.userId) ?? [];
-      if (!descriptions.includes(description)) descriptions.push(description);
-      descriptionsByUserId.set(timer.userId, descriptions);
+      const activeProjects = projectsByUserId.get(timer.userId) ?? new Map<number, ActiveProject>();
+      activeProjects.set(project.id, project);
+      projectsByUserId.set(timer.userId, activeProjects);
     }
 
-    const result = new Map<number, string>();
-    descriptionsByUserId.forEach((descriptions, userId) => {
-      result.set(userId, descriptions.join(" · "));
+    const result = new Map<number, ActiveProject[]>();
+    projectsByUserId.forEach((activeProjects, userId) => {
+      result.set(userId, Array.from(activeProjects.values()));
     });
     return result;
   }, [allActiveTimers, projects]);
@@ -1167,11 +1174,17 @@ export default function Team() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{member.title ?? "Team Member"}</p>
-                        {member.userId != null && activeUserIds.has(member.userId) && activeProjectDescriptionsByUserId.has(member.userId) && (
-                          <p className="text-xs text-muted-foreground truncate" title={activeProjectDescriptionsByUserId.get(member.userId)}>
-                            {activeProjectDescriptionsByUserId.get(member.userId)}
-                          </p>
-                        )}
+                        {member.userId != null && activeUserIds.has(member.userId) &&
+                          (activeProjectsByUserId.get(member.userId) ?? []).map((project) => (
+                            <div key={project.id} className="mt-1 min-w-0">
+                              <p className="text-xs font-semibold truncate" title={project.name}>{project.name}</p>
+                              {project.description && (
+                                <p className="text-xs text-muted-foreground truncate" title={project.description}>
+                                  {project.description}
+                                </p>
+                              )}
+                            </div>
+                          ))}
                       </div>
                     </div>
 
@@ -1256,11 +1269,17 @@ export default function Team() {
                               </div>
                               <div className="min-w-0">
                                 <span className="font-medium group-hover:text-primary transition-colors truncate max-w-[160px]">{member.name}</span>
-                                {member.userId != null && activeUserIds.has(member.userId) && activeProjectDescriptionsByUserId.has(member.userId) && (
-                                  <p className="text-[11px] text-muted-foreground truncate max-w-[220px]" title={activeProjectDescriptionsByUserId.get(member.userId)}>
-                                    {activeProjectDescriptionsByUserId.get(member.userId)}
-                                  </p>
-                                )}
+                                {member.userId != null && activeUserIds.has(member.userId) &&
+                                  (activeProjectsByUserId.get(member.userId) ?? []).map((project) => (
+                                    <div key={project.id} className="mt-0.5 min-w-0 max-w-[220px]">
+                                      <p className="text-[11px] font-semibold truncate" title={project.name}>{project.name}</p>
+                                      {project.description && (
+                                        <p className="text-[10px] text-muted-foreground truncate" title={project.description}>
+                                          {project.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
                               </div>
                             </div>
                           </td>
