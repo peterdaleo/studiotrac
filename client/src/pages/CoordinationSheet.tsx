@@ -190,10 +190,15 @@ export default function CoordinationSheet() {
 
   // Organize items into threads
   const { topLevelItems, repliesByParent, addressedItems } = useMemo(() => {
-    if (!data?.items) return { topLevelItems: [], repliesByParent: new Map(), addressedItems: [] };
-    const top: typeof data.items = [];
-    const addressed: typeof data.items = [];
-    const replies = new Map<number, typeof data.items>();
+    type SheetItem = NonNullable<typeof data>["items"][number];
+    if (!data?.items) return {
+      topLevelItems: [] as SheetItem[],
+      repliesByParent: new Map<number, SheetItem[]>(),
+      addressedItems: [] as SheetItem[],
+    };
+    const top: SheetItem[] = [];
+    const addressed: SheetItem[] = [];
+    const replies = new Map<number, SheetItem[]>();
 
     for (const item of data.items) {
       if (item.parentId) {
@@ -212,7 +217,7 @@ export default function CoordinationSheet() {
       const bPinned = !!b.pinnedAt;
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      if (aPinned && bPinned) return new Date(b.pinnedAt).getTime() - new Date(a.pinnedAt).getTime();
+      if (a.pinnedAt && b.pinnedAt) return b.pinnedAt.getTime() - a.pinnedAt.getTime();
       if (a.isUrgent && !b.isUrgent) return -1;
       if (!a.isUrgent && b.isUrgent) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -234,7 +239,7 @@ export default function CoordinationSheet() {
 
   // Attachments grouped by item
   const attachmentsByItem = useMemo(() => {
-    const map = new Map<number, typeof data.attachments>();
+    const map = new Map<number, NonNullable<typeof data>["attachments"]>();
     if (!data?.attachments) return map;
     for (const att of data.attachments) {
       const existing = map.get(att.itemId) ?? [];

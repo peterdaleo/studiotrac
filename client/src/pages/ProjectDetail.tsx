@@ -294,7 +294,7 @@ export default function ProjectDetail() {
   const canViewProjectFinancials = effectiveRole === "admin" || effectiveRole === "pm";
 
   const { data: project, isLoading } = trpc.projects.get.useQuery({ id: projectId });
-  const isInternalProject = !!project?.isInternal;
+  const isInternalProject = false;
   const { data: projectTasks } = trpc.tasks.list.useQuery({ projectId });
   const { data: notes } = trpc.notes.list.useQuery({ projectId });
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();

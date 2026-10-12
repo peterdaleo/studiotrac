@@ -142,6 +142,12 @@ export async function getDb() {
   return _db;
 }
 
+async function getDbOrThrow() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db;
+}
+
 // ── Organizations ─────────────────────────────────────────────────
 export async function createOrganization(data: InsertOrganization): Promise<{ id: number }> {
   const db = await getDb();
@@ -1410,7 +1416,7 @@ export async function getProjectNetIncome(projectId: number) {
     db.select().from(invoices).where(and(eq(invoices.projectId, projectId), eq(invoices.status, 'paid'))),
     db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId)),
     // Fetch all payments for this project's contracts in one query using a subquery
-    db.select({ consultantId: consultantPayments.consultantId, amount: consultantPayments.amount, id: consultantPayments.id, paidDate: consultantPayments.paidDate, notes: consultantPayments.notes })
+    db.select({ consultantId: consultantPayments.consultantId, amount: consultantPayments.amount, id: consultantPayments.id, paidDate: consultantPayments.paymentDate, notes: consultantPayments.notes })
       .from(consultantPayments)
       .innerJoin(consultantContracts, eq(consultantPayments.consultantId, consultantContracts.id))
       .where(eq(consultantContracts.projectId, projectId)),
@@ -2124,7 +2130,7 @@ export async function getTeamMemberTimeLog(
   if (projectId) conditions.push(eq(timeEntries.projectId, projectId));
   const entries = await db.select().from(timeEntries).where(and(...conditions)).orderBy(desc(timeEntries.startTime));
 
-  const projectIds = [...new Set(entries.map(entry => entry.projectId))];
+  const projectIds = Array.from(new Set(entries.map(entry => entry.projectId)));
   const projectRows = projectIds.length > 0
     ? await db.select({ id: projects.id, name: projects.name }).from(projects).where(inArray(projects.id, projectIds))
     : [];
@@ -2469,7 +2475,7 @@ export async function getAllActiveTimers(organizationId: number): Promise<{ user
 import {
   coordinationSheets, InsertCoordinationSheet, CoordinationSheet,
   coordinationItems, InsertCoordinationItem, CoordinationItem,
-  coordinationAttachments, InsertCoordinationAttachment,
+  coordinationAttachments, CoordinationAttachment, InsertCoordinationAttachment,
   coordinationSubscribers, InsertCoordinationSubscriber, CoordinationSubscriber,
   coordinationSheetViews,
 } from "../drizzle/schema";
@@ -2478,7 +2484,7 @@ import {
 
 export async function createCoordinationSheet(data: InsertCoordinationSheet): Promise<CoordinationSheet | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [result] = await db.insert(coordinationSheets).values(data).$returningId();
     const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.id, result.id));
     return sheet ?? null;
@@ -2496,7 +2502,7 @@ export async function updateCoordinationSheet(id: number, data: Partial<Pick<Ins
 
 export async function getCoordinationSheetByToken(token: string): Promise<CoordinationSheet | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.token, token));
     return sheet ?? null;
   } catch (error) {
@@ -2507,7 +2513,7 @@ export async function getCoordinationSheetByToken(token: string): Promise<Coordi
 
 export async function getCoordinationSheetByClientToken(clientToken: string): Promise<CoordinationSheet | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.clientToken, clientToken));
     return sheet ?? null;
   } catch (error) {
@@ -2519,7 +2525,7 @@ export async function getCoordinationSheetByClientToken(clientToken: string): Pr
 // Look up a sheet by either the main token or the client token (for public mutations)
 export async function getCoordinationSheetByAnyToken(token: string): Promise<CoordinationSheet | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [byToken] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.token, token));
     if (byToken) return byToken;
     const [byClientToken] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.clientToken, token));
@@ -2532,7 +2538,7 @@ export async function getCoordinationSheetByAnyToken(token: string): Promise<Coo
 
 export async function getCoordinationSheetByProject(projectId: number): Promise<CoordinationSheet | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [sheet] = await db.select().from(coordinationSheets)
       .where(and(eq(coordinationSheets.projectId, projectId), eq(coordinationSheets.isActive, true)));
     return sheet ?? null;
@@ -2544,7 +2550,7 @@ export async function getCoordinationSheetByProject(projectId: number): Promise<
 
 export async function deleteCoordinationSheet(id: number): Promise<void> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     // Delete all related data
     const items = await db.select({ id: coordinationItems.id }).from(coordinationItems)
       .where(eq(coordinationItems.sheetId, id));
@@ -2563,7 +2569,7 @@ export async function deleteCoordinationSheet(id: number): Promise<void> {
 
 export async function getCoordinationSheetAttachmentKeys(sheetId: number): Promise<string[]> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const items = await db.select({ id: coordinationItems.id }).from(coordinationItems)
       .where(eq(coordinationItems.sheetId, sheetId));
     if (items.length === 0) return [];
@@ -2585,7 +2591,7 @@ export async function getCoordinationSheetAttachmentKeys(sheetId: number): Promi
 
 export async function listCoordinationItems(sheetId: number): Promise<CoordinationItem[]> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     return db.select().from(coordinationItems)
       .where(eq(coordinationItems.sheetId, sheetId))
       .orderBy(desc(coordinationItems.pinnedAt), asc(coordinationItems.createdAt));
@@ -2597,7 +2603,7 @@ export async function listCoordinationItems(sheetId: number): Promise<Coordinati
 
 export async function createCoordinationItem(data: InsertCoordinationItem): Promise<CoordinationItem | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [result] = await db.insert(coordinationItems).values(data).$returningId();
     const [item] = await db.select().from(coordinationItems).where(eq(coordinationItems.id, result.id));
     return item ?? null;
@@ -2609,7 +2615,7 @@ export async function createCoordinationItem(data: InsertCoordinationItem): Prom
 
 export async function updateCoordinationItem(id: number, data: Partial<Pick<CoordinationItem, "content" | "isUrgent" | "isAddressed" | "visibility">>): Promise<CoordinationItem | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     await db.update(coordinationItems).set({ ...data, editedAt: new Date() }).where(eq(coordinationItems.id, id));
     const [item] = await db.select().from(coordinationItems).where(eq(coordinationItems.id, id));
     return item ?? null;
@@ -2621,7 +2627,7 @@ export async function updateCoordinationItem(id: number, data: Partial<Pick<Coor
 
 export async function deleteCoordinationItem(id: number): Promise<void> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     // Delete attachments for this item and all replies
     const replies = await db.select({ id: coordinationItems.id }).from(coordinationItems)
       .where(eq(coordinationItems.parentId, id));
@@ -2639,7 +2645,7 @@ export async function deleteCoordinationItem(id: number): Promise<void> {
 export async function listCoordinationAttachments(itemIds: number[]): Promise<CoordinationAttachment[]> {
   try {
     if (itemIds.length === 0) return [];
-    const db = await getDb();
+    const db = await getDbOrThrow();
     return db.select().from(coordinationAttachments)
       .where(inArray(coordinationAttachments.itemId, itemIds));
   } catch (error) {
@@ -2650,7 +2656,7 @@ export async function listCoordinationAttachments(itemIds: number[]): Promise<Co
 
 export async function createCoordinationAttachment(data: InsertCoordinationAttachment): Promise<CoordinationAttachment | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const [result] = await db.insert(coordinationAttachments).values(data).$returningId();
     const [attachment] = await db.select().from(coordinationAttachments).where(eq(coordinationAttachments.id, result.id));
     return attachment ?? null;
@@ -2662,7 +2668,7 @@ export async function createCoordinationAttachment(data: InsertCoordinationAttac
 
 export async function deleteCoordinationAttachment(id: number): Promise<void> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     await db.delete(coordinationAttachments).where(eq(coordinationAttachments.id, id));
   } catch (error) {
     if (isMissingTableError(error)) return;
@@ -2674,7 +2680,7 @@ export async function deleteCoordinationAttachment(id: number): Promise<void> {
 
 export async function listCoordinationSubscribers(sheetId: number): Promise<CoordinationSubscriber[]> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     return db.select().from(coordinationSubscribers)
       .where(eq(coordinationSubscribers.sheetId, sheetId));
   } catch (error) {
@@ -2685,7 +2691,7 @@ export async function listCoordinationSubscribers(sheetId: number): Promise<Coor
 
 export async function addCoordinationSubscriber(data: InsertCoordinationSubscriber): Promise<CoordinationSubscriber | null> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     // Upsert: if already subscribed by email or phone, just return existing
     if (data.email) {
       const [existing] = await db.select().from(coordinationSubscribers)
@@ -2714,7 +2720,7 @@ export async function addCoordinationSubscriber(data: InsertCoordinationSubscrib
 
 export async function removeCoordinationSubscriber(sheetId: number, emailOrPhone: string): Promise<void> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     // Try to delete by email first, then by phone
     const isPhone = emailOrPhone.startsWith("+") || /^\d/.test(emailOrPhone);
     if (isPhone) {
@@ -2740,7 +2746,7 @@ export async function removeCoordinationSubscriber(sheetId: number, emailOrPhone
 
 export async function listUnnotifiedCoordinationItems(sheetId: number): Promise<CoordinationItem[]> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     return db.select().from(coordinationItems)
       .where(and(
         eq(coordinationItems.sheetId, sheetId),
@@ -2755,7 +2761,7 @@ export async function listUnnotifiedCoordinationItems(sheetId: number): Promise<
 export async function markCoordinationItemsAsNotified(itemIds: number[]): Promise<void> {
   if (itemIds.length === 0) return;
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     await db.update(coordinationItems)
       .set({ isNotified: true })
       .where(inArray(coordinationItems.id, itemIds));
@@ -2767,7 +2773,7 @@ export async function markCoordinationItemsAsNotified(itemIds: number[]): Promis
 
 export async function updateSubscriberLastNotified(subscriberId: number): Promise<void> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     await db.update(coordinationSubscribers)
       .set({ lastNotifiedAt: new Date() })
       .where(eq(coordinationSubscribers.id, subscriberId));
@@ -2780,7 +2786,7 @@ export async function updateSubscriberLastNotified(subscriberId: number): Promis
 // Returns all active coordination sheets that have at least one unnotified item
 export async function listSheetsWithUnnotifiedItems(): Promise<CoordinationSheet[]> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     // Get distinct sheetIds that have unnotified items
     const rows = await db.selectDistinct({ sheetId: coordinationItems.sheetId })
       .from(coordinationItems)
@@ -2801,7 +2807,7 @@ export async function listSheetsWithUnnotifiedItems(): Promise<CoordinationSheet
 // ── Sheet View Tracking (unread badge) ──────────────────────────
 export async function markCoordinationSheetViewed(sheetId: number, userId: number): Promise<void> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     await db.execute(
       sql`INSERT INTO coordination_sheet_views (sheetId, userId, lastViewedAt)
           VALUES (${sheetId}, ${userId}, NOW())
@@ -2815,7 +2821,7 @@ export async function markCoordinationSheetViewed(sheetId: number, userId: numbe
 
 export async function getCoordinationUnreadCount(sheetId: number, userId: number): Promise<number> {
   try {
-    const db = await getDb();
+    const db = await getDbOrThrow();
     const rows = await db.execute(
       sql`SELECT COUNT(*) as cnt FROM coordination_items ci
           WHERE ci.sheetId = ${sheetId}
@@ -2929,7 +2935,7 @@ export async function getProjectTeamAvgRate(projectId: number): Promise<number> 
     .from(projectTeamMembers)
     .where(eq(projectTeamMembers.projectId, projectId));
   if (assignments.length === 0) return 0;
-  const memberIds = [...new Set(assignments.map(a => a.teamMemberId))];
+  const memberIds = Array.from(new Set(assignments.map(a => a.teamMemberId)));
   const members = await db.select({ billingRate: teamMembers.billingRate })
     .from(teamMembers)
     .where(inArray(teamMembers.id, memberIds));

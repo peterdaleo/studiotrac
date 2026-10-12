@@ -198,15 +198,14 @@ export type InsertNotification = typeof notifications.$inferInsert;
 // ── Project Files ──────────────────────────────────────────────────
 export const projectFiles = mysqlTable("project_files", {
   id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organizationId"),
   projectId: int("projectId").notNull(),
   uploadedById: int("uploadedById"),
   fileName: varchar("fileName", { length: 500 }).notNull(),
-  fileUrl: text("fileUrl").notNull(),
+  fileKey: varchar("fileKey", { length: 1000 }).notNull(),
+  url: text("url").notNull(),
   fileSize: int("fileSize"),
   mimeType: varchar("mimeType", { length: 255 }),
-  category: mysqlEnum("category", ["document", "drawing", "image", "other"]).default("other").notNull(),
-  isClientVisible: boolean("isClientVisible").default(false).notNull(),
+  category: mysqlEnum("category", ["drawing", "specification", "correspondence", "photo", "contract", "other"]).default("other").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ProjectFile = typeof projectFiles.$inferSelect;
@@ -215,10 +214,10 @@ export type InsertProjectFile = typeof projectFiles.$inferInsert;
 export const emailPreferences = mysqlTable("email_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
+  emailAddress: varchar("emailAddress", { length: 320 }).notNull(),
   deadlineAlerts: boolean("deadlineAlerts").default(true).notNull(),
-  taskOverdueAlerts: boolean("taskOverdueAlerts").default(true).notNull(),
+  overdueAlerts: boolean("overdueAlerts").default(true).notNull(),
   statusChangeAlerts: boolean("statusChangeAlerts").default(true).notNull(),
-  weeklyDigest: boolean("weeklyDigest").default(false).notNull(),
   alertDaysBefore: int("alertDaysBefore").default(3).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

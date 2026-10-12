@@ -26,7 +26,7 @@ function getResend() {
   }
   return _resend!;
 }
-let _twilioClient: ReturnType<typeof import("twilio").default> | null = null;
+let _twilioClient: import("twilio").Twilio | null = null;
 function getTwilioClient() {
   if (!_twilioClient) {
     const twilio = require("twilio");
@@ -490,7 +490,10 @@ export const appRouter = router({
       return db.updateProject(id, data);
     }),
     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
-    purgeArchived: adminProcedure.mutation(({ ctx }) => db.purgeArchivedProjects(ctx.organizationId)),
+    purgeArchived: adminProcedure.mutation(({ ctx }) => {
+      if (ctx.organizationId == null) throw new TRPCError({ code: "FORBIDDEN", message: "Organization required" });
+      return db.purgeArchivedProjects(ctx.organizationId);
+    }),
     billingPhases: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectBillingPhases(input.projectId)),
   }),
 
@@ -547,7 +550,10 @@ export const appRouter = router({
     reorder: protectedProcedure.input(z.object({
       taskOrders: z.array(z.object({ id: z.number(), sortOrder: z.number() })),
     })).mutation(({ input }) => db.reorderTasks(input.taskOrders)),
-    purgeArchived: adminProcedure.mutation(({ ctx }) => db.purgeArchivedTasks(ctx.organizationId)),
+    purgeArchived: adminProcedure.mutation(({ ctx }) => {
+      if (ctx.organizationId == null) throw new TRPCError({ code: "FORBIDDEN", message: "Organization required" });
+      return db.purgeArchivedTasks(ctx.organizationId);
+    }),
   }),
 
   // ── Project Notes ────────────────────────────────────────────
@@ -733,7 +739,8 @@ export const appRouter = router({
   // ── Client Share Tokens ─────────────────────────────────────
   shareTokens: router({
     list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listShareTokens(input.projectId)),
-    listForClient: protectedProcedure.input(z.object({ clientName: z.string() })).query(({ input, ctx }) => db.listClientShareTokens(input.clientName, ctx.organizationId)),
+    listForClient: protectedProcedure.input(z.object({ clientName: z.string() })).query(({ input, ctx }) =>
+      ctx.organizationId == null ? [] : db.listClientShareTokens(input.clientName, ctx.organizationId)),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
       label: z.string().optional(),
@@ -878,7 +885,8 @@ export const appRouter = router({
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTimeEntry(input.id)),
     activeTimer: protectedProcedure.query(({ ctx }) => db.getActiveTimer(ctx.user.id)),
-    allActiveTimers: protectedProcedure.query(({ ctx }) => db.getAllActiveTimers(ctx.organizationId)),
+    allActiveTimers: protectedProcedure.query(({ ctx }) =>
+      ctx.organizationId == null ? [] : db.getAllActiveTimers(ctx.organizationId)),
     startTimer: protectedProcedure.input(z.object({
       projectId: z.number(),
       taskId: z.number().optional().nullable(),

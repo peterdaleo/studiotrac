@@ -8,7 +8,8 @@ import { getStripe, STRIPE_PLANS } from "../stripe/config";
 export const superAdminRouter = router({
   // ── Platform Metrics ─────────────────────────────────────────────
   metrics: superAdminProcedure.query(async () => {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
 
     const [orgCount] = await db.select({ count: count() }).from(organizations);
     const [userCount] = await db.select({ count: count() }).from(users);
@@ -43,7 +44,8 @@ export const superAdminRouter = router({
 
   // ── List All Firms ───────────────────────────────────────────────
   firms: superAdminProcedure.query(async () => {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
 
     const firms = await db
       .select({
@@ -130,7 +132,8 @@ export const superAdminRouter = router({
   firmDetail: superAdminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
 
       const [firm] = await db
         .select()
@@ -168,7 +171,8 @@ export const superAdminRouter = router({
   cancelSubscription: superAdminProcedure
     .input(z.object({ organizationId: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
 
       const [sub] = await db
         .select()

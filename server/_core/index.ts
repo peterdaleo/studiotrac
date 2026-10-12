@@ -59,6 +59,7 @@ async function startServer() {
       const db = await getDb();
       const { coordinationAttachments } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
+      if (!db) throw new Error("Database not available");
       const [att] = await db.select({
         fileData: coordinationAttachments.fileData,
         mimeType: coordinationAttachments.mimeType,

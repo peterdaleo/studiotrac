@@ -314,7 +314,7 @@ export default function Timeline() {
 
                   // Build per-member sub-bars for this project
                   const projectTasks = ganttData?.tasks.filter(t => t.projectId === project.id) ?? [];
-                  const memberMap = new Map<number, { member: typeof ganttData.members[0]; firstAssigned: Date; lastDeadline: Date | null }>();
+                  const memberMap = new Map<number, { member: NonNullable<typeof ganttData>["members"][number]; firstAssigned: Date; lastDeadline: Date | null }>();
                   for (const task of projectTasks) {
                     if (!task.assigneeId) continue;
                     const existing = memberMap.get(task.assigneeId);
