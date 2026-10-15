@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -126,6 +126,7 @@ export default function Prospects() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [includePrivateExport, setIncludePrivateExport] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const printAfterDialogClose = useRef(false);
   const [includePrivatePrint, setIncludePrivatePrint] = useState(false);
   const [printFields, setPrintFields] = useState<PrintField[]>(printFieldOptions.map((field) => field.value));
   const [now, setNow] = useState(() => new Date());
@@ -296,8 +297,8 @@ export default function Prospects() {
   };
 
   const printVisible = () => {
+    printAfterDialogClose.current = true;
     setPrintDialogOpen(false);
-    window.setTimeout(() => window.print(), 100);
   };
 
   const startEdit = (prospect: ProspectRecord) => {
@@ -319,7 +320,7 @@ export default function Prospects() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <style>{`@media print { .prospects-screen-only { display: none !important; } .prospects-print-only { display: block !important; } body { background: white !important; } } @media screen { .prospects-print-only { display: none !important; } }`}</style>
+      <style>{`@media print { .prospects-screen-only { display: none !important; } .prospects-print-only { display: block !important; } [data-slot="dialog-overlay"], [data-slot="dialog-content"] { display: none !important; } body { background: white !important; } } @media screen { .prospects-print-only { display: none !important; } }`}</style>
       <div className="prospects-screen-only space-y-6">
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -537,8 +538,13 @@ export default function Prospects() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
-          <DialogContent className="sm:max-w-lg">
+        <Dialog open={printDialogOpen} onOpenChange={(open) => { if (open) printAfterDialogClose.current = false; setPrintDialogOpen(open); }}>
+          <DialogContent className="sm:max-w-lg" onCloseAutoFocus={() => {
+            if (printAfterDialogClose.current) {
+              printAfterDialogClose.current = false;
+              window.print();
+            }
+          }}>
             <DialogHeader><DialogTitle>Print / Save as PDF</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">Choose which fields appear in the clean print view. In your browser’s print dialog, choose “Save as PDF” to create a PDF.</p>
             <div className="grid gap-2 sm:grid-cols-2">
