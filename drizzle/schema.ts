@@ -436,6 +436,7 @@ export const prospects = mysqlTable("prospects", {
   stage: mysqlEnum("stage", ["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).default("New").notNull(),
   ownerId: int("ownerId"),
   nextFollowUpDate: date("nextFollowUpDate", { mode: "string" }),
+  lastInteractionAt: date("lastInteractionAt", { mode: "string" }),
   convertedProjectId: int("convertedProjectId"),
   convertedAt: timestamp("convertedAt"),
   createdById: int("createdById"),

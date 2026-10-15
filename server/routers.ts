@@ -360,23 +360,25 @@ export const appRouter = router({
   prospects: router({
     list: adminOrPmProcedure.query(({ ctx }) => prospectsDb.listProspects(requireProspectOrganization(ctx.organizationId))),
     create: adminOrPmProcedure.input(z.object({
-      firm: z.string().trim().min(1).max(255),
+      firm: z.string().trim().max(255).optional().nullable(),
       opportunityName: z.string().trim().min(1).max(500),
       contact: z.string().trim().max(500).optional().nullable(),
       referralSource: z.string().trim().max(255).optional().nullable(),
       stage: z.enum(["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).optional(),
       ownerId: z.number().int().positive().optional().nullable(),
       nextFollowUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+      lastInteractionAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
     })).mutation(({ input, ctx }) => prospectsDb.createProspect(input, requireProspectOrganization(ctx.organizationId), ctx.user.id)),
     update: adminOrPmProcedure.input(z.object({
       id: z.number().int().positive(),
-      firm: z.string().trim().min(1).max(255).optional(),
+      firm: z.string().trim().max(255).optional().nullable(),
       opportunityName: z.string().trim().min(1).max(500).optional(),
       contact: z.string().trim().max(500).optional().nullable(),
       referralSource: z.string().trim().max(255).optional().nullable(),
       stage: z.enum(["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).optional(),
       ownerId: z.number().int().positive().optional().nullable(),
       nextFollowUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+      lastInteractionAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
     })).mutation(({ input, ctx }) => {
       const { id, ...patch } = input;
       return prospectsDb.updateProspect(id, patch, requireProspectOrganization(ctx.organizationId));
@@ -386,6 +388,7 @@ export const appRouter = router({
       type: z.enum(["note", "call", "email", "meeting", "proposal"]),
       content: z.string().trim().min(1).max(10000),
       happenedAt: z.date(),
+      lastInteractionAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       isPrivate: z.boolean().default(false),
     })).mutation(({ input, ctx }) => prospectsDb.addProspectInteraction(input, requireProspectOrganization(ctx.organizationId), ctx.user.id)),
     convertToProject: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {

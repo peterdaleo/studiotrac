@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeCsvCell, getFollowUpStatus, prospectDateInRange } from "../shared/prospects";
+import { defaultLastInteractionDate, escapeCsvCell, getFollowUpStatus, prospectDateInRange } from "../shared/prospects";
 import { appRouter } from "./routers";
 
 describe("prospect follow-up status", () => {
@@ -33,6 +33,14 @@ describe("prospect date range", () => {
   it("excludes missing dates when a bound is active", () => {
     expect(prospectDateInRange(null, "2026-10-01", undefined)).toBe(false);
     expect(prospectDateInRange(null)).toBe(true);
+  });
+});
+
+describe("prospect last interaction date", () => {
+  it("uses the provided date or defaults to today on initial creation", () => {
+    const now = new Date(2026, 9, 15, 12, 0, 0);
+    expect(defaultLastInteractionDate(undefined, now)).toBe("2026-10-15");
+    expect(defaultLastInteractionDate("2026-10-12", now)).toBe("2026-10-12");
   });
 });
 

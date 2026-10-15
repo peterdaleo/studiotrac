@@ -49,7 +49,7 @@ type PrintField = "firm" | "opportunityName" | "contact" | "referralSource" | "s
 
 const interactionTypes = ["note", "call", "email", "meeting", "proposal"] as const;
 const printFieldOptions: Array<{ value: PrintField; label: string }> = [
-  { value: "firm", label: "Firm" },
+  { value: "firm", label: "Client / organization" },
   { value: "opportunityName", label: "Opportunity" },
   { value: "contact", label: "Contact" },
   { value: "referralSource", label: "Referral source" },
@@ -72,6 +72,13 @@ function displayDate(value: Date | string | null | undefined): string {
     ? new Date(`${value}T12:00:00`)
     : asDate(value);
   return date ? date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+}
+
+function dateInputValue(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = asDate(value);
+  return date ? localDateKey(date) : "";
 }
 
 function localDateTimeValue(date: Date): string {
@@ -233,13 +240,14 @@ export default function Prospects() {
     const form = new FormData(event.currentTarget);
     const ownerValue = String(form.get("ownerId") ?? "");
     const payload = {
-      firm: String(form.get("firm") ?? "").trim(),
+      firm: String(form.get("firm") ?? "").trim() || null,
       opportunityName: String(form.get("opportunityName") ?? "").trim(),
       contact: String(form.get("contact") ?? "").trim() || null,
       referralSource: String(form.get("referralSource") ?? "").trim() || null,
       stage: String(form.get("stage") ?? "New") as ProspectStage,
       ownerId: ownerValue ? Number(ownerValue) : null,
       nextFollowUpDate: String(form.get("nextFollowUpDate") ?? "") || null,
+      lastInteractionAt: String(form.get("lastInteractionAt") ?? "") || localDateKey(now),
     };
     if (editId != null) updateMutation.mutate({ ...payload, id: editId });
     else createMutation.mutate(payload);
@@ -255,13 +263,14 @@ export default function Prospects() {
       type: String(form.get("type") ?? "note") as (typeof interactionTypes)[number],
       content: String(form.get("content") ?? "").trim(),
       happenedAt: happenedAtValue ? new Date(happenedAtValue) : new Date(),
+      lastInteractionAt: happenedAtValue.slice(0, 10),
       isPrivate: form.get("isPrivate") === "on",
     });
     event.currentTarget.reset();
   };
 
   const exportCsv = () => {
-    const headers = ["Firm", "Opportunity", "Contact", "Referral source", "Stage", "Assigned owner", "Next follow-up", "Last interaction", "Interaction history"];
+    const headers = ["Client / organization", "Opportunity", "Contact", "Referral source", "Stage", "Assigned owner", "Next follow-up", "Last interaction", "Interaction history"];
     const lines = [headers.map(escapeCsvCell).join(",")];
     visibleProspects.forEach((prospect) => {
       const values = [
@@ -363,7 +372,7 @@ export default function Prospects() {
             <div className="grid gap-3 lg:grid-cols-[minmax(200px,1.5fr)_repeat(4,minmax(130px,1fr))]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search firm, opportunity, contact…" className="pl-9" aria-label="Search prospects" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search client / organization, opportunity, contact…" className="pl-9" aria-label="Search prospects" />
               </div>
               <Select value={stageFilter} onValueChange={setStageFilter}>
                 <SelectTrigger aria-label="Filter by stage"><SelectValue placeholder="All stages" /></SelectTrigger>
@@ -428,7 +437,7 @@ export default function Prospects() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[920px] text-left text-sm">
                   <thead className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr><th className="px-4 py-3">Opportunity / firm</th><th className="px-4 py-3">Stage</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Next follow-up</th><th className="px-4 py-3">Last interaction</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Actions</th></tr>
+                    <tr><th className="px-4 py-3">Opportunity / client organization</th><th className="px-4 py-3">Stage</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Next follow-up</th><th className="px-4 py-3">Last interaction</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Actions</th></tr>
                   </thead>
                   <tbody>
                     {visibleProspects.map((prospect) => {
@@ -439,7 +448,7 @@ export default function Prospects() {
                           <td className="px-4 py-3">
                             <button type="button" onClick={() => setDetailId(prospect.id)} className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
                               <span className="block font-semibold text-foreground hover:text-primary">{prospect.opportunityName}</span>
-                              <span className="block text-xs text-muted-foreground">{prospect.firm}</span>
+                              {prospect.firm && <span className="block text-xs text-muted-foreground">{prospect.firm}</span>}
                             </button>
                             {prospect.convertedProjectId && <Badge variant="outline" className="mt-1">Converted</Badge>}
                           </td>
@@ -466,13 +475,14 @@ export default function Prospects() {
             <DialogHeader><DialogTitle>{editingProspect ? "Edit prospect" : "Add prospect"}</DialogTitle></DialogHeader>
             <form onSubmit={submitProspect} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label htmlFor="prospect-firm">Firm *</Label><Input id="prospect-firm" name="firm" required maxLength={255} defaultValue={editingProspect?.firm ?? ""} /></div>
+                <div className="space-y-2"><Label htmlFor="prospect-firm">Client / organization</Label><Input id="prospect-firm" name="firm" maxLength={255} defaultValue={editingProspect?.firm ?? ""} /></div>
                 <div className="space-y-2"><Label htmlFor="prospect-name">Opportunity name *</Label><Input id="prospect-name" name="opportunityName" required maxLength={500} defaultValue={editingProspect?.opportunityName ?? ""} /></div>
                 <div className="space-y-2"><Label htmlFor="prospect-contact">Contact</Label><Input id="prospect-contact" name="contact" maxLength={500} placeholder="Name, role, email or phone" defaultValue={editingProspect?.contact ?? ""} /></div>
                 <div className="space-y-2"><Label htmlFor="prospect-referral">Referral source</Label><Input id="prospect-referral" name="referralSource" maxLength={255} defaultValue={editingProspect?.referralSource ?? ""} /></div>
                 <div className="space-y-2"><Label htmlFor="prospect-stage">Stage</Label><select id="prospect-stage" name="stage" defaultValue={editingProspect?.stage ?? "New"} disabled={!!editingProspect?.convertedProjectId} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">{PROSPECT_STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select>{editingProspect?.convertedProjectId && <p className="text-xs text-muted-foreground">Stage is locked after conversion.</p>}</div>
                 <div className="space-y-2"><Label htmlFor="prospect-owner">Assigned owner</Label><select id="prospect-owner" name="ownerId" defaultValue={editingProspect?.ownerId ? String(editingProspect.ownerId) : ""} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">Unassigned</option>{memberList.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></div>
                 <div className="space-y-2 sm:col-span-2"><Label htmlFor="prospect-followup">Next follow-up date</Label><Input id="prospect-followup" name="nextFollowUpDate" type="date" defaultValue={editingProspect?.nextFollowUpDate ?? ""} /></div>
+                <div className="space-y-2 sm:col-span-2"><Label htmlFor="prospect-last-interaction">Last interaction</Label><Input id="prospect-last-interaction" name="lastInteractionAt" type="date" defaultValue={editingProspect ? dateInputValue(editingProspect.lastInteractionAt) : localDateKey(now)} required /></div>
               </div>
               <div className="flex justify-end gap-2 border-t pt-4"><Button type="button" variant="outline" onClick={() => setDraftOpen(false)}>Cancel</Button><Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>{createMutation.isPending || updateMutation.isPending ? "Saving…" : "Save prospect"}</Button></div>
             </form>
@@ -484,7 +494,7 @@ export default function Prospects() {
             {activeProspect && <>
               <DialogHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div><DialogTitle className="text-xl">{activeProspect.opportunityName}</DialogTitle><p className="mt-1 text-sm text-muted-foreground">{activeProspect.firm}</p></div>
+                  <div><DialogTitle className="text-xl">{activeProspect.opportunityName}</DialogTitle>{activeProspect.firm && <p className="mt-1 text-sm text-muted-foreground">Client / organization: {activeProspect.firm}</p>}</div>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={() => startEdit(activeProspect)}>Edit details</Button>
                     {activeProspect.stage === "Won" && !activeProspect.convertedProjectId && <Button onClick={() => {

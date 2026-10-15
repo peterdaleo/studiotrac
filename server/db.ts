@@ -126,6 +126,7 @@ async function ensureProspectsSchema(db: NonNullable<typeof _db>) {
       stage enum('New','Contacted','Proposal','Negotiation','Won','Lost') NOT NULL DEFAULT 'New',
       ownerId int NULL,
       nextFollowUpDate date NULL,
+      lastInteractionAt date NULL,
       convertedProjectId int NULL,
       convertedAt timestamp NULL,
       createdById int NULL,
@@ -135,6 +136,11 @@ async function ensureProspectsSchema(db: NonNullable<typeof _db>) {
       KEY idx_prospects_org_stage (organizationId, stage),
       KEY idx_prospects_followup (organizationId, nextFollowUpDate)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    try {
+      await db.execute(sql`ALTER TABLE prospects ADD COLUMN lastInteractionAt date NULL`);
+    } catch {
+      await db.execute(sql`SELECT lastInteractionAt FROM prospects LIMIT 1`);
+    }
     await db.execute(sql`CREATE TABLE IF NOT EXISTS prospect_interactions (
       id int NOT NULL AUTO_INCREMENT,
       organizationId int NULL,

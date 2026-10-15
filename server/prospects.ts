@@ -2,16 +2,17 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { prospectInteractions, prospects, projectNotes, projectTeamMembers, projects, teamMembers, users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { normalizeBillingTerms, seedInitialBillingPhase } from "./projectBilling";
-import type { ProspectStage } from "../shared/prospects";
+import { defaultLastInteractionDate, type ProspectStage } from "../shared/prospects";
 
 export type ProspectDraft = {
-  firm: string;
+  firm?: string | null;
   opportunityName: string;
   contact?: string | null;
   referralSource?: string | null;
   stage?: ProspectStage;
   ownerId?: number | null;
   nextFollowUpDate?: string | null;
+  lastInteractionAt?: string | null;
 };
 
 export type ProspectPatch = Partial<ProspectDraft>;
@@ -73,7 +74,7 @@ export async function listProspects(orgId?: number | null) {
     const interactions = historyByProspect.get(row.id) ?? [];
     return {
       ...row,
-      lastInteractionAt: interactions[0]?.happenedAt ?? null,
+      lastInteractionAt: row.lastInteractionAt ?? interactions[0]?.happenedAt ?? row.createdAt,
       interactions,
     };
   });
@@ -85,13 +86,14 @@ export async function createProspect(data: ProspectDraft, orgId: number | null, 
   if (!db) throw new Error("Database not available");
   const result = await db.insert(prospects).values({
     organizationId: orgId,
-    firm: data.firm.trim(),
+    firm: data.firm?.trim() || "",
     opportunityName: data.opportunityName.trim(),
     contact: data.contact?.trim() || null,
     referralSource: data.referralSource?.trim() || null,
     stage: data.stage ?? "New",
     ownerId: data.ownerId ?? null,
     nextFollowUpDate: data.nextFollowUpDate || null,
+    lastInteractionAt: defaultLastInteractionDate(data.lastInteractionAt, new Date()),
     createdById,
   });
   return { id: result[0].insertId };
@@ -113,13 +115,14 @@ export async function updateProspect(
   }
 
   const patch: Record<string, unknown> = {};
-  if (data.firm !== undefined) patch.firm = data.firm.trim();
+  if (data.firm !== undefined) patch.firm = data.firm?.trim() || "";
   if (data.opportunityName !== undefined) patch.opportunityName = data.opportunityName.trim();
   if (data.contact !== undefined) patch.contact = data.contact?.trim() || null;
   if (data.referralSource !== undefined) patch.referralSource = data.referralSource?.trim() || null;
   if (data.stage !== undefined) patch.stage = data.stage;
   if (data.ownerId !== undefined) patch.ownerId = data.ownerId;
   if (data.nextFollowUpDate !== undefined) patch.nextFollowUpDate = data.nextFollowUpDate || null;
+  if (data.lastInteractionAt !== undefined) patch.lastInteractionAt = data.lastInteractionAt || null;
   if (Object.keys(patch).length) {
     await db.update(prospects).set(patch as any).where(scopedConditions(prospects, id, orgId));
   }
@@ -132,6 +135,7 @@ export async function addProspectInteraction(
     type: "note" | "call" | "email" | "meeting" | "proposal";
     content: string;
     happenedAt: Date;
+    lastInteractionAt: string;
     isPrivate: boolean;
   },
   orgId: number | null,
@@ -139,19 +143,23 @@ export async function addProspectInteraction(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [prospect] = await db.select({ id: prospects.id }).from(prospects)
-    .where(scopedConditions(prospects, input.prospectId, orgId)).limit(1);
-  if (!prospect) throw new Error("Prospect not found");
-  const result = await db.insert(prospectInteractions).values({
-    organizationId: orgId,
-    prospectId: input.prospectId,
-    type: input.type,
-    content: input.content.trim(),
-    happenedAt: input.happenedAt,
-    isPrivate: input.isPrivate,
-    createdById,
+  return db.transaction(async (tx) => {
+    const [prospect] = await tx.select({ id: prospects.id }).from(prospects)
+      .where(scopedConditions(prospects, input.prospectId, orgId)).limit(1);
+    if (!prospect) throw new Error("Prospect not found");
+    const result = await tx.insert(prospectInteractions).values({
+      organizationId: orgId,
+      prospectId: input.prospectId,
+      type: input.type,
+      content: input.content.trim(),
+      happenedAt: input.happenedAt,
+      isPrivate: input.isPrivate,
+      createdById,
+    });
+    await tx.update(prospects).set({ lastInteractionAt: input.lastInteractionAt })
+      .where(scopedConditions(prospects, input.prospectId, orgId));
+    return { id: result[0].insertId };
   });
-  return { id: result[0].insertId };
 }
 
 export async function convertProspectToProject(id: number, orgId: number | null) {
@@ -185,7 +193,7 @@ export async function convertProspectToProject(id: number, orgId: number | null)
     const projectResult = await tx.insert(projects).values({
       organizationId: orgId,
       name: prospect.opportunityName,
-      clientName: prospect.firm,
+      clientName: prospect.firm.trim() || null,
       projectManagerId: prospect.ownerId,
       description: [
         prospect.contact ? `Primary contact: ${prospect.contact}` : null,

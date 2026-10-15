@@ -17,6 +17,10 @@ export function localDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+export function defaultLastInteractionDate(value?: string | null, now = new Date()): string {
+  return value || localDateKey(now);
+}
+
 export function getFollowUpStatus(
   followUpDate: string | null | undefined,
   stage: string,
