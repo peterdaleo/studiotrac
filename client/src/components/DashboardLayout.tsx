@@ -23,7 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { useStaffPreview, useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
+import { useStaffPreview, useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -57,6 +57,7 @@ import TrialExpiredScreen from "@/components/TrialExpiredScreen";
 const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
+  { icon: UserCircle, label: "Prospects", path: "/prospects", adminOrPmOnly: true },
   { icon: CheckSquare, label: "Tasks", path: "/tasks" },
   { icon: Timer, label: "Time Tracking", path: "/time" },
   { icon: Users, label: "Team", path: "/team" },
@@ -188,12 +189,14 @@ function DashboardLayoutContent({
 
   const realAdmin = user?.role === "admin";
   const isAdmin = useEffectiveAdmin(user?.role);
+  const effectiveRole = useEffectiveRole(user?.role);
   const isSuperAdmin = (user?.isSuperAdmin ?? false) && !isStaffPreview;
   const { canAccessFinancials, isLockedOut, isTrialActive, trialDaysLeft } = useSubscription();
   // Only the org owner should ever see trial UI — super-admins and invited org members never should
   const showTrialUI = !isSuperAdmin && user?.orgRole === "owner";
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
+    if ("adminOrPmOnly" in item && item.adminOrPmOnly) return effectiveRole === "admin" || effectiveRole === "pm";
     if ("adminOnly" in item && item.adminOnly) {
       if (!isAdmin) return false;
       // Hide Financials from sidebar if plan doesn't include it

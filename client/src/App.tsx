@@ -8,6 +8,7 @@ import { StaffPreviewProvider } from "./contexts/StaffPreviewContext";
 import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Projects from "./pages/Projects";
+import Prospects from "./pages/Prospects";
 import ProjectDetail from "./pages/ProjectDetail";
 import Tasks from "./pages/Tasks";
 import Team from "./pages/Team";
@@ -34,6 +35,7 @@ function DashboardRouter() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/projects" component={Projects} />
+          <Route path="/prospects" component={Prospects} />
           <Route path="/projects/:id" component={ProjectDetail} />
           <Route path="/tasks" component={Tasks} />
           <Route path="/team" component={Team} />

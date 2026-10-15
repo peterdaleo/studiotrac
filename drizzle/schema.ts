@@ -1,4 +1,4 @@
-import { date, int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
+import { date, int, index, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
 // ── Organizations ─────────────────────────────────────────────────
 export const organizations = mysqlTable("organizations", {
   id: int("id").autoincrement().primaryKey(),
@@ -424,3 +424,43 @@ export const projectTeamMembers = mysqlTable("project_team_members", {
 });
 export type ProjectTeamMember = typeof projectTeamMembers.$inferSelect;
 export type InsertProjectTeamMember = typeof projectTeamMembers.$inferInsert;
+
+// ── Prospects ───────────────────────────────────────────────────────
+export const prospects = mysqlTable("prospects", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId"),
+  firm: varchar("firm", { length: 255 }).notNull(),
+  opportunityName: varchar("opportunityName", { length: 500 }).notNull(),
+  contact: varchar("contact", { length: 500 }),
+  referralSource: varchar("referralSource", { length: 255 }),
+  stage: mysqlEnum("stage", ["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).default("New").notNull(),
+  ownerId: int("ownerId"),
+  nextFollowUpDate: date("nextFollowUpDate", { mode: "string" }),
+  convertedProjectId: int("convertedProjectId"),
+  convertedAt: timestamp("convertedAt"),
+  createdById: int("createdById"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  organizationStageIdx: index("idx_prospects_org_stage").on(table.organizationId, table.stage),
+  followUpIdx: index("idx_prospects_followup").on(table.organizationId, table.nextFollowUpDate),
+}));
+export type Prospect = typeof prospects.$inferSelect;
+export type InsertProspect = typeof prospects.$inferInsert;
+
+export const prospectInteractions = mysqlTable("prospect_interactions", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId"),
+  prospectId: int("prospectId").notNull(),
+  type: mysqlEnum("type", ["note", "call", "email", "meeting", "proposal"]).default("note").notNull(),
+  content: text("content").notNull(),
+  happenedAt: timestamp("happenedAt").defaultNow().notNull(),
+  isPrivate: boolean("isPrivate").default(false).notNull(),
+  createdById: int("createdById"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  prospectTimelineIdx: index("idx_prospect_interactions_timeline").on(table.prospectId, table.happenedAt),
+  organizationIdx: index("idx_prospect_interactions_org").on(table.organizationId),
+}));
+export type ProspectInteraction = typeof prospectInteractions.$inferSelect;
+export type InsertProspectInteraction = typeof prospectInteractions.$inferInsert;

@@ -9,6 +9,7 @@ import { publicProcedure, protectedProcedure, adminProcedure, adminOrPmProcedure
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import * as db from "./db";
+import * as prospectsDb from "./prospects";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { notifyOwner } from "./_core/notification";
@@ -61,6 +62,13 @@ function requireFeature(has: boolean, featureName: string) {
       message: `Upgrade your plan to access ${featureName}.`,
     });
   }
+}
+
+function requireProspectOrganization(organizationId: number | null) {
+  if (organizationId == null) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Prospects require an organization workspace." });
+  }
+  return organizationId;
 }
 
 const absenceTypeSchema = z.enum(["full_day", "partial_day", "work_from_home"]);
@@ -346,6 +354,53 @@ export const appRouter = router({
       return { success: true };
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamAbsence(input.id)),
+  }),
+
+  // ── Prospects ────────────────────────────────────────────────
+  prospects: router({
+    list: adminOrPmProcedure.query(({ ctx }) => prospectsDb.listProspects(requireProspectOrganization(ctx.organizationId))),
+    create: adminOrPmProcedure.input(z.object({
+      firm: z.string().trim().min(1).max(255),
+      opportunityName: z.string().trim().min(1).max(500),
+      contact: z.string().trim().max(500).optional().nullable(),
+      referralSource: z.string().trim().max(255).optional().nullable(),
+      stage: z.enum(["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).optional(),
+      ownerId: z.number().int().positive().optional().nullable(),
+      nextFollowUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    })).mutation(({ input, ctx }) => prospectsDb.createProspect(input, requireProspectOrganization(ctx.organizationId), ctx.user.id)),
+    update: adminOrPmProcedure.input(z.object({
+      id: z.number().int().positive(),
+      firm: z.string().trim().min(1).max(255).optional(),
+      opportunityName: z.string().trim().min(1).max(500).optional(),
+      contact: z.string().trim().max(500).optional().nullable(),
+      referralSource: z.string().trim().max(255).optional().nullable(),
+      stage: z.enum(["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).optional(),
+      ownerId: z.number().int().positive().optional().nullable(),
+      nextFollowUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+    })).mutation(({ input, ctx }) => {
+      const { id, ...patch } = input;
+      return prospectsDb.updateProspect(id, patch, requireProspectOrganization(ctx.organizationId));
+    }),
+    addInteraction: adminOrPmProcedure.input(z.object({
+      prospectId: z.number().int().positive(),
+      type: z.enum(["note", "call", "email", "meeting", "proposal"]),
+      content: z.string().trim().min(1).max(10000),
+      happenedAt: z.date(),
+      isPrivate: z.boolean().default(false),
+    })).mutation(({ input, ctx }) => prospectsDb.addProspectInteraction(input, requireProspectOrganization(ctx.organizationId), ctx.user.id)),
+    convertToProject: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const organizationId = requireProspectOrganization(ctx.organizationId);
+      const limits = await getOrgPlanLimits(ctx);
+      const existingProjects = await db.listProjects(undefined, organizationId);
+      const activeProjects = existingProjects.filter((project: any) => project.status !== "completed");
+      if (activeProjects.length >= limits.maxProjects) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Your plan allows up to ${limits.maxProjects} active projects. Upgrade to add more.`,
+        });
+      }
+      return prospectsDb.convertProspectToProject(input.id, organizationId);
+    }),
   }),
 
   // ── Projects ─────────────────────────────────────────────────
