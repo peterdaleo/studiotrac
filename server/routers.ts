@@ -17,7 +17,7 @@ import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
-import { PROJECT_PHASES } from "@shared/subBudgets";
+import { PROJECT_PHASES, toSubBudgetStatusItem } from "@shared/subBudgets";
 // Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
 // The 20MB Twilio package loaded statically was causing the container to crash within ~14s.
 let _resend: import("resend").Resend | null = null;
@@ -409,6 +409,12 @@ export const appRouter = router({
 
   // ── Approved Project Sub-Budgets ────────────────────────────
   subBudgets: router({
+    status: protectedProcedure.input(z.object({ projectId: z.number().int().positive() }))
+      .query(async ({ input, ctx }) => {
+        await db.assertProjectInOrganization(input.projectId, ctx.organizationId);
+        const summary = await db.listProjectSubBudgets(input.projectId, ctx.organizationId);
+        return summary.items.map(toSubBudgetStatusItem);
+      }),
     list: adminOrPmProcedure.input(z.object({ projectId: z.number().int().positive() }))
       .query(({ input, ctx }) => db.listProjectSubBudgets(input.projectId, ctx.organizationId)),
     options: protectedProcedure.input(z.object({ projectId: z.number().int().positive() }))

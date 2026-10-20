@@ -2241,8 +2241,8 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
-          {/* Sub-budgets are finance-visible only; they do not replace the project-level budget summary. */}
-          {!isInternalProject && canViewProjectFinancials && <ProjectSubBudgets projectId={projectId} billingType={project?.billingType ?? burnRate?.billingType} notToExceedCents={project?.notToExceedCents} />}
+          {/* Team sees status-only bars; financial figures and controls remain admin/PM-only. */}
+          {!isInternalProject && <ProjectSubBudgets projectId={projectId} canViewFinancials={canViewProjectFinancials} billingType={project?.billingType ?? burnRate?.billingType} notToExceedCents={project?.notToExceedCents} />}
 
           {/* Consultant Contracts & Payments — admin and PM only, Professional+ */}
           {canViewProjectFinancials && canAccessConsultants && 

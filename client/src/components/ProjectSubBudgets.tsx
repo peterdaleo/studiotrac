@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { PROJECT_PHASES, getPhaseLabel } from "@shared/constants";
+import { getSubBudgetHealth } from "@shared/subBudgets";
+import { SubBudgetStatusBar } from "@/components/SubBudgetStatusBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +21,29 @@ type SubBudgetForm = { id?: number; name: string; phase: string; description: st
 const emptyForm = (): SubBudgetForm => ({ name: "", phase: "__custom__", description: "", amount: "", kind: "within_existing", status: "proposed" });
 const currency = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function ProjectSubBudgets({ projectId, billingType, notToExceedCents }: { projectId: number; billingType?: string; notToExceedCents?: number | null }) {
+function TeamSubBudgetStatuses({ projectId }: { projectId: number }) {
+  const query = trpc.subBudgets.status.useQuery({ projectId });
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Project Sub-Budgets</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        {query.isLoading ? <p className="text-sm text-muted-foreground">Loading sub-budgets…</p> : query.error ? <p role="alert" className="text-sm text-red-600">Could not load sub-budget statuses.</p> : !query.data?.length ? <p className="text-sm text-muted-foreground text-center py-2">No sub-budgets yet.</p> : query.data.map((item) => (
+          <div key={item.id} className="rounded-lg border p-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium break-words">{item.name}</span><Badge variant="secondary" className="text-[10px]">{item.status}</Badge></div>
+            <SubBudgetStatusBar health={item.health} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ProjectSubBudgets({ canViewFinancials, ...props }: { projectId: number; canViewFinancials: boolean; billingType?: string; notToExceedCents?: number | null }) {
+  // Mount only the permitted query; staff never request or render financial data.
+  return canViewFinancials ? <FinancialSubBudgets {...props} /> : <TeamSubBudgetStatuses projectId={props.projectId} />;
+}
+
+function FinancialSubBudgets({ projectId, billingType, notToExceedCents }: { projectId: number; billingType?: string; notToExceedCents?: number | null }) {
   const utils = trpc.useUtils();
   const query = trpc.subBudgets.list.useQuery({ projectId });
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -29,6 +53,7 @@ export function ProjectSubBudgets({ projectId, billingType, notToExceedCents }: 
   const invalidateFinancials = () => {
     utils.subBudgets.list.invalidate({ projectId });
     utils.subBudgets.options.invalidate({ projectId });
+    utils.subBudgets.status.invalidate({ projectId });
     utils.projects.get.invalidate({ id: projectId });
     utils.projects.list.invalidate();
     utils.projects.financialSummary.invalidate({ id: projectId });
@@ -107,6 +132,7 @@ export function ProjectSubBudgets({ projectId, billingType, notToExceedCents }: 
                   <div><span className="text-muted-foreground">Actual</span><p className="font-medium">{currency(item.actualCents)}</p></div>
                   <div><span className="text-muted-foreground">Remaining</span><p className={`font-medium ${item.remainingCents < 0 ? "text-red-600" : ""}`}>{currency(item.remainingCents)}</p></div>
                 </div>
+                <SubBudgetStatusBar health={getSubBudgetHealth(item)} financials={item} />
               </div>)}
             </div>}
           </>
@@ -119,10 +145,10 @@ export function ProjectSubBudgets({ projectId, billingType, notToExceedCents }: 
             <div className="space-y-2"><Label htmlFor="subbudget-name">Name</Label><Input id="subbudget-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required maxLength={160} placeholder="e.g., Lobby renovation" /></div>
             <div className="space-y-2"><Label>Phase</Label><Select value={form.phase} onValueChange={(phase) => setForm({ ...form, phase })}><SelectTrigger><SelectValue placeholder="Select a phase" /></SelectTrigger><SelectContent><SelectItem value="__custom__">Custom / unassigned</SelectItem>{PROJECT_PHASES.map((phase) => <SelectItem key={phase.value} value={phase.value}>{phase.label}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="subbudget-description">Description</Label><Textarea id="subbudget-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Optional scope notes" /></div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-2"><Label htmlFor="subbudget-amount">Budget amount ($)</Label><Input id="subbudget-amount" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
-              <div className="space-y-2"><Label>Budget type</Label><Select value={form.kind} onValueChange={(kind) => setForm({ ...form, kind: kind as SubBudgetKind })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="within_existing">Within existing</SelectItem><SelectItem value="approved_addition">Approved addition</SelectItem></SelectContent></Select></div>
-              <div className="space-y-2"><Label>Status</Label><Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as SubBudgetStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="proposed">Proposed</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="complete">Complete</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label htmlFor="subbudget-amount">Budget amount ($)</Label><Input id="subbudget-amount" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0 space-y-2"><Label>Budget type</Label><Select value={form.kind} onValueChange={(kind) => setForm({ ...form, kind: kind as SubBudgetKind })}><SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="within_existing">Within existing</SelectItem><SelectItem value="approved_addition">Approved addition</SelectItem></SelectContent></Select></div>
+              <div className="min-w-0 space-y-2"><Label>Status</Label><Select value={form.status} onValueChange={(status) => setForm({ ...form, status: status as SubBudgetStatus })}><SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="proposed">Proposed</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="complete">Complete</SelectItem></SelectContent></Select></div>
             </div>
             {form.kind === "approved_addition" && <p className="text-xs text-muted-foreground">An addition must be saved as Approved before it can be marked Complete.</p>}
             {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
