@@ -30,7 +30,7 @@ export function TimeSubBudgetSelect({
 
   return (
     <div className="min-w-0">
-      <Label className={compact ? "text-xs" : undefined}>Sub-budget</Label>
+      <Label className={compact ? "text-xs" : undefined}>Sub-budget / ASR (optional)</Label>
       <Select
         value={value === null ? "unassigned" : String(value)}
         onValueChange={next =>
@@ -70,6 +70,9 @@ export function TimeSubBudgetSelect({
           ))}
         </SelectContent>
       </Select>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Unassigned time still counts toward the overall project budget.
+      </p>
       {projectId && options.error && (
         <div className="mt-1 flex items-center gap-2 text-xs text-destructive">
           <span>Could not load sub-budgets: {options.error.message}</span>
