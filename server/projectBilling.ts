@@ -14,6 +14,7 @@ import {
 } from "../drizzle/schema";
 import {
   addCostSlice,
+  costSliceBudgetTotal,
   costsFallInPhase,
   emptyCostSlice,
   evaluateBudgetHealth,
@@ -23,6 +24,7 @@ import {
   type BudgetHealth,
   type CostSlice,
 } from "../shared/billing";
+import { getSubBudgetCapContribution, isSubBudgetCostExcludedFromProjectCap } from "../shared/subBudgets";
 
 async function getDb() {
   const mod = await import("./db");
@@ -61,14 +63,30 @@ type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 async function approvedAdditionTotals(db: DbClient, projectIds: number[]) {
   const totals = new Map<number, number>();
   if (!projectIds.length) return totals;
-  const rows = await db.select({ projectId: projectSubBudgets.projectId, budgetCents: projectSubBudgets.budgetCents })
+  const rows = await db.select({
+    projectId: projectSubBudgets.projectId,
+    budgetCents: projectSubBudgets.budgetCents,
+    trackingMode: projectSubBudgets.trackingMode,
+    notToExceedCents: projectSubBudgets.notToExceedCents,
+    kind: projectSubBudgets.kind,
+    status: projectSubBudgets.status,
+  })
     .from(projectSubBudgets)
     .where(and(
       inArray(projectSubBudgets.projectId, projectIds),
       eq(projectSubBudgets.kind, "approved_addition"),
       inArray(projectSubBudgets.status, ["approved", "complete"]),
     ));
-  for (const row of rows) totals.set(row.projectId, (totals.get(row.projectId) ?? 0) + row.budgetCents);
+  for (const row of rows) {
+    const contribution = getSubBudgetCapContribution({
+      kind: row.kind,
+      status: row.status,
+      trackingMode: row.trackingMode,
+      budgetCents: row.budgetCents,
+      notToExceedCents: row.notToExceedCents,
+    });
+    totals.set(row.projectId, (totals.get(row.projectId) ?? 0) + contribution);
+  }
   return totals;
 }
 
@@ -269,41 +287,12 @@ export async function buildUserBillingRateMap(db: DbClient) {
 }
 
 export async function getProjectCostSlice(projectId: number): Promise<CostSlice> {
-  const db = await getDb();
-  if (!db) return emptyCostSlice();
-
-  const userIdToBillingRate = await buildUserBillingRateMap(db);
-  const entries = await db
-    .select({
-      userId: timeEntries.userId,
-      durationMinutes: timeEntries.durationMinutes,
-      billable: timeEntries.billable,
-    })
-    .from(timeEntries)
-    .where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
-
-  const slice = emptyCostSlice();
-  for (const entry of entries) {
-    const minutes = entry.durationMinutes ?? 0;
-    const cost = Math.round((minutes / 60) * (userIdToBillingRate.get(entry.userId) ?? 0));
-    slice.laborCost += cost;
-    slice.totalMinutes += minutes;
-    if (entry.billable) {
-      slice.billableLaborCost += cost;
-      slice.billableMinutes += minutes;
-    }
-  }
-
-  const contracts = await db
-    .select({ contractAmount: consultantContracts.contractAmount })
-    .from(consultantContracts)
-    .where(eq(consultantContracts.projectId, projectId));
-  slice.consultantCost = contracts.reduce((sum, contract) => sum + (contract.contractAmount ?? 0), 0);
-  return slice;
+  return (await getProjectBudgetContext(projectId)).costs;
 }
 
 type RawLaborRow = {
   projectId: number;
+  subBudgetId: number | null;
   userId: number;
   durationMinutes: number | null;
   billable: boolean | null;
@@ -312,11 +301,25 @@ type RawLaborRow = {
 
 type RawConsultantRow = {
   projectId: number;
+  subBudgetId: number | null;
   contractAmount: number | null;
   createdAt: Date;
 };
 
-function laborRowToSlice(row: RawLaborRow, rate: number): CostSlice {
+type SubBudgetCapMetadata = {
+  kind: "within_existing" | "approved_addition";
+  status: "proposed" | "approved" | "complete";
+  trackingMode: "fixed_amount" | "hourly";
+  notToExceedCents: number | null;
+};
+
+function isCostIncludedInProjectCap(subBudgetId: number | null, subBudgets: Map<number, SubBudgetCapMetadata>): boolean {
+  if (subBudgetId == null) return true;
+  const subBudget = subBudgets.get(subBudgetId);
+  return !subBudget || !isSubBudgetCostExcludedFromProjectCap(subBudget);
+}
+
+function laborRowToSlice(row: RawLaborRow, rate: number, includeInCap = true): CostSlice {
   const minutes = row.durationMinutes ?? 0;
   const cost = Math.round((minutes / 60) * rate);
   return {
@@ -325,6 +328,7 @@ function laborRowToSlice(row: RawLaborRow, rate: number): CostSlice {
     consultantCost: 0,
     totalMinutes: minutes,
     billableMinutes: row.billable ? minutes : 0,
+    budgetCostCents: includeInCap ? cost : 0,
   };
 }
 
@@ -333,13 +337,14 @@ function allocateCostsToPhases(
   laborRows: RawLaborRow[],
   consultantRows: RawConsultantRow[],
   rates: Map<number, number>,
+  subBudgets: Map<number, SubBudgetCapMetadata>,
 ): BillingPhaseInput[] {
   return phases.map((phase) => {
     const bounds = { startedAt: phase.startedAt, endedAt: phase.endedAt };
     let costs = emptyCostSlice();
     for (const row of laborRows) {
       if (costsFallInPhase(row.startTime, bounds)) {
-        costs = addCostSlice(costs, laborRowToSlice(row, rates.get(row.userId) ?? 0));
+        costs = addCostSlice(costs, laborRowToSlice(row, rates.get(row.userId) ?? 0, isCostIncludedInProjectCap(row.subBudgetId, subBudgets)));
       }
     }
     for (const row of consultantRows) {
@@ -350,6 +355,7 @@ function allocateCostsToPhases(
           consultantCost: row.contractAmount ?? 0,
           totalMinutes: 0,
           billableMinutes: 0,
+          budgetCostCents: isCostIncludedInProjectCap(row.subBudgetId, subBudgets) ? row.contractAmount ?? 0 : 0,
         });
       }
     }
@@ -391,10 +397,24 @@ export async function getProjectBudgetContext(projectId: number) {
     ? 0
     : originalBudgetCents + approvedAdditionsCents;
 
+  const subBudgetRows = await db.select({
+    id: projectSubBudgets.id,
+    kind: projectSubBudgets.kind,
+    status: projectSubBudgets.status,
+    trackingMode: projectSubBudgets.trackingMode,
+    notToExceedCents: projectSubBudgets.notToExceedCents,
+  }).from(projectSubBudgets).where(eq(projectSubBudgets.projectId, projectId));
+  const subBudgets = new Map<number, SubBudgetCapMetadata>(subBudgetRows.map((row) => [row.id, {
+    kind: row.kind,
+    status: row.status,
+    trackingMode: row.trackingMode,
+    notToExceedCents: row.notToExceedCents,
+  }]));
   const rates = await buildUserBillingRateMap(db);
   const laborRows = await db
     .select({
       projectId: timeEntries.projectId,
+      subBudgetId: timeEntries.subBudgetId,
       userId: timeEntries.userId,
       durationMinutes: timeEntries.durationMinutes,
       billable: timeEntries.billable,
@@ -406,26 +426,32 @@ export async function getProjectBudgetContext(projectId: number) {
   const consultantRows = await db
     .select({
       projectId: consultantContracts.projectId,
+      subBudgetId: consultantContracts.subBudgetId,
       contractAmount: consultantContracts.contractAmount,
       createdAt: consultantContracts.createdAt,
     })
     .from(consultantContracts)
     .where(eq(consultantContracts.projectId, projectId));
 
-  const costs = emptyCostSlice();
+  let costs = emptyCostSlice();
   for (const row of laborRows) {
-    const slice = laborRowToSlice(row, rates.get(row.userId) ?? 0);
-    costs.laborCost += slice.laborCost;
-    costs.billableLaborCost += slice.billableLaborCost;
-    costs.totalMinutes += slice.totalMinutes;
-    costs.billableMinutes += slice.billableMinutes;
+    costs = addCostSlice(costs, laborRowToSlice(row, rates.get(row.userId) ?? 0, isCostIncludedInProjectCap(row.subBudgetId, subBudgets)));
   }
   for (const row of consultantRows) {
-    costs.consultantCost += row.contractAmount ?? 0;
+    const amount = row.contractAmount ?? 0;
+    const included = isCostIncludedInProjectCap(row.subBudgetId, subBudgets);
+    costs = addCostSlice(costs, {
+      laborCost: 0,
+      billableLaborCost: 0,
+      consultantCost: amount,
+      totalMinutes: 0,
+      billableMinutes: 0,
+      budgetCostCents: included ? amount : 0,
+    });
   }
 
   const phases = await listProjectBillingPhases(projectId);
-  const phaseInputs = allocateCostsToPhases(phases, laborRows, consultantRows, rates);
+  const phaseInputs = allocateCostsToPhases(phases, laborRows, consultantRows, rates, subBudgets);
   const budgetHealth = evaluateBudgetHealth({
     billingType: asBillingType(project.billingType, project.contractedFee),
     contractedFee: project.contractedFee || 0,
@@ -434,9 +460,10 @@ export async function getProjectBudgetContext(projectId: number) {
     consultantCost: costs.consultantCost,
     totalMinutes: costs.totalMinutes,
     billableMinutes: costs.billableMinutes,
+    budgetCostCents: costSliceBudgetTotal(costs),
     notToExceedCents: project.notToExceedCents || 0,
     revenueTargetCents: project.revenueTargetCents || 0,
-    approvedAdditionsCents,
+    approvedAdditionsCents: project.billingType === "hourly" && originalBudgetCents === 0 ? 0 : approvedAdditionsCents,
     phases: phaseInputs,
   });
 
@@ -462,11 +489,26 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
 
   if (allProjects.length === 0) return [];
   const additionsByProject = await approvedAdditionTotals(db, allProjects.map((project) => project.id));
+  const subBudgetRows = await db.select({
+    id: projectSubBudgets.id,
+    projectId: projectSubBudgets.projectId,
+    kind: projectSubBudgets.kind,
+    status: projectSubBudgets.status,
+    trackingMode: projectSubBudgets.trackingMode,
+    notToExceedCents: projectSubBudgets.notToExceedCents,
+  }).from(projectSubBudgets).where(inArray(projectSubBudgets.projectId, allProjects.map((project) => project.id)));
+  const subBudgets = new Map<number, SubBudgetCapMetadata>(subBudgetRows.map((row) => [row.id, {
+    kind: row.kind,
+    status: row.status,
+    trackingMode: row.trackingMode,
+    notToExceedCents: row.notToExceedCents,
+  }]));
 
   const rates = await buildUserBillingRateMap(db);
   const laborEntries = await db
     .select({
       projectId: timeEntries.projectId,
+      subBudgetId: timeEntries.subBudgetId,
       userId: timeEntries.userId,
       durationMinutes: timeEntries.durationMinutes,
       billable: timeEntries.billable,
@@ -478,7 +520,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
   const laborByProject = new Map<number, CostSlice>();
   const laborRowsByProject = new Map<number, RawLaborRow[]>();
   for (const row of laborEntries) {
-    const slice = laborRowToSlice(row, rates.get(row.userId) ?? 0);
+    const slice = laborRowToSlice(row, rates.get(row.userId) ?? 0, isCostIncludedInProjectCap(row.subBudgetId, subBudgets));
     laborByProject.set(row.projectId, addCostSlice(laborByProject.get(row.projectId) ?? emptyCostSlice(), slice));
     const rows = laborRowsByProject.get(row.projectId) ?? [];
     rows.push(row);
@@ -488,15 +530,20 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
   const contractRows = await db
     .select({
       projectId: consultantContracts.projectId,
+      subBudgetId: consultantContracts.subBudgetId,
       contractAmount: consultantContracts.contractAmount,
       createdAt: consultantContracts.createdAt,
     })
     .from(consultantContracts);
 
   const consultantByProject = new Map<number, number>();
+  const cappedConsultantByProject = new Map<number, number>();
   const consultantRowsByProject = new Map<number, RawConsultantRow[]>();
   for (const row of contractRows) {
     consultantByProject.set(row.projectId, (consultantByProject.get(row.projectId) ?? 0) + (row.contractAmount ?? 0));
+    if (isCostIncludedInProjectCap(row.subBudgetId, subBudgets)) {
+      cappedConsultantByProject.set(row.projectId, (cappedConsultantByProject.get(row.projectId) ?? 0) + (row.contractAmount ?? 0));
+    }
     const rows = consultantRowsByProject.get(row.projectId) ?? [];
     rows.push(row);
     consultantRowsByProject.set(row.projectId, rows);
@@ -518,7 +565,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
   return allProjects.map((project) => {
     const labor = laborByProject.get(project.id) ?? emptyCostSlice();
     const consultantCost = consultantByProject.get(project.id) ?? 0;
-    const costs: CostSlice = { ...labor, consultantCost };
+    const costs: CostSlice = { ...labor, consultantCost, budgetCostCents: costSliceBudgetTotal(labor) + (cappedConsultantByProject.get(project.id) ?? 0) };
     const billingType = asBillingType(project.billingType, project.contractedFee);
     const approvedAdditionsCents = additionsByProject.get(project.id) ?? 0;
     const originalBudgetCents = billingType === "hourly"
@@ -532,6 +579,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
       laborRowsByProject.get(project.id) ?? [],
       consultantRowsByProject.get(project.id) ?? [],
       rates,
+      subBudgets,
     );
     const budgetHealth = evaluateBudgetHealth({
       billingType,
@@ -541,10 +589,11 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
       consultantCost,
       totalMinutes: costs.totalMinutes,
       billableMinutes: costs.billableMinutes,
+      budgetCostCents: costSliceBudgetTotal(costs),
       hourlyRateCents: project.hourlyRateCents ?? 0,
       notToExceedCents: project.notToExceedCents ?? 0,
       revenueTargetCents: project.revenueTargetCents ?? 0,
-      approvedAdditionsCents,
+      approvedAdditionsCents: billingType === "hourly" && originalBudgetCents === 0 ? 0 : approvedAdditionsCents,
       phases: phaseInputs,
     });
     return {

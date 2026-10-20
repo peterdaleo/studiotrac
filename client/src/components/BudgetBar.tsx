@@ -2,13 +2,14 @@
  * BudgetBar — shows budget consumed vs remaining as a colored progress bar.
  *
  * Admins see the full breakdown with dollar amounts.
- * Non-admins see only the bar, a health label, and the consumed percentage —
- * no dollar figures are ever exposed to staff.
+ * Staff see only a categorical bar and health label: no dollars, exact
+ * percentages, financial tooltips, or exact financial fill widths.
  *
  * Hourly / time-and-materials projects never render as "Over budget" just
  * because costs exist. They use a neutral hourly status unless an optional
  * not-to-exceed cap has been enabled as a planning alert.
  */
+import React from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { BudgetHealth, BudgetStatusKind } from "@shared/billing";
 
@@ -133,12 +134,30 @@ export function BudgetBar({
   const pct = budgetHealth?.consumedPercent ?? (usesFixedBudget && contractedFee > 0 ? Math.round((totalCost / contractedFee) * 100) : null);
   const remaining = budgetHealth?.remainingCents ?? (usesFixedBudget && contractedFee > 0 ? contractedFee - totalCost : null);
   const cost = budgetHealth?.costCents ?? totalCost;
+  const budgetCost = budgetHealth?.budgetCostCents ?? cost;
   const displayPct = pct ?? 0;
   const barWidth = usesFixedBudget || (isHourly && pct !== null)
     ? Math.min(Math.max(displayPct, 0), 100)
     : isHourly && cost > 0
       ? 28
       : 0;
+
+  if (!isAdmin) {
+    const categoricalWidth = kind === "over_budget" || kind === "hourly_above_nte" ? 100
+      : kind === "near_limit" || kind === "hourly_approaching_nte" ? 90
+      : kind === "watch_budget" || kind === "hourly_watch_nte" ? 75
+      : kind === "no_budget" ? 0
+      : kind === "hourly_no_budget" ? 28 : 35;
+    return (
+      <div className={`space-y-1.5 ${className}`}>
+        <span className={`${compact ? "text-[10px]" : "text-xs"} font-medium ${health.text}`}>{label}</span>
+        <div role="img" aria-label={`Project budget status: ${label}`} className={`${compact ? "h-1.5" : "h-2.5"} rounded-full bg-muted overflow-hidden`}>
+          <div className={`h-full rounded-full ${health.bar}`} style={{ width: `${categoricalWidth}%` }} />
+        </div>
+        {budgetHealth?.fixedFeeHealth && <p className="text-xs text-muted-foreground">Closed fixed-fee phase: {budgetHealth.fixedFeeHealth.statusLabel}</p>}
+      </div>
+    );
+  }
 
   if (!usesFixedBudget && !isHourly && contractedFee <= 0) {
     if (compact) {
@@ -206,7 +225,7 @@ export function BudgetBar({
             ) : isAdmin ? (
               <>
                 <p>Budget: {formatCurrency(contractedFee)}</p>
-                <p>Consumed: {formatCurrency(cost)} ({displayPct}%)</p>
+                <p>Consumed: {formatCurrency(budgetCost)} ({displayPct}%)</p>
                 <p className={(remaining ?? 0) < 0 ? "text-red-400" : ""}>
                   {(remaining ?? 0) >= 0
                     ? `Remaining: ${formatCurrency(remaining ?? 0)}`
@@ -278,7 +297,7 @@ export function BudgetBar({
             <span className={`font-semibold ${health.text}`}>{displayPct}% consumed</span>
             {isAdmin && (
               <span className="text-muted-foreground">
-                {formatCurrency(cost)} / {formatCurrency(contractedFee)}
+                {formatCurrency(budgetCost)} / {formatCurrency(contractedFee)}
               </span>
             )}
           </div>
@@ -289,6 +308,7 @@ export function BudgetBar({
                 : `${formatCurrency(-remaining)} over budget`}
             </p>
           )}
+          {isAdmin && cost !== budgetCost && <p className="text-xs text-muted-foreground">Outside capped budget: {formatCurrency(cost - budgetCost)} cost, tracked separately.</p>}
         </>
       )}
     </div>

@@ -290,8 +290,10 @@ describe("cost slice helpers", () => {
     const a = emptyCostSlice();
     const b = { laborCost: 10, billableLaborCost: 8, consultantCost: 5, totalMinutes: 60, billableMinutes: 45 };
     const sum = addCostSlice(a, b);
-    expect(sum).toEqual(b);
+    expect(sum).toEqual({ ...b, budgetCostCents: 15 });
     expect(a.laborCost).toBe(0);
+    expect(a.budgetCostCents).toBe(0);
+    expect(addCostSlice(a, { ...b, budgetCostCents: 0 })).toEqual({ ...b, budgetCostCents: 0 });
   });
 
   it("maps every status kind to a non-empty label", () => {

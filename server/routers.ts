@@ -426,7 +426,12 @@ export const appRouter = router({
       description: z.string().nullable().optional(),
       budgetCents: z.number().int().min(0),
       kind: z.enum(["within_existing", "approved_addition"]),
-      status: z.enum(["proposed", "approved", "complete"]).default("proposed"),
+      trackingMode: z.enum(["fixed_amount", "hourly"]).default("fixed_amount"),
+      notToExceedCents: z.number().int().min(0).nullable().optional(),
+    }).superRefine((value, issue) => {
+      if (value.trackingMode === "fixed_amount" && value.notToExceedCents != null) {
+        issue.addIssue({ code: z.ZodIssueCode.custom, path: ["notToExceedCents"], message: "NTE applies only to hourly sub-budgets" });
+      }
     })).mutation(({ input, ctx }) => db.createProjectSubBudget({
       ...input,
       phase: input.phase ?? null,
@@ -439,7 +444,12 @@ export const appRouter = router({
       description: z.string().nullable().optional(),
       budgetCents: z.number().int().min(0).optional(),
       kind: z.enum(["within_existing", "approved_addition"]).optional(),
-      status: z.enum(["proposed", "approved", "complete"]).optional(),
+      trackingMode: z.enum(["fixed_amount", "hourly"]).optional(),
+      notToExceedCents: z.number().int().min(0).nullable().optional(),
+    }).superRefine((value, issue) => {
+      if (value.trackingMode === "fixed_amount" && value.notToExceedCents != null) {
+        issue.addIssue({ code: z.ZodIssueCode.custom, path: ["notToExceedCents"], message: "NTE applies only to hourly sub-budgets" });
+      }
     })).mutation(({ input, ctx }) => {
       const { id, ...data } = input;
       return db.updateProjectSubBudget(id, data, ctx.organizationId);

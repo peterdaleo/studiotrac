@@ -26,7 +26,7 @@ import {
   projectTeamMembers, InsertProjectTeamMember, ProjectTeamMember,
   projectBillingPhases, projectSubBudgets, InsertProjectSubBudget,
 } from "../drizzle/schema";
-import type { ProjectSubBudgetSummary, SubBudgetItem, SubBudgetOption } from "../shared/subBudgets";
+import { getSubBudgetCapContribution, type ProjectSubBudgetSummary, type SubBudgetItem, type SubBudgetOption } from "../shared/subBudgets";
 import {
   applyProjectBillingUpdate,
   buildUserBillingRateMap,
@@ -175,6 +175,8 @@ async function ensureSubBudgetSchema(db: NonNullable<typeof _db>) {
     description text NULL,
     budgetCents int NOT NULL,
     kind enum('within_existing','approved_addition') NOT NULL,
+    trackingMode enum('fixed_amount','hourly') NOT NULL DEFAULT 'fixed_amount',
+    notToExceedCents int NULL,
     status enum('proposed','approved','complete') NOT NULL DEFAULT 'proposed',
     createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -183,6 +185,23 @@ async function ensureSubBudgetSchema(db: NonNullable<typeof _db>) {
     KEY idx_project_sub_budgets_org_project (organizationId, projectId),
     KEY idx_project_sub_budgets_status_kind (projectId, kind, status)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  // Upgrade existing installations without touching legacy status or budget values.
+  for (const [column, addSql, selectSql] of [
+    ["trackingMode", sql`ALTER TABLE project_sub_budgets ADD COLUMN trackingMode enum('fixed_amount','hourly') NOT NULL DEFAULT 'fixed_amount'`, sql`SELECT trackingMode FROM project_sub_budgets LIMIT 1`],
+    ["notToExceedCents", sql`ALTER TABLE project_sub_budgets ADD COLUMN notToExceedCents int NULL`, sql`SELECT notToExceedCents FROM project_sub_budgets LIMIT 1`],
+  ] as const) {
+    try {
+      await db.execute(addSql);
+    } catch {
+      try {
+        await db.execute(selectSql);
+      } catch (error) {
+        console.error(`[Database] Required project_sub_budgets.${column} column could not be ensured:`, error);
+        throw error;
+      }
+    }
+  }
 
   for (const table of ["time_entries", "consultant_contracts"] as const) {
     try {
@@ -734,46 +753,76 @@ export async function listProjectSubBudgets(projectId: number, orgId: number | n
 
   const [rates, entries, contracts] = await Promise.all([
     buildUserBillingRateMap(db),
-    db.select({ subBudgetId: timeEntries.subBudgetId, userId: timeEntries.userId, durationMinutes: timeEntries.durationMinutes })
+    db.select({ subBudgetId: timeEntries.subBudgetId, userId: timeEntries.userId, durationMinutes: timeEntries.durationMinutes, billable: timeEntries.billable })
       .from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`)),
     db.select({ subBudgetId: consultantContracts.subBudgetId, contractAmount: consultantContracts.contractAmount })
       .from(consultantContracts).where(eq(consultantContracts.projectId, projectId)),
   ]);
-  const actuals = new Map<number, number>();
+  const actuals = new Map<number, Pick<SubBudgetItem, "laborCostCents" | "billableValueCents" | "consultantCostCents" | "totalMinutes" | "billableMinutes">>();
   for (const entry of entries) {
     if (entry.subBudgetId == null) continue;
-    const amount = Math.round(((entry.durationMinutes ?? 0) / 60) * (rates.get(entry.userId) ?? 0));
-    actuals.set(entry.subBudgetId, (actuals.get(entry.subBudgetId) ?? 0) + amount);
+    const prior = actuals.get(entry.subBudgetId) ?? { laborCostCents: 0, billableValueCents: 0, consultantCostCents: 0, totalMinutes: 0, billableMinutes: 0 };
+    const minutes = entry.durationMinutes ?? 0;
+    const amount = Math.round((minutes / 60) * (rates.get(entry.userId) ?? 0));
+    actuals.set(entry.subBudgetId, {
+      ...prior,
+      laborCostCents: prior.laborCostCents + amount,
+      billableValueCents: prior.billableValueCents + (entry.billable ? amount : 0),
+      totalMinutes: prior.totalMinutes + minutes,
+      billableMinutes: prior.billableMinutes + (entry.billable ? minutes : 0),
+    });
   }
   for (const contract of contracts) {
     if (contract.subBudgetId == null) continue;
-    actuals.set(contract.subBudgetId, (actuals.get(contract.subBudgetId) ?? 0) + (contract.contractAmount ?? 0));
+    const prior = actuals.get(contract.subBudgetId) ?? { laborCostCents: 0, billableValueCents: 0, consultantCostCents: 0, totalMinutes: 0, billableMinutes: 0 };
+    actuals.set(contract.subBudgetId, { ...prior, consultantCostCents: prior.consultantCostCents + (contract.contractAmount ?? 0) });
   }
 
-  const items: SubBudgetItem[] = subBudgets.map((budget) => {
-    const actualCents = actuals.get(budget.id) ?? 0;
-    return { ...budget, phase: budget.phase as SubBudgetItem["phase"], kind: budget.kind as SubBudgetItem["kind"], status: budget.status as SubBudgetItem["status"], actualCents, remainingCents: budget.budgetCents - actualCents };
-  });
   const originalBudgetCents = project.billingType === "hourly" ? project.notToExceedCents ?? 0 : project.contractedFee ?? 0;
-  const approvedAdditionsCents = items.reduce((sum, item) => sum + (item.kind === "approved_addition" && (item.status === "approved" || item.status === "complete") ? item.budgetCents : 0), 0);
+  const items: SubBudgetItem[] = subBudgets.map((budget) => {
+    const cost = actuals.get(budget.id) ?? { laborCostCents: 0, billableValueCents: 0, consultantCostCents: 0, totalMinutes: 0, billableMinutes: 0 };
+    const actualCents = cost.laborCostCents + cost.consultantCostCents;
+    return {
+      ...budget,
+      phase: budget.phase as SubBudgetItem["phase"],
+      kind: budget.kind as SubBudgetItem["kind"],
+      status: budget.status as SubBudgetItem["status"],
+      trackingMode: budget.trackingMode as SubBudgetItem["trackingMode"],
+      notToExceedCents: budget.notToExceedCents ?? null,
+      baseBudgetCents: originalBudgetCents,
+      ...cost,
+      actualCents,
+      remainingCents: budget.trackingMode === "hourly"
+        ? budget.kind === "approved_addition"
+          ? (budget.notToExceedCents ?? 0) - cost.billableValueCents
+          : originalBudgetCents - actualCents
+        : budget.budgetCents - actualCents,
+    };
+  });
+  const approvedAdditionsCents = items.reduce((sum, item) => sum + getSubBudgetCapContribution(item), 0);
   const approvedBudgetCents = project.billingType === "hourly" && originalBudgetCents === 0
-    ? 0
-    : originalBudgetCents + approvedAdditionsCents;
+    ? 0 : originalBudgetCents + approvedAdditionsCents;
   return { items, originalBudgetCents, approvedAdditionsCents, approvedBudgetCents };
 }
 
-export async function createProjectSubBudget(data: Omit<InsertProjectSubBudget, "organizationId">, orgId: number | null | undefined) {
+export async function createProjectSubBudget(data: Omit<InsertProjectSubBudget, "organizationId" | "status">, orgId: number | null | undefined) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await requireOwnedProject(db, data.projectId, orgId);
-  if (data.kind === "approved_addition" && data.status === "complete") {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Approve an addition before marking it complete" });
+  if (data.trackingMode === "fixed_amount" && data.notToExceedCents != null) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "NTE applies only to hourly sub-budgets" });
   }
-  const result = await db.insert(projectSubBudgets).values({ ...data, organizationId: orgId ?? null });
+  const result = await db.insert(projectSubBudgets).values({
+    ...data,
+    trackingMode: data.trackingMode ?? "fixed_amount",
+    notToExceedCents: data.trackingMode === "hourly" ? data.notToExceedCents ?? null : null,
+    status: "approved",
+    organizationId: orgId ?? null,
+  });
   return { id: result[0].insertId };
 }
 
-export async function updateProjectSubBudget(id: number, data: Partial<Omit<InsertProjectSubBudget, "id" | "organizationId" | "projectId">>, orgId: number | null | undefined) {
+export async function updateProjectSubBudget(id: number, data: Partial<Omit<InsertProjectSubBudget, "id" | "organizationId" | "projectId" | "status">>, orgId: number | null | undefined) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
@@ -782,13 +831,23 @@ export async function updateProjectSubBudget(id: number, data: Partial<Omit<Inse
       .limit(1).for("update");
     if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Sub-budget not found" });
     await requireOwnedProject(tx, current.projectId, orgId);
-    const kind = data.kind ?? current.kind;
-    const status = data.status ?? current.status;
-    if (kind === "approved_addition" && status === "complete"
-      && (current.kind !== "approved_addition" || current.status === "proposed")) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Approve an addition before marking it complete" });
+    const nextMode = data.trackingMode ?? current.trackingMode;
+    if (nextMode === "fixed_amount" && data.notToExceedCents != null) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "NTE applies only to hourly sub-budgets" });
     }
-    await tx.update(projectSubBudgets).set(data).where(eq(projectSubBudgets.id, id));
+    // Allowlist mutable fields so a stale caller cannot accidentally approve a legacy proposal.
+    const patch = {
+      name: data.name,
+      phase: data.phase,
+      description: data.description,
+      budgetCents: data.budgetCents,
+      kind: data.kind,
+      trackingMode: data.trackingMode,
+      notToExceedCents: data.trackingMode === "fixed_amount" ? null : data.notToExceedCents,
+    };
+    if (Object.values(patch).some((value) => value !== undefined)) {
+      await tx.update(projectSubBudgets).set(patch).where(eq(projectSubBudgets.id, id));
+    }
     return { success: true };
   });
 }

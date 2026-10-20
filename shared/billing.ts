@@ -35,6 +35,8 @@ export type CostSlice = {
   consultantCost: number;
   totalMinutes: number;
   billableMinutes: number;
+  /** Portion eligible for an approved project cap; defaults to all costs when omitted. */
+  budgetCostCents?: number;
 };
 
 export type BillingPhaseInput = {
@@ -67,6 +69,8 @@ export type BudgetHealth = {
   billableHours: number;
   billableValueCents: number;
   costCents: number;
+  /** Capped-budget bar numerator; may be lower than costCents for uncapped/proposed additions. */
+  budgetCostCents: number;
   marginCents: number;
   fixedFeeHealth: {
     contractedFee: number;
@@ -84,6 +88,7 @@ const EMPTY_COSTS: CostSlice = {
   consultantCost: 0,
   totalMinutes: 0,
   billableMinutes: 0,
+  budgetCostCents: 0,
 };
 
 export function isBillingType(value: unknown): value is BillingType {
@@ -110,6 +115,10 @@ export function hoursFromMinutes(minutes: number): number {
 
 export function costSliceTotal(costs: CostSlice): number {
   return (costs.laborCost || 0) + (costs.consultantCost || 0);
+}
+
+export function costSliceBudgetTotal(costs: CostSlice): number {
+  return costs.budgetCostCents ?? costSliceTotal(costs);
 }
 
 function percentOf(amount: number, cap: number): number | null {
@@ -211,6 +220,7 @@ export type EvaluateBudgetHealthInput = {
   consultantCost: number;
   totalMinutes?: number;
   billableMinutes?: number;
+  budgetCostCents?: number;
   hourlyRateCents?: number;
   notToExceedCents?: number;
   revenueTargetCents?: number;
@@ -232,6 +242,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     billableMinutes: input.billableMinutes || 0,
   };
   const currentTotalCost = costSliceTotal(currentCosts);
+  const currentBudgetCost = input.budgetCostCents ?? costSliceBudgetTotal(currentCosts);
   const approvedAdditionsCents = Math.max(0, input.approvedAdditionsCents ?? 0);
   const currentBillableValue = billableValueCents(currentCosts);
   const currentHours = hoursFromMinutes(currentCosts.totalMinutes);
@@ -246,7 +257,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     const fixedPhases = phases.filter((phase) => phase.billingType === "fixed_fee");
     const fixedCap = fixedPhases.reduce((sum, phase) => sum + (phase.contractedFee || 0), 0)
       + (currentBillingType === "fixed_fee" ? approvedAdditionsCents : 0);
-    const fixedCost = fixedPhases.reduce((sum, phase) => sum + costSliceTotal(phase.costs || EMPTY_COSTS), 0);
+    const fixedCost = fixedPhases.reduce((sum, phase) => sum + costSliceBudgetTotal(phase.costs || EMPTY_COSTS), 0);
     const fixedPortion = evaluateFixedPortion(fixedCap, fixedCost);
 
     const hourlyPhases = phases.filter((phase) => phase.billingType === "hourly");
@@ -255,15 +266,17 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
       emptyCostSlice(),
     );
     const hourlyTotal = costSliceTotal(hourlyCosts);
+    const hourlyBudgetTotal = costSliceBudgetTotal(hourlyCosts);
     const nte = input.notToExceedCents
       ? input.notToExceedCents + (currentBillingType === "hourly" ? approvedAdditionsCents : 0)
       : hourlyPhases.reduce((sum, phase) => sum + (phase.notToExceedCents || 0), 0);
     const liveCosts = currentBillingType === "hourly" ? hourlyCosts : currentCosts;
     const liveTotal = currentBillingType === "hourly" ? hourlyTotal : currentTotalCost;
+    const liveBudgetTotal = currentBillingType === "hourly" ? hourlyBudgetTotal : currentBudgetCost;
     const liveHours = hoursFromMinutes(liveCosts.totalMinutes);
     const liveBillableHours = hoursFromMinutes(liveCosts.billableMinutes);
     const liveBillableValue = billableValueCents(liveCosts);
-    const hourlyKindNow = hourlyKind(percentOf(hourlyTotal, nte));
+    const hourlyKindNow = hourlyKind(percentOf(hourlyBudgetTotal, nte));
     const liveFixedCap = (input.contractedFee || 0) + (currentBillingType === "fixed_fee" ? approvedAdditionsCents : 0);
 
     const statusKind: BudgetStatusKind = currentBillingType === "hourly"
@@ -280,16 +293,17 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
         ? budgetStatusLabel(hourlyKindNow)
         : fixedPortion.statusLabel,
       consumedPercent: currentBillingType === "hourly"
-        ? percentOf(hourlyTotal, nte)
-        : percentOf(currentTotalCost, liveFixedCap),
+        ? percentOf(hourlyBudgetTotal, nte)
+        : percentOf(currentBudgetCost, liveFixedCap),
       remainingCents: currentBillingType === "hourly"
-        ? remainingOf(nte, hourlyTotal)
-        : remainingOf(liveFixedCap, currentTotalCost),
+        ? remainingOf(nte, hourlyBudgetTotal)
+        : remainingOf(liveFixedCap, currentBudgetCost),
       planningAlert: currentBillingType === "hourly" ? planningAlertFromKind(hourlyKindNow) : "none",
       totalHours: liveHours,
       billableHours: liveBillableHours,
       billableValueCents: liveBillableValue,
       costCents: liveTotal,
+      budgetCostCents: liveBudgetTotal,
       marginCents: liveBillableValue - liveTotal,
       fixedFeeHealth: {
         contractedFee: fixedPortion.contractedFee,
@@ -306,7 +320,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     const nte = input.notToExceedCents
       ? input.notToExceedCents + approvedAdditionsCents
       : 0;
-    const consumedPercent = percentOf(currentTotalCost, nte);
+    const consumedPercent = percentOf(currentBudgetCost, nte);
     const kind = hourlyKind(consumedPercent);
     return {
       mode: "hourly",
@@ -316,19 +330,20 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
       statusKind: kind,
       statusLabel: budgetStatusLabel(kind),
       consumedPercent,
-      remainingCents: remainingOf(nte, currentTotalCost),
+      remainingCents: remainingOf(nte, currentBudgetCost),
       planningAlert: planningAlertFromKind(kind),
       totalHours: currentHours,
       billableHours: currentBillableHours,
       billableValueCents: currentBillableValue,
       costCents: currentTotalCost,
+      budgetCostCents: currentBudgetCost,
       marginCents: currentBillableValue - currentTotalCost,
       fixedFeeHealth: null,
     };
   }
 
   const fixedCap = (input.contractedFee || 0) + approvedAdditionsCents;
-  const fixedPortion = evaluateFixedPortion(fixedCap, currentTotalCost);
+  const fixedPortion = evaluateFixedPortion(fixedCap, currentBudgetCost);
   return {
     mode: "fixed_fee",
     currentBillingType: "fixed_fee",
@@ -343,6 +358,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     billableHours: currentBillableHours,
     billableValueCents: currentBillableValue,
     costCents: currentTotalCost,
+    budgetCostCents: currentBudgetCost,
     marginCents: currentBillableValue - currentTotalCost,
     fixedFeeHealth: fixedPortion.contractedFee > 0 ? {
       contractedFee: fixedPortion.contractedFee,
@@ -366,5 +382,6 @@ export function addCostSlice(a: CostSlice, b: CostSlice): CostSlice {
     consultantCost: (a.consultantCost || 0) + (b.consultantCost || 0),
     totalMinutes: (a.totalMinutes || 0) + (b.totalMinutes || 0),
     billableMinutes: (a.billableMinutes || 0) + (b.billableMinutes || 0),
+    budgetCostCents: costSliceBudgetTotal(a) + costSliceBudgetTotal(b),
   };
 }

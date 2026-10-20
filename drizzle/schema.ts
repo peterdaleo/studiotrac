@@ -126,6 +126,8 @@ export const projectSubBudgets = mysqlTable("project_sub_budgets", {
   description: text("description"),
   budgetCents: int("budgetCents").notNull(),
   kind: mysqlEnum("kind", ["within_existing", "approved_addition"]).notNull(),
+  trackingMode: mysqlEnum("trackingMode", ["fixed_amount", "hourly"]).default("fixed_amount").notNull(),
+  notToExceedCents: int("notToExceedCents"),
   status: mysqlEnum("status", ["proposed", "approved", "complete"]).default("proposed").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

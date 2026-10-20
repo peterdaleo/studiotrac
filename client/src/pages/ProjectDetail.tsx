@@ -105,13 +105,12 @@ const taskStatusOptions = [
   { value: "done", label: "Done" },
 ];
 
-function TimeLeftInBudget({ projectId, burnRate }: { projectId: number; burnRate: { contractedFee: number; laborCost: number; consultantCost: number; billingType?: string } }) {
+function TimeLeftInBudget({ projectId, burnRate }: { projectId: number; burnRate: { contractedFee: number; laborCost: number; consultantCost: number; billingType?: string; budgetHealth?: { remainingCents: number | null } | null } }) {
   const { data: avgRate } = trpc.projectTeam.avgRate.useQuery({ projectId });
   // Hourly projects have no fixed remaining budget to convert into hours.
   if (burnRate.billingType === "hourly" || burnRate.contractedFee === 0) return null;
-  // Budget remaining = contractedFee - consultantCost - laborCost
-  // Consultant fees deducted from budget whether paid or not
-  const budgetRemaining = Math.max(0, burnRate.contractedFee - burnRate.consultantCost - burnRate.laborCost);
+  // Use the same capped allowance as the main bar; uncapped extra work is separate.
+  const budgetRemaining = Math.max(0, burnRate.budgetHealth?.remainingCents ?? (burnRate.contractedFee - burnRate.consultantCost - burnRate.laborCost));
   if (!avgRate || avgRate === 0) {
     return (
       <div className="flex items-center justify-between text-xs mt-2">
