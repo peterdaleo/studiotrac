@@ -108,6 +108,30 @@ export const projects = mysqlTable("projects", {
 });
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
+// ── Project Sub-Budgets ────────────────────────────────────────────
+export const projectSubBudgets = mysqlTable("project_sub_budgets", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId"),
+  projectId: int("projectId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  phase: mysqlEnum("phase", [
+    "pre_design",
+    "schematic_design",
+    "design_development",
+    "construction_documents",
+    "bidding_negotiation",
+    "construction_administration",
+    "post_occupancy",
+  ]),
+  description: text("description"),
+  budgetCents: int("budgetCents").notNull(),
+  kind: mysqlEnum("kind", ["within_existing", "approved_addition"]).notNull(),
+  status: mysqlEnum("status", ["proposed", "approved", "complete"]).default("proposed").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [index("idx_project_sub_budgets_project").on(table.projectId), index("idx_project_sub_budgets_org_project").on(table.organizationId, table.projectId), index("idx_project_sub_budgets_status_kind").on(table.projectId, table.kind, table.status)]);
+export type ProjectSubBudget = typeof projectSubBudgets.$inferSelect;
+export type InsertProjectSubBudget = typeof projectSubBudgets.$inferInsert;
 // ── Project Billing Phases ────────────────────────────────────────
 /**
  * Dated billing-term history. Changing a project from fixed fee to hourly
@@ -260,11 +284,12 @@ export const consultantContracts = mysqlTable("consultant_contracts", {
   name: varchar("name", { length: 500 }).notNull(),
   discipline: varchar("discipline", { length: 255 }).notNull(),
   contractAmount: int("contractAmount").default(0).notNull(),
+  subBudgetId: int("subBudgetId"),
   status: mysqlEnum("status", ["active", "completed", "terminated", "pending"]).default("active").notNull(),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [index("idx_consultant_contracts_sub_budget").on(table.subBudgetId)]);
 export type ConsultantContract = typeof consultantContracts.$inferSelect;
 export type InsertConsultantContract = typeof consultantContracts.$inferInsert;
 // ── Consultant Payments ──────────────────────────────────────────
@@ -285,6 +310,7 @@ export const timeEntries = mysqlTable("time_entries", {
   organizationId: int("organizationId"),
   userId: int("userId").notNull(),
   projectId: int("projectId").notNull(),
+  subBudgetId: int("subBudgetId"),
   taskId: int("taskId"),
   description: varchar("description", { length: 500 }),
   startTime: timestamp("startTime").notNull(),
@@ -302,7 +328,7 @@ export const timeEntries = mysqlTable("time_entries", {
   ]),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [index("idx_time_entries_sub_budget").on(table.subBudgetId)]);
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
 // ── Billing Department Emails ──────────────────────────────────────

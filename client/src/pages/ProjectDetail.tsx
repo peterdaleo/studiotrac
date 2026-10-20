@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BudgetBar } from "@/components/BudgetBar";
+import { ProjectSubBudgets } from "@/components/ProjectSubBudgets";
 import { useEffectiveAdmin, useEffectiveRole } from "@/contexts/StaffPreviewContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { trpc } from "@/lib/trpc";
@@ -305,6 +306,7 @@ export default function ProjectDetail() {
   );
   const { data: projectInvoices } = trpc.invoices.list.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
   const { data: consultants } = trpc.consultants.list.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
+  const { data: subBudgetOptions } = trpc.subBudgets.options.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
   const { data: netIncomeData } = trpc.netIncome.project.useQuery({ projectId }, { enabled: canViewProjectFinancials && !isInternalProject });
   // Budget burn rate — available to all authenticated users; dollar amounts gated by isAdmin in the component
   const { data: burnRate } = trpc.timeAnalytics.projectBurnRate.useQuery({ projectId });
@@ -399,6 +401,8 @@ export default function ProjectDetail() {
   const createConsultant = trpc.consultants.create.useMutation({
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
+      utils.subBudgets.list.invalidate({ projectId });
+      utils.subBudgets.options.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
       utils.projects.financialSummary.invalidate({ id: projectId });
       utils.projects.get.invalidate({ id: projectId });
@@ -411,6 +415,8 @@ export default function ProjectDetail() {
   const updateConsultant = trpc.consultants.update.useMutation({
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
+      utils.subBudgets.list.invalidate({ projectId });
+      utils.subBudgets.options.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
       utils.projects.financialSummary.invalidate({ id: projectId });
       utils.projects.get.invalidate({ id: projectId });
@@ -422,6 +428,8 @@ export default function ProjectDetail() {
   const deleteConsultant = trpc.consultants.delete.useMutation({
     onSuccess: () => {
       utils.consultants.list.invalidate({ projectId });
+      utils.subBudgets.list.invalidate({ projectId });
+      utils.subBudgets.options.invalidate({ projectId });
       utils.netIncome.project.invalidate({ projectId });
       utils.projects.financialSummary.invalidate({ id: projectId });
       utils.projects.get.invalidate({ id: projectId });
@@ -2233,6 +2241,9 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>}
 
+          {/* Sub-budgets are finance-visible only; they do not replace the project-level budget summary. */}
+          {!isInternalProject && canViewProjectFinancials && <ProjectSubBudgets projectId={projectId} billingType={project?.billingType ?? burnRate?.billingType} notToExceedCents={project?.notToExceedCents} />}
+
           {/* Consultant Contracts & Payments — admin and PM only, Professional+ */}
           {canViewProjectFinancials && canAccessConsultants && 
           <Card className="border-0 shadow-sm">
@@ -2249,7 +2260,7 @@ export default function ProjectDetail() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader><DialogTitle>Add Consultant</DialogTitle></DialogHeader>
-                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createConsultant.mutate({ projectId, name: fd.get("name") as string, discipline: fd.get("discipline") as string, contractAmount: Math.round(Number(fd.get("contractAmount")) * 100), status: (fd.get("status") as any) || "active", notes: (fd.get("notes") as string) || undefined }); }} className="space-y-4">
+                      <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); const subBudgetValue = fd.get("subBudgetId") as string; createConsultant.mutate({ projectId, name: fd.get("name") as string, discipline: fd.get("discipline") as string, contractAmount: Math.round(Number(fd.get("contractAmount")) * 100), status: (fd.get("status") as any) || "active", notes: (fd.get("notes") as string) || undefined, subBudgetId: subBudgetValue ? Number(subBudgetValue) : null }); }} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2"><Label>Firm Name</Label><Input name="name" required placeholder="e.g., Thornton Engineering" /></div>
                           <div className="space-y-2"><Label>Discipline</Label><Input name="discipline" required placeholder="e.g., Structural Engineer" /></div>
@@ -2258,6 +2269,7 @@ export default function ProjectDetail() {
                           <div className="space-y-2"><Label>Contract Amount ($)</Label><Input name="contractAmount" type="number" min={0} step={0.01} required placeholder="0.00" /></div>
                           <div className="space-y-2"><Label>Status</Label><select name="status" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"><option value="active">Active</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="terminated">Terminated</option></select></div>
                         </div>
+                        <div className="space-y-2"><Label>Sub-Budget (optional)</Label><select name="subBudgetId" defaultValue="" className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"><option value="">No sub-budget</option>{subBudgetOptions?.map((option) => <option key={option.id} value={option.id}>{option.name}{option.phase ? ` · ${option.phase}` : ""}</option>)}</select></div>
                         <div className="space-y-2"><Label>Notes</Label><Input name="notes" placeholder="Optional notes" /></div>
                         <DialogFooter>
                           <Button type="button" variant="outline" onClick={() => setConsultantDialogOpen(false)}>Cancel</Button>
@@ -2292,7 +2304,7 @@ export default function ProjectDetail() {
                           </div>
                         </div>
                         {isExpanded && (
-                          <ConsultantExpanded consultant={c} projectId={projectId} isAdmin={canViewProjectFinancials} paymentDialogOpen={paymentDialogOpen} setPaymentDialogOpen={setPaymentDialogOpen} createPayment={createPayment} deletePayment={deletePayment} updateConsultant={updateConsultant} deleteConsultant={deleteConsultant} />
+                          <ConsultantExpanded consultant={c} projectId={projectId} isAdmin={canViewProjectFinancials} subBudgetOptions={subBudgetOptions ?? []} paymentDialogOpen={paymentDialogOpen} setPaymentDialogOpen={setPaymentDialogOpen} createPayment={createPayment} deletePayment={deletePayment} updateConsultant={updateConsultant} deleteConsultant={deleteConsultant} />
                         )}
                       </div>
                     );
@@ -2415,7 +2427,7 @@ export default function ProjectDetail() {
 }
 
 
-function ConsultantExpanded({ consultant, projectId, isAdmin, paymentDialogOpen, setPaymentDialogOpen, createPayment, deletePayment, updateConsultant, deleteConsultant }: any) {
+function ConsultantExpanded({ consultant, projectId, isAdmin, subBudgetOptions, paymentDialogOpen, setPaymentDialogOpen, createPayment, deletePayment, updateConsultant, deleteConsultant }: any) {
   const { data: payments, isLoading } = trpc.consultantPayments.list.useQuery({ consultantId: consultant.id });
   const totalPaid = payments?.reduce((sum: number, p: any) => sum + p.amount, 0) ?? 0;
   const remaining = consultant.contractAmount - totalPaid;
@@ -2492,17 +2504,18 @@ function ConsultantExpanded({ consultant, projectId, isAdmin, paymentDialogOpen,
 
       {/* Admin actions */}
       {isAdmin && (
-        <div className="flex items-center gap-2 pt-1 border-t border-border/30">
-          <select
-            className="flex-1 h-7 rounded border border-input bg-background px-2 text-[10px]"
-            value={consultant.status}
-            onChange={(e) => updateConsultant.mutate({ id: consultant.id, status: e.target.value as any })}
-          >
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-            <option value="terminated">Terminated</option>
-          </select>
+        <div className="space-y-2 pt-1 border-t border-border/30">
+          <div className="flex items-center gap-2">
+            <select
+              className="flex-1 h-7 rounded border border-input bg-background px-2 text-[10px]"
+              value={consultant.status}
+              onChange={(e) => updateConsultant.mutate({ id: consultant.id, status: e.target.value as any })}
+            >
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="terminated">Terminated</option>
+            </select>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm" className="h-7 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50">
@@ -2522,6 +2535,8 @@ function ConsultantExpanded({ consultant, projectId, isAdmin, paymentDialogOpen,
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          </div>
+          <div className="flex items-center gap-2"><Label className="text-[10px] text-muted-foreground shrink-0">Sub-budget</Label><select className="flex-1 h-7 rounded border border-input bg-background px-2 text-[10px]" value={consultant.subBudgetId ?? ""} onChange={(e) => updateConsultant.mutate({ id: consultant.id, subBudgetId: e.target.value ? Number(e.target.value) : null })}><option value="">None</option>{subBudgetOptions.map((option: any) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></div>
         </div>
       )}
     </div>

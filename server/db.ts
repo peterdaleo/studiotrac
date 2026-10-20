@@ -1,6 +1,8 @@
 import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
+import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
+import { TRPCError } from "@trpc/server";
 import {
   InsertUser, users,
   organizations, InsertOrganization, Organization,
@@ -22,10 +24,12 @@ import {
   waitlistSignups, InsertWaitlistSignup, WaitlistSignup,
   subscriptions, InsertSubscription, Subscription,
   projectTeamMembers, InsertProjectTeamMember, ProjectTeamMember,
-  projectBillingPhases,
+  projectBillingPhases, projectSubBudgets, InsertProjectSubBudget,
 } from "../drizzle/schema";
+import type { ProjectSubBudgetSummary, SubBudgetItem, SubBudgetOption } from "../shared/subBudgets";
 import {
   applyProjectBillingUpdate,
+  buildUserBillingRateMap,
   getAllProjectsBudgetSummary as getAllProjectsBudgetSummaryFromBilling,
   getProjectBudgetContext,
   listProjectBillingPhases,
@@ -43,6 +47,7 @@ export type ProjectUpdateInput = Partial<InsertProject> & {
 let _db: ReturnType<typeof drizzle> | null = null;
 let _billingSchemaReady: Promise<void> | null = null;
 let _prospectsSchemaReady: Promise<void> | null = null;
+let _subBudgetSchemaReady: Promise<void> | null = null;
 
 function isMissingTableError(error: unknown) {
   if (!error || typeof error !== "object") return false;
@@ -160,6 +165,43 @@ async function ensureProspectsSchema(db: NonNullable<typeof _db>) {
   }
 }
 
+async function ensureSubBudgetSchema(db: NonNullable<typeof _db>) {
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS project_sub_budgets (
+    id int NOT NULL AUTO_INCREMENT,
+    organizationId int NULL,
+    projectId int NOT NULL,
+    name varchar(255) NOT NULL,
+    phase enum('pre_design','schematic_design','design_development','construction_documents','bidding_negotiation','construction_administration','post_occupancy') NULL,
+    description text NULL,
+    budgetCents int NOT NULL,
+    kind enum('within_existing','approved_addition') NOT NULL,
+    status enum('proposed','approved','complete') NOT NULL DEFAULT 'proposed',
+    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_project_sub_budgets_project (projectId),
+    KEY idx_project_sub_budgets_org_project (organizationId, projectId),
+    KEY idx_project_sub_budgets_status_kind (projectId, kind, status)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  for (const table of ["time_entries", "consultant_contracts"] as const) {
+    try {
+      if (table === "time_entries") await db.execute(sql`ALTER TABLE time_entries ADD COLUMN subBudgetId int NULL`);
+      else await db.execute(sql`ALTER TABLE consultant_contracts ADD COLUMN subBudgetId int NULL`);
+    } catch {
+      try {
+        if (table === "time_entries") await db.execute(sql`SELECT subBudgetId FROM time_entries LIMIT 1`);
+        else await db.execute(sql`SELECT subBudgetId FROM consultant_contracts LIMIT 1`);
+      } catch (error) {
+        console.error(`[Database] Required ${table}.subBudgetId column could not be ensured:`, error);
+        throw error;
+      }
+    }
+  }
+  await db.execute(sql`CREATE INDEX idx_time_entries_sub_budget ON time_entries (subBudgetId)`).catch(() => {});
+  await db.execute(sql`CREATE INDEX idx_consultant_contracts_sub_budget ON consultant_contracts (subBudgetId)`).catch(() => {});
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -188,11 +230,20 @@ export async function getDb() {
       console.warn("[Database] Prospect schema ensure failed:", error);
     });
   }
+  if (_db && !_subBudgetSchemaReady) {
+    _subBudgetSchemaReady = ensureSubBudgetSchema(_db).catch((error) => {
+      console.error("[Database] Required sub-budget schema ensure failed:", error);
+      throw error;
+    });
+  }
   if (_billingSchemaReady) {
     await _billingSchemaReady;
   }
   if (_prospectsSchemaReady) {
     await _prospectsSchemaReady;
+  }
+  if (_subBudgetSchemaReady) {
+    await _subBudgetSchemaReady;
   }
   return _db;
 }
@@ -623,6 +674,146 @@ export async function getProject(id: number) {
   };
 }
 
+function organizationCondition(column: AnyMySqlColumn, orgId: number | null | undefined) {
+  return orgId == null ? isNull(column) : eq(column, orgId);
+}
+
+type ProjectScopeDb = Pick<ReturnType<typeof drizzle>, "select">;
+
+async function requireOwnedProject(db: ProjectScopeDb, projectId: number, orgId: number | null | undefined) {
+  const [project] = await db.select({ id: projects.id, organizationId: projects.organizationId, billingType: projects.billingType, contractedFee: projects.contractedFee, notToExceedCents: projects.notToExceedCents })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), organizationCondition(projects.organizationId, orgId)))
+    .limit(1);
+  if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+  return project;
+}
+
+async function validateSubBudgetAssignment(
+  db: ProjectScopeDb,
+  projectId: number,
+  subBudgetId: number | null | undefined,
+  orgId: number | null | undefined,
+) {
+  await requireOwnedProject(db, projectId, orgId);
+  if (subBudgetId == null) return;
+  const [budget] = await db.select({ id: projectSubBudgets.id })
+    .from(projectSubBudgets)
+    .where(and(
+      eq(projectSubBudgets.id, subBudgetId),
+      eq(projectSubBudgets.projectId, projectId),
+      organizationCondition(projectSubBudgets.organizationId, orgId),
+    ))
+    .limit(1).for("update");
+  if (!budget) throw new TRPCError({ code: "BAD_REQUEST", message: "Sub-budget does not belong to this project and organization" });
+}
+
+export async function assertProjectInOrganization(projectId: number, orgId: number | null | undefined) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+  return requireOwnedProject(db, projectId, orgId);
+}
+
+export async function listProjectSubBudgetOptions(projectId: number, orgId: number | null | undefined): Promise<SubBudgetOption[]> {
+  const db = await getDb();
+  if (!db) return [];
+  await requireOwnedProject(db, projectId, orgId);
+  return db.select({ id: projectSubBudgets.id, name: projectSubBudgets.name, phase: projectSubBudgets.phase, status: projectSubBudgets.status })
+    .from(projectSubBudgets)
+    .where(and(eq(projectSubBudgets.projectId, projectId), organizationCondition(projectSubBudgets.organizationId, orgId)))
+    .orderBy(asc(projectSubBudgets.name), asc(projectSubBudgets.id));
+}
+
+export async function listProjectSubBudgets(projectId: number, orgId: number | null | undefined): Promise<ProjectSubBudgetSummary> {
+  const db = await getDb();
+  if (!db) return { items: [], originalBudgetCents: 0, approvedAdditionsCents: 0, approvedBudgetCents: 0 };
+  const project = await requireOwnedProject(db, projectId, orgId);
+  const subBudgets = await db.select().from(projectSubBudgets)
+    .where(and(eq(projectSubBudgets.projectId, projectId), organizationCondition(projectSubBudgets.organizationId, orgId)))
+    .orderBy(asc(projectSubBudgets.name), asc(projectSubBudgets.id));
+
+  const [rates, entries, contracts] = await Promise.all([
+    buildUserBillingRateMap(db),
+    db.select({ subBudgetId: timeEntries.subBudgetId, userId: timeEntries.userId, durationMinutes: timeEntries.durationMinutes })
+      .from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`)),
+    db.select({ subBudgetId: consultantContracts.subBudgetId, contractAmount: consultantContracts.contractAmount })
+      .from(consultantContracts).where(eq(consultantContracts.projectId, projectId)),
+  ]);
+  const actuals = new Map<number, number>();
+  for (const entry of entries) {
+    if (entry.subBudgetId == null) continue;
+    const amount = Math.round(((entry.durationMinutes ?? 0) / 60) * (rates.get(entry.userId) ?? 0));
+    actuals.set(entry.subBudgetId, (actuals.get(entry.subBudgetId) ?? 0) + amount);
+  }
+  for (const contract of contracts) {
+    if (contract.subBudgetId == null) continue;
+    actuals.set(contract.subBudgetId, (actuals.get(contract.subBudgetId) ?? 0) + (contract.contractAmount ?? 0));
+  }
+
+  const items: SubBudgetItem[] = subBudgets.map((budget) => {
+    const actualCents = actuals.get(budget.id) ?? 0;
+    return { ...budget, phase: budget.phase as SubBudgetItem["phase"], kind: budget.kind as SubBudgetItem["kind"], status: budget.status as SubBudgetItem["status"], actualCents, remainingCents: budget.budgetCents - actualCents };
+  });
+  const originalBudgetCents = project.billingType === "hourly" ? project.notToExceedCents ?? 0 : project.contractedFee ?? 0;
+  const approvedAdditionsCents = items.reduce((sum, item) => sum + (item.kind === "approved_addition" && (item.status === "approved" || item.status === "complete") ? item.budgetCents : 0), 0);
+  const approvedBudgetCents = project.billingType === "hourly" && originalBudgetCents === 0
+    ? 0
+    : originalBudgetCents + approvedAdditionsCents;
+  return { items, originalBudgetCents, approvedAdditionsCents, approvedBudgetCents };
+}
+
+export async function createProjectSubBudget(data: Omit<InsertProjectSubBudget, "organizationId">, orgId: number | null | undefined) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await requireOwnedProject(db, data.projectId, orgId);
+  if (data.kind === "approved_addition" && data.status === "complete") {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Approve an addition before marking it complete" });
+  }
+  const result = await db.insert(projectSubBudgets).values({ ...data, organizationId: orgId ?? null });
+  return { id: result[0].insertId };
+}
+
+export async function updateProjectSubBudget(id: number, data: Partial<Omit<InsertProjectSubBudget, "id" | "organizationId" | "projectId">>, orgId: number | null | undefined) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(projectSubBudgets)
+      .where(and(eq(projectSubBudgets.id, id), organizationCondition(projectSubBudgets.organizationId, orgId)))
+      .limit(1).for("update");
+    if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Sub-budget not found" });
+    await requireOwnedProject(tx, current.projectId, orgId);
+    const kind = data.kind ?? current.kind;
+    const status = data.status ?? current.status;
+    if (kind === "approved_addition" && status === "complete"
+      && (current.kind !== "approved_addition" || current.status === "proposed")) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Approve an addition before marking it complete" });
+    }
+    await tx.update(projectSubBudgets).set(data).where(eq(projectSubBudgets.id, id));
+    return { success: true };
+  });
+}
+
+export async function deleteProjectSubBudget(id: number, orgId: number | null | undefined) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(projectSubBudgets)
+      .where(and(eq(projectSubBudgets.id, id), organizationCondition(projectSubBudgets.organizationId, orgId)))
+      .limit(1).for("update");
+    if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Sub-budget not found" });
+    await requireOwnedProject(tx, current.projectId, orgId);
+    const [timeCost, consultantCost] = await Promise.all([
+      tx.select({ count: sql<number>`count(*)` }).from(timeEntries).where(eq(timeEntries.subBudgetId, id)),
+      tx.select({ count: sql<number>`count(*)` }).from(consultantContracts).where(eq(consultantContracts.subBudgetId, id)),
+    ]);
+    if (Number(timeCost[0]?.count ?? 0) + Number(consultantCost[0]?.count ?? 0) > 0) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete a sub-budget with attributed time or consultant costs" });
+    }
+    await tx.delete(projectSubBudgets).where(eq(projectSubBudgets.id, id));
+    return { success: true };
+  });
+}
+
 export async function createProject(data: InsertProject, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -758,6 +949,7 @@ export async function deleteProject(id: number) {
     }
     await safeDel(() => db.delete(timeEntries).where(eq(timeEntries.projectId, id)), 'timeEntries');
     await safeDel(() => db.delete(projectBillingPhases).where(eq(projectBillingPhases.projectId, id)), 'projectBillingPhases');
+    await safeDel(() => db.delete(projectSubBudgets).where(eq(projectSubBudgets.projectId, id)), 'projectSubBudgets');
     // Final delete of the project itself — use raw SQL as fallback if Drizzle ORM fails
     try {
       await db.delete(projects).where(eq(projects.id, id));
@@ -853,6 +1045,7 @@ export async function purgeArchivedProjects(orgId: number) {
       await safeDel(() => db.delete(consultantContracts).where(eq(consultantContracts.projectId, id)));
       await safeDel(() => db.delete(timeEntries).where(eq(timeEntries.projectId, id)));
       await safeDel(() => db.delete(projectBillingPhases).where(eq(projectBillingPhases.projectId, id)));
+      await safeDel(() => db.delete(projectSubBudgets).where(eq(projectSubBudgets.projectId, id)));
       await safeDel(() => db.delete(projects).where(eq(projects.id, id)));
     }
   } finally {
@@ -1421,17 +1614,30 @@ export async function listConsultantContracts(projectId: number) {
   return db.select().from(consultantContracts).where(eq(consultantContracts.projectId, projectId)).orderBy(asc(consultantContracts.discipline));
 }
 
-export async function createConsultantContract(data: InsertConsultantContract) {
+export async function createConsultantContract(data: InsertConsultantContract, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(consultantContracts).values(data);
-  return { id: result[0].insertId };
+  return db.transaction(async (tx) => {
+    await validateSubBudgetAssignment(tx, data.projectId, data.subBudgetId, orgId ?? data.organizationId);
+    const result = await tx.insert(consultantContracts).values({ ...data, organizationId: orgId ?? data.organizationId ?? null });
+    return { id: result[0].insertId };
+  });
 }
 
-export async function updateConsultantContract(id: number, data: Partial<InsertConsultantContract>) {
+export async function updateConsultantContract(id: number, data: Partial<InsertConsultantContract>, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(consultantContracts).set(data).where(eq(consultantContracts.id, id));
+  await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(consultantContracts)
+      .where(eq(consultantContracts.id, id))
+      .limit(1).for("update");
+    if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Consultant contract not found" });
+    const projectId = data.projectId ?? current.projectId;
+    const subBudgetId = data.subBudgetId === undefined ? current.subBudgetId : data.subBudgetId;
+    await validateSubBudgetAssignment(tx, projectId, subBudgetId, orgId);
+    await tx.update(consultantContracts).set({ ...data, ...(data.projectId !== undefined ? { organizationId: orgId ?? null } : {}) })
+      .where(eq(consultantContracts.id, id));
+  });
 }
 
 export async function deleteConsultantContract(id: number) {
@@ -1573,15 +1779,28 @@ export async function listTimeEntries(filters?: { userId?: number; projectId?: n
 export async function createTimeEntry(data: InsertTimeEntry, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const values = orgId ? { ...data, organizationId: orgId } : data;
-  const result = await db.insert(timeEntries).values(values);
-  return { id: result[0].insertId };
+  return db.transaction(async (tx) => {
+    await validateSubBudgetAssignment(tx, data.projectId, data.subBudgetId, orgId ?? data.organizationId);
+    const values = { ...data, organizationId: orgId ?? data.organizationId ?? null };
+    const result = await tx.insert(timeEntries).values(values);
+    return { id: result[0].insertId };
+  });
 }
 
-export async function updateTimeEntry(id: number, data: Partial<InsertTimeEntry>) {
+export async function updateTimeEntry(id: number, data: Partial<InsertTimeEntry>, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(timeEntries).set(data).where(eq(timeEntries.id, id));
+  await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(timeEntries)
+      .where(eq(timeEntries.id, id))
+      .limit(1).for("update");
+    if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found" });
+    const projectId = data.projectId ?? current.projectId;
+    const subBudgetId = data.subBudgetId === undefined ? current.subBudgetId : data.subBudgetId;
+    await validateSubBudgetAssignment(tx, projectId, subBudgetId, orgId);
+    await tx.update(timeEntries).set({ ...data, ...(data.projectId !== undefined ? { organizationId: orgId ?? null } : {}) })
+      .where(eq(timeEntries.id, id));
+  });
 }
 
 export async function deleteTimeEntry(id: number) {
@@ -1743,6 +1962,9 @@ export async function getProjectBurnRate(projectId: number) {
     laborCost: 0,
     consultantCost: 0,
     contractedFee: 0,
+    originalContractedFee: 0,
+    approvedAdditionsCents: 0,
+    approvedBudgetCents: 0,
     billingType: "hourly" as const,
     hourlyRateCents: 0,
     notToExceedCents: 0,
@@ -1770,10 +1992,13 @@ export async function getProjectBurnRate(projectId: number) {
     timelineElapsedPercent,
     laborCost: context.costs.laborCost,
     consultantCost: context.costs.consultantCost,
-    contractedFee: context.project.contractedFee || 0,
+    contractedFee: context.project.billingType === "fixed_fee" ? context.approvedBudgetCents : context.project.contractedFee || 0,
+    originalContractedFee: context.project.contractedFee || 0,
+    approvedAdditionsCents: context.approvedAdditionsCents,
+    approvedBudgetCents: context.approvedBudgetCents,
     billingType: context.budgetHealth.currentBillingType,
     hourlyRateCents: context.project.hourlyRateCents || 0,
-    notToExceedCents: context.project.notToExceedCents || 0,
+    notToExceedCents: context.project.billingType === "hourly" ? context.approvedBudgetCents : context.project.notToExceedCents || 0,
     revenueTargetCents: context.project.revenueTargetCents || 0,
     billableLaborCost: context.costs.billableLaborCost,
     totalMinutes: context.costs.totalMinutes,

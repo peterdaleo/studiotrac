@@ -1,7 +1,8 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   consultantContracts,
   projectBillingPhases,
+  projectSubBudgets,
   projects,
   teamMembers,
   timeEntries,
@@ -39,10 +40,13 @@ export type BillingTerms = {
 export type BudgetSummaryRow = {
   projectId: number;
   contractedFee: number;
+  originalContractedFee: number;
   totalCost: number;
   billingType: BillingType;
   hourlyRateCents: number;
   notToExceedCents: number;
+  approvedAdditionsCents: number;
+  approvedBudgetCents: number;
   revenueTargetCents: number;
   laborCost: number;
   billableLaborCost: number;
@@ -53,6 +57,20 @@ export type BudgetSummaryRow = {
 };
 
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function approvedAdditionTotals(db: DbClient, projectIds: number[]) {
+  const totals = new Map<number, number>();
+  if (!projectIds.length) return totals;
+  const rows = await db.select({ projectId: projectSubBudgets.projectId, budgetCents: projectSubBudgets.budgetCents })
+    .from(projectSubBudgets)
+    .where(and(
+      inArray(projectSubBudgets.projectId, projectIds),
+      eq(projectSubBudgets.kind, "approved_addition"),
+      inArray(projectSubBudgets.status, ["approved", "complete"]),
+    ));
+  for (const row of rows) totals.set(row.projectId, (totals.get(row.projectId) ?? 0) + row.budgetCents);
+  return totals;
+}
 
 function asBillingType(value: unknown, contractedFee = 0): BillingType {
   return inferBillingType(contractedFee, value === "hourly" || value === "fixed_fee" ? value : null);
@@ -226,7 +244,7 @@ export async function applyProjectBillingUpdate(
   };
 }
 
-async function buildUserBillingRateMap(db: DbClient) {
+export async function buildUserBillingRateMap(db: DbClient) {
   const allMembers = await db.select().from(teamMembers);
   const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
   const userIdToBillingRate = new Map<number, number>();
@@ -354,6 +372,8 @@ export async function getProjectBudgetContext(projectId: number) {
     project: undefined as Project | undefined,
     costs: emptyCostSlice(),
     phases: [] as ProjectBillingPhase[],
+    approvedAdditionsCents: 0,
+    approvedBudgetCents: 0,
     budgetHealth: evaluateBudgetHealth({
       billingType: "hourly",
       contractedFee: 0,
@@ -365,6 +385,11 @@ export async function getProjectBudgetContext(projectId: number) {
 
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project) return empty;
+  const approvedAdditionsCents = (await approvedAdditionTotals(db, [projectId])).get(projectId) ?? 0;
+  const originalBudgetCents = project.billingType === "hourly" ? project.notToExceedCents || 0 : project.contractedFee || 0;
+  const approvedBudgetCents = project.billingType === "hourly" && originalBudgetCents === 0
+    ? 0
+    : originalBudgetCents + approvedAdditionsCents;
 
   const rates = await buildUserBillingRateMap(db);
   const laborRows = await db
@@ -411,10 +436,11 @@ export async function getProjectBudgetContext(projectId: number) {
     billableMinutes: costs.billableMinutes,
     notToExceedCents: project.notToExceedCents || 0,
     revenueTargetCents: project.revenueTargetCents || 0,
+    approvedAdditionsCents,
     phases: phaseInputs,
   });
 
-  return { project, costs, phases, budgetHealth };
+  return { project, costs, phases, approvedAdditionsCents, approvedBudgetCents, budgetHealth };
 }
 
 export async function getAllProjectsBudgetSummary(orgId?: number | null): Promise<BudgetSummaryRow[]> {
@@ -435,6 +461,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
     .where(pWhere);
 
   if (allProjects.length === 0) return [];
+  const additionsByProject = await approvedAdditionTotals(db, allProjects.map((project) => project.id));
 
   const rates = await buildUserBillingRateMap(db);
   const laborEntries = await db
@@ -493,6 +520,13 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
     const consultantCost = consultantByProject.get(project.id) ?? 0;
     const costs: CostSlice = { ...labor, consultantCost };
     const billingType = asBillingType(project.billingType, project.contractedFee);
+    const approvedAdditionsCents = additionsByProject.get(project.id) ?? 0;
+    const originalBudgetCents = billingType === "hourly"
+      ? project.notToExceedCents ?? 0
+      : project.contractedFee ?? 0;
+    const approvedBudgetCents = billingType === "hourly" && originalBudgetCents === 0
+      ? 0
+      : originalBudgetCents + approvedAdditionsCents;
     const phaseInputs = allocateCostsToPhases(
       (phasesByProject.get(project.id) ?? []).sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime()),
       laborRowsByProject.get(project.id) ?? [],
@@ -510,15 +544,19 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
       hourlyRateCents: project.hourlyRateCents ?? 0,
       notToExceedCents: project.notToExceedCents ?? 0,
       revenueTargetCents: project.revenueTargetCents ?? 0,
+      approvedAdditionsCents,
       phases: phaseInputs,
     });
     return {
       projectId: project.id,
-      contractedFee: project.contractedFee ?? 0,
+      contractedFee: billingType === "fixed_fee" ? approvedBudgetCents : project.contractedFee ?? 0,
+      originalContractedFee: project.contractedFee ?? 0,
       totalCost: costs.laborCost + consultantCost,
       billingType,
       hourlyRateCents: project.hourlyRateCents ?? 0,
-      notToExceedCents: project.notToExceedCents ?? 0,
+      notToExceedCents: billingType === "hourly" ? approvedBudgetCents : project.notToExceedCents ?? 0,
+      approvedAdditionsCents,
+      approvedBudgetCents,
       revenueTargetCents: project.revenueTargetCents ?? 0,
       laborCost: costs.laborCost,
       billableLaborCost: costs.billableLaborCost,

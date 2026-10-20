@@ -214,6 +214,8 @@ export type EvaluateBudgetHealthInput = {
   hourlyRateCents?: number;
   notToExceedCents?: number;
   revenueTargetCents?: number;
+  /** Approved sub-budget additions; hourly work remains uncapped without an existing NTE. */
+  approvedAdditionsCents?: number;
   phases?: BillingPhaseInput[];
 };
 
@@ -230,6 +232,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     billableMinutes: input.billableMinutes || 0,
   };
   const currentTotalCost = costSliceTotal(currentCosts);
+  const approvedAdditionsCents = Math.max(0, input.approvedAdditionsCents ?? 0);
   const currentBillableValue = billableValueCents(currentCosts);
   const currentHours = hoursFromMinutes(currentCosts.totalMinutes);
   const currentBillableHours = hoursFromMinutes(currentCosts.billableMinutes);
@@ -241,7 +244,8 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
 
   if (isHybrid) {
     const fixedPhases = phases.filter((phase) => phase.billingType === "fixed_fee");
-    const fixedCap = fixedPhases.reduce((sum, phase) => sum + (phase.contractedFee || 0), 0);
+    const fixedCap = fixedPhases.reduce((sum, phase) => sum + (phase.contractedFee || 0), 0)
+      + (currentBillingType === "fixed_fee" ? approvedAdditionsCents : 0);
     const fixedCost = fixedPhases.reduce((sum, phase) => sum + costSliceTotal(phase.costs || EMPTY_COSTS), 0);
     const fixedPortion = evaluateFixedPortion(fixedCap, fixedCost);
 
@@ -252,13 +256,15 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     );
     const hourlyTotal = costSliceTotal(hourlyCosts);
     const nte = input.notToExceedCents
-      || hourlyPhases.reduce((sum, phase) => sum + (phase.notToExceedCents || 0), 0);
+      ? input.notToExceedCents + (currentBillingType === "hourly" ? approvedAdditionsCents : 0)
+      : hourlyPhases.reduce((sum, phase) => sum + (phase.notToExceedCents || 0), 0);
     const liveCosts = currentBillingType === "hourly" ? hourlyCosts : currentCosts;
     const liveTotal = currentBillingType === "hourly" ? hourlyTotal : currentTotalCost;
     const liveHours = hoursFromMinutes(liveCosts.totalMinutes);
     const liveBillableHours = hoursFromMinutes(liveCosts.billableMinutes);
     const liveBillableValue = billableValueCents(liveCosts);
     const hourlyKindNow = hourlyKind(percentOf(hourlyTotal, nte));
+    const liveFixedCap = (input.contractedFee || 0) + (currentBillingType === "fixed_fee" ? approvedAdditionsCents : 0);
 
     const statusKind: BudgetStatusKind = currentBillingType === "hourly"
       ? hourlyKindNow
@@ -267,7 +273,7 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     return {
       mode: "hybrid",
       currentBillingType,
-      usesFixedBudget: currentBillingType === "fixed_fee" && (input.contractedFee || 0) > 0,
+      usesFixedBudget: currentBillingType === "fixed_fee" && liveFixedCap > 0,
       isOverBudget: currentBillingType === "fixed_fee" ? fixedPortion.isOverBudget : false,
       statusKind,
       statusLabel: currentBillingType === "hourly"
@@ -275,10 +281,10 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
         : fixedPortion.statusLabel,
       consumedPercent: currentBillingType === "hourly"
         ? percentOf(hourlyTotal, nte)
-        : percentOf(currentTotalCost, input.contractedFee || 0),
+        : percentOf(currentTotalCost, liveFixedCap),
       remainingCents: currentBillingType === "hourly"
         ? remainingOf(nte, hourlyTotal)
-        : remainingOf(input.contractedFee || 0, currentTotalCost),
+        : remainingOf(liveFixedCap, currentTotalCost),
       planningAlert: currentBillingType === "hourly" ? planningAlertFromKind(hourlyKindNow) : "none",
       totalHours: liveHours,
       billableHours: liveBillableHours,
@@ -297,7 +303,9 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
   }
 
   if (currentBillingType === "hourly") {
-    const nte = input.notToExceedCents || 0;
+    const nte = input.notToExceedCents
+      ? input.notToExceedCents + approvedAdditionsCents
+      : 0;
     const consumedPercent = percentOf(currentTotalCost, nte);
     const kind = hourlyKind(consumedPercent);
     return {
@@ -319,11 +327,12 @@ export function evaluateBudgetHealth(input: EvaluateBudgetHealthInput): BudgetHe
     };
   }
 
-  const fixedPortion = evaluateFixedPortion(input.contractedFee || 0, currentTotalCost);
+  const fixedCap = (input.contractedFee || 0) + approvedAdditionsCents;
+  const fixedPortion = evaluateFixedPortion(fixedCap, currentTotalCost);
   return {
     mode: "fixed_fee",
     currentBillingType: "fixed_fee",
-    usesFixedBudget: (input.contractedFee || 0) > 0,
+    usesFixedBudget: fixedCap > 0,
     isOverBudget: fixedPortion.isOverBudget,
     statusKind: fixedPortion.statusKind,
     statusLabel: fixedPortion.statusLabel,

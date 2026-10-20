@@ -4,6 +4,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffectiveAdmin } from "@/contexts/StaffPreviewContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { TimeSubBudgetSelect } from "@/components/TimeSubBudgetSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +78,7 @@ export default function TimeTracking() {
   const [timerDescription, setTimerDescription] = useState("");
   const [timerBillable, setTimerBillable] = useState(true);
   const [timerPhase, setTimerPhase] = useState<ProjectPhase | "">("");
+  const [timerSubBudgetId, setTimerSubBudgetId] = useState<number | null>(null);
 
   // Manual entry state
   const [manualOpen, setManualOpen] = useState(false);
@@ -89,6 +91,7 @@ export default function TimeTracking() {
   const [manualEndTime, setManualEndTime] = useState("10:00");
   const [manualBillable, setManualBillable] = useState(true);
   const [manualPhase, setManualPhase] = useState<ProjectPhase | "">("");
+  const [manualSubBudgetId, setManualSubBudgetId] = useState<number | null>(null);
 
   // Team report date range (admin)
   const [reportStartDate, setReportStartDate] = useState<string>("");
@@ -108,7 +111,8 @@ export default function TimeTracking() {
     startTime: string;
     endTime: string;
     billable: boolean;
-  }>({ projectId: "", description: "", date: "", startTime: "", endTime: "", billable: true });
+    subBudgetId: number | null;
+  }>({ projectId: "", description: "", date: "", startTime: "", endTime: "", billable: true, subBudgetId: null });
 
   const projects = trpc.projects.list.useQuery();
   const teamMembers = trpc.teamMembers.list.useQuery();
@@ -188,6 +192,25 @@ export default function TimeTracking() {
     setTimerDescription("");
     setTimerBillable(true);
     setTimerPhase("");
+    setTimerSubBudgetId(null);
+  };
+
+  // Time changes can alter labor allocation and sub-budget burn even when no
+  // project-level fields change, so refresh all related summaries.
+  const invalidateTimeFinancials = () => {
+    utils.subBudgets.list.invalidate();
+    utils.subBudgets.options.invalidate();
+    utils.timeAnalytics.timesheet.invalidate();
+    utils.timeAnalytics.teamTimeReport.invalidate();
+    utils.timeAnalytics.projectBreakdown.invalidate();
+    utils.timeAnalytics.projectLaborCost.invalidate();
+    utils.timeAnalytics.projectBurnRate.invalidate();
+    utils.timeAnalytics.allProjectsBudgetSummary.invalidate();
+    utils.projects.financialSummary.invalidate();
+    utils.financials.overview.invalidate();
+    utils.netIncome.project.invalidate();
+    utils.netIncome.studio.invalidate();
+    utils.dashboard.stats.invalidate();
   };
 
   const startTimer = trpc.timeEntries.startTimer.useMutation({
@@ -195,6 +218,7 @@ export default function TimeTracking() {
       toast.success("Timer started");
       // Fire-and-forget — don't await so the button unblocks immediately.
       utils.timeEntries.activeTimer.invalidate();
+      invalidateTimeFinancials();
     },
   });
 
@@ -216,10 +240,7 @@ export default function TimeTracking() {
       utils.timeEntries.activeTimer.setData(undefined, undefined);
       // Invalidate background queries — all fire-and-forget (no await).
       utils.timeEntries.activeTimer.invalidate();
-      utils.timeAnalytics.timesheet.invalidate();
-      utils.timeAnalytics.teamTimeReport.invalidate();
-      utils.timeAnalytics.projectBreakdown.invalidate();
-      utils.dashboard.stats.invalidate();
+      invalidateTimeFinancials();
       // isStopping is cleared by the useEffect once activeTimer.data is gone.
       window.location.reload();
     },
@@ -233,10 +254,8 @@ export default function TimeTracking() {
     onSuccess: () => {
       toast.success("Time entry added");
       setManualOpen(false);
-      utils.timeAnalytics.timesheet.invalidate();
-      utils.timeAnalytics.teamTimeReport.invalidate();
-      utils.timeAnalytics.projectBreakdown.invalidate();
-      utils.dashboard.stats.invalidate();
+      setManualSubBudgetId(null);
+      invalidateTimeFinancials();
     },
   });
 
@@ -244,20 +263,14 @@ export default function TimeTracking() {
     onSuccess: () => {
       toast.success("Time entry updated");
       setEditingEntryId(null);
-      utils.timeAnalytics.timesheet.invalidate();
-      utils.timeAnalytics.teamTimeReport.invalidate();
-      utils.timeAnalytics.projectBreakdown.invalidate();
-      utils.dashboard.stats.invalidate();
+      invalidateTimeFinancials();
     },
   });
 
   const deleteEntry = trpc.timeEntries.delete.useMutation({
     onSuccess: () => {
       toast.success("Entry deleted");
-      utils.timeAnalytics.timesheet.invalidate();
-      utils.timeAnalytics.teamTimeReport.invalidate();
-      utils.timeAnalytics.projectBreakdown.invalidate();
-      utils.dashboard.stats.invalidate();
+      invalidateTimeFinancials();
     },
   });
 
@@ -338,6 +351,7 @@ export default function TimeTracking() {
       description: timerDescription || undefined,
       billable: timerBillable,
       phase: (timerPhase || undefined) as ProjectPhase | undefined,
+      subBudgetId: timerSubBudgetId,
     });
   };
 
@@ -368,6 +382,7 @@ export default function TimeTracking() {
       durationMinutes,
       billable: manualBillable,
       phase: (manualPhase || undefined) as ProjectPhase | undefined,
+      subBudgetId: manualSubBudgetId,
     });
   };
 
@@ -380,6 +395,7 @@ export default function TimeTracking() {
       startTime: toTimeString(new Date(entry.startTime)),
       endTime: entry.endTime ? toTimeString(new Date(entry.endTime)) : "",
       billable: entry.billable ?? true,
+      subBudgetId: entry.subBudgetId ?? null,
     });
   };
 
@@ -400,6 +416,7 @@ export default function TimeTracking() {
       endTime: endTime ?? null,
       durationMinutes,
       billable: editData.billable,
+      subBudgetId: editData.subBudgetId,
     });
   };
 
@@ -444,7 +461,7 @@ export default function TimeTracking() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div>
               <Label className="text-xs">Project</Label>
-              <Select value={editData.projectId} onValueChange={(v) => setEditData(prev => ({ ...prev, projectId: v }))}>
+              <Select value={editData.projectId} onValueChange={(v) => setEditData(prev => ({ ...prev, projectId: v, subBudgetId: v === prev.projectId ? prev.subBudgetId : null }))}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {projects.data?.map((p: any) => (
@@ -453,6 +470,7 @@ export default function TimeTracking() {
                 </SelectContent>
               </Select>
             </div>
+            <TimeSubBudgetSelect projectId={editData.projectId ? Number(editData.projectId) : null} value={editData.subBudgetId} onChange={(subBudgetId) => setEditData(prev => ({ ...prev, subBudgetId }))} compact />
             <div>
               <Label className="text-xs">Description</Label>
               <Input className="h-8 text-xs" value={editData.description} onChange={(e) => setEditData(prev => ({ ...prev, description: e.target.value }))} placeholder="Description" />
@@ -529,6 +547,7 @@ export default function TimeTracking() {
                       description: entry.description ?? undefined,
                       billable: entry.billable ?? true,
                       phase: (entry.phase ?? undefined) as ProjectPhase | undefined,
+                      subBudgetId: entry.subBudgetId ?? null,
                     });
                   }}
                 >
@@ -602,6 +621,7 @@ export default function TimeTracking() {
                                 key={p.id}
                                 value={p.name}
                                 onSelect={() => {
+                                  if (manualProjectId !== p.id.toString()) setManualSubBudgetId(null);
                                   setManualProjectId(p.id.toString());
                                   setManualProjectSearch("");
                                   setManualProjectOpen(false);
@@ -617,6 +637,7 @@ export default function TimeTracking() {
                   </PopoverContent>
                 </Popover>
               </div>
+              <TimeSubBudgetSelect projectId={manualProjectId ? Number(manualProjectId) : null} value={manualSubBudgetId} onChange={setManualSubBudgetId} />
               <div>
                 <Label>Description</Label>
                 <Input value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="What did you work on?" />
@@ -723,6 +744,7 @@ export default function TimeTracking() {
                                       key={p.id}
                                       value={p.name}
                                       onSelect={() => {
+                                        if (timerProjectId !== p.id.toString()) setTimerSubBudgetId(null);
                                         setTimerProjectId(p.id.toString());
                                         setTimerProjectSearch("");
                                         setTimerProjectOpen(false);
@@ -741,6 +763,7 @@ export default function TimeTracking() {
                           </Command>
                         </PopoverContent>
                       </Popover>
+                      <TimeSubBudgetSelect projectId={timerProjectId ? Number(timerProjectId) : null} value={timerSubBudgetId} onChange={setTimerSubBudgetId} />
                       <Input value={timerDescription} onChange={e => setTimerDescription(e.target.value)} placeholder="What are you working on?" />
                       <Select value={timerPhase} onValueChange={(v) => setTimerPhase(v as ProjectPhase)}>
                         <SelectTrigger className="w-full"><SelectValue placeholder="Phase (optional)" /></SelectTrigger>

@@ -17,6 +17,7 @@ import { sendTeamInviteEmail, sendBillingMilestoneEmail } from "./_core/email";
 import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
+import { PROJECT_PHASES } from "@shared/subBudgets";
 // Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
 // The 20MB Twilio package loaded statically was causing the container to crash within ~14s.
 let _resend: import("resend").Resend | null = null;
@@ -406,6 +407,41 @@ export const appRouter = router({
     }),
   }),
 
+  // ── Approved Project Sub-Budgets ────────────────────────────
+  subBudgets: router({
+    list: adminOrPmProcedure.input(z.object({ projectId: z.number().int().positive() }))
+      .query(({ input, ctx }) => db.listProjectSubBudgets(input.projectId, ctx.organizationId)),
+    options: protectedProcedure.input(z.object({ projectId: z.number().int().positive() }))
+      .query(({ input, ctx }) => db.listProjectSubBudgetOptions(input.projectId, ctx.organizationId)),
+    create: adminOrPmProcedure.input(z.object({
+      projectId: z.number().int().positive(),
+      name: z.string().trim().min(1).max(255),
+      phase: z.enum(PROJECT_PHASES).nullable().optional(),
+      description: z.string().nullable().optional(),
+      budgetCents: z.number().int().min(0),
+      kind: z.enum(["within_existing", "approved_addition"]),
+      status: z.enum(["proposed", "approved", "complete"]).default("proposed"),
+    })).mutation(({ input, ctx }) => db.createProjectSubBudget({
+      ...input,
+      phase: input.phase ?? null,
+      description: input.description ?? null,
+    }, ctx.organizationId)),
+    update: adminOrPmProcedure.input(z.object({
+      id: z.number().int().positive(),
+      name: z.string().trim().min(1).max(255).optional(),
+      phase: z.enum(PROJECT_PHASES).nullable().optional(),
+      description: z.string().nullable().optional(),
+      budgetCents: z.number().int().min(0).optional(),
+      kind: z.enum(["within_existing", "approved_addition"]).optional(),
+      status: z.enum(["proposed", "approved", "complete"]).optional(),
+    })).mutation(({ input, ctx }) => {
+      const { id, ...data } = input;
+      return db.updateProjectSubBudget(id, data, ctx.organizationId);
+    }),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input, ctx }) => db.deleteProjectSubBudget(input.id, ctx.organizationId)),
+  }),
+
   // ── Projects ─────────────────────────────────────────────────
   projects: router({
     list: protectedProcedure.input(z.object({
@@ -414,11 +450,13 @@ export const appRouter = router({
       managerId: z.number().optional(),
     }).optional()).query(({ input, ctx }) => db.listProjects(input ?? undefined, ctx.organizationId)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getProject(input.id)),
-    financialSummary: adminOrPmProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    financialSummary: adminOrPmProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await db.assertProjectInOrganization(input.id, ctx.organizationId);
       const project = await db.getProject(input.id);
       if (!project) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
       }
+      const subBudgetSummary = await db.listProjectSubBudgets(input.id, ctx.organizationId);
       return {
         id: project.id,
         contractedFee: project.contractedFee,
@@ -433,6 +471,9 @@ export const appRouter = router({
         hourlyRateCents: project.hourlyRateCents,
         notToExceedCents: project.notToExceedCents,
         revenueTargetCents: project.revenueTargetCents,
+        originalBudgetCents: subBudgetSummary.originalBudgetCents,
+        approvedAdditionsCents: subBudgetSummary.approvedAdditionsCents,
+        approvedBudgetCents: subBudgetSummary.approvedBudgetCents,
       };
     }),
     create: adminOrPmProcedure.input(z.object({
@@ -869,23 +910,26 @@ export const appRouter = router({
       name: z.string().min(1),
       discipline: z.string().min(1),
       contractAmount: z.number().min(0),
+      subBudgetId: z.number().int().positive().nullable().optional(),
       status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
       notes: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const limits = await getOrgPlanLimits(ctx);
       requireFeature(limits.hasConsultantManagement, "Consultant Management");
-      return db.createConsultantContract(input);
+      return db.createConsultantContract(input, ctx.organizationId);
     }),
     update: adminOrPmProcedure.input(z.object({
       id: z.number(),
+      projectId: z.number().int().positive().optional(),
+      subBudgetId: z.number().int().positive().nullable().optional(),
       name: z.string().min(1).optional(),
       discipline: z.string().min(1).optional(),
       contractAmount: z.number().min(0).optional(),
       status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
       notes: z.string().optional().nullable(),
-    })).mutation(({ input }) => {
+    })).mutation(({ input, ctx }) => {
       const { id, ...data } = input;
-      return db.updateConsultantContract(id, data);
+      return db.updateConsultantContract(id, data, ctx.organizationId);
     }),
     delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantContract(input.id)),
   }),
@@ -926,10 +970,12 @@ export const appRouter = router({
       durationMinutes: z.number().min(0).optional(),
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
+      subBudgetId: z.number().int().positive().nullable().optional(),
     })).mutation(({ input, ctx }) => db.createTimeEntry({ ...input, userId: ctx.user.id }, ctx.organizationId)),
     update: protectedProcedure.input(z.object({
       id: z.number(),
       projectId: z.number().optional(),
+      subBudgetId: z.number().int().positive().nullable().optional(),
       taskId: z.number().optional().nullable(),
       description: z.string().optional().nullable(),
       startTime: z.date().optional(),
@@ -937,9 +983,9 @@ export const appRouter = router({
       durationMinutes: z.number().min(0).optional(),
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional().nullable(),
-    })).mutation(({ input }) => {
+    })).mutation(({ input, ctx }) => {
       const { id, ...data } = input;
-      return db.updateTimeEntry(id, data);
+      return db.updateTimeEntry(id, data, ctx.organizationId);
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTimeEntry(input.id)),
     activeTimer: protectedProcedure.query(({ ctx }) => db.getActiveTimer(ctx.user.id)),
@@ -951,11 +997,13 @@ export const appRouter = router({
       description: z.string().optional(),
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
+      subBudgetId: z.number().int().positive().nullable().optional(),
     })).mutation(async ({ input, ctx }) => {
       await db.stopActiveTimer(ctx.user.id);
       return db.createTimeEntry({
         userId: ctx.user.id,
         projectId: input.projectId,
+        subBudgetId: input.subBudgetId,
         taskId: input.taskId,
         description: input.description,
         startTime: new Date(),
