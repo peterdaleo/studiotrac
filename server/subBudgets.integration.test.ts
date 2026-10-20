@@ -61,8 +61,9 @@ describe.skipIf(!enabled)("sub-budgets — isolated database integration", () =>
   const insertLabor = async (project: number, memberUserId: number, minutes: number, options: {
     subBudgetId?: number | null;
     billable?: boolean;
+    startTime?: Date;
   } = {}) => {
-    const startTime = new Date(Date.now() + 60_000);
+    const startTime = options.startTime ?? new Date(Date.now() + 60_000);
     const endTime = new Date(startTime.getTime() + minutes * 60_000);
     const result = await conn.insert(timeEntries).values({
       organizationId: orgId,
@@ -294,6 +295,31 @@ describe.skipIf(!enabled)("sub-budgets — isolated database integration", () =>
     expect((await admin.subBudgets.list({ projectId: id })).approvedBudgetCents).toBe(0);
     expect((await admin.timeAnalytics.projectBurnRate({ projectId: id })).budgetHealth).toMatchObject({ statusKind: "hourly_no_budget", consumedPercent: null, isOverBudget: false });
     expect(fixedAddition.id).toBeGreaterThan(0);
+  });
+
+  it("allocates capped and uncapped costs once across a fixed-to-hourly billing conversion", async () => {
+    const id = await makeProject("Hourly extras across conversion", { billingType: "fixed_fee", contractedFee: 250_000, status: "completed", startDate: new Date("2026-01-01T00:00:00Z") });
+    const capped = await admin.subBudgets.create({ projectId: id, name: "Capped design extra", phase: "schematic_design", budgetCents: 0, kind: "approved_addition", trackingMode: "hourly", notToExceedCents: 50_000 });
+    const uncapped = await admin.subBudgets.create({ projectId: id, name: "Uncapped design extra", phase: "design_development", budgetCents: 0, kind: "approved_addition", trackingMode: "hourly", notToExceedCents: null });
+    await insertLabor(id, userId, 60, { startTime: new Date("2026-06-01T00:00:00Z") });
+    await insertLabor(id, userId, 60, { subBudgetId: capped.id, startTime: new Date("2026-06-02T00:00:00Z") });
+    await insertLabor(id, userId, 60, { subBudgetId: uncapped.id, startTime: new Date("2026-06-03T00:00:00Z") });
+    await admin.projects.update({ id, billingType: "hourly", notToExceedCents: 100_000, billingChangeDate: new Date("2026-07-01T00:00:00Z") });
+    const history = await db.listProjectBillingPhases(id);
+    await insertLabor(id, userId, 60, { startTime: new Date("2026-07-02T00:00:00Z") });
+    await insertLabor(id, userId, 60, { subBudgetId: capped.id, startTime: new Date("2026-07-03T00:00:00Z") });
+    await insertLabor(id, secondUserId, 60, { subBudgetId: uncapped.id, startTime: new Date("2026-07-04T00:00:00Z") });
+    await admin.consultants.create({ projectId: id, subBudgetId: uncapped.id, name: "Post-conversion extra consultant", discipline: "Structure", contractAmount: 7_000 });
+    const burn = await admin.timeAnalytics.projectBurnRate({ projectId: id });
+    expect(burn.laborCost).toBe(70_000);
+    expect(burn.consultantCost).toBe(7_000);
+    expect(burn.budgetHealth).toMatchObject({ mode: "hybrid", currentBillingType: "hourly", costCents: 47_000, budgetCostCents: 20_000, consumedPercent: 13, remainingCents: 130_000, statusKind: "hourly_within_nte", isOverBudget: false });
+    expect(burn.budgetHealth?.fixedFeeHealth).toMatchObject({ contractedFee: 250_000, totalCost: 20_000, remainingCents: 230_000 });
+    const row = (await admin.timeAnalytics.allProjectsBudgetSummary()).find((item) => item.projectId === id)!;
+    expect(row.totalCost).toBe(77_000);
+    expect(row.budgetHealth).toEqual(burn.budgetHealth);
+    expect(await db.listProjectBillingPhases(id)).toEqual(history);
+    expect(await db.getProject(id)).toMatchObject({ status: "completed", contractedFee: 250_000, billingType: "hourly" });
   });
 
   it("allows PM financial access but gives staff label metadata only and rejects cross-workspace access", async () => {

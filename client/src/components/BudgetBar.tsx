@@ -154,7 +154,7 @@ export function BudgetBar({
         <div role="img" aria-label={`Project budget status: ${label}`} className={`${compact ? "h-1.5" : "h-2.5"} rounded-full bg-muted overflow-hidden`}>
           <div className={`h-full rounded-full ${health.bar}`} style={{ width: `${categoricalWidth}%` }} />
         </div>
-        {budgetHealth?.fixedFeeHealth && <p className="text-xs text-muted-foreground">Closed fixed-fee phase: {budgetHealth.fixedFeeHealth.statusLabel}</p>}
+        {budgetHealth?.mode === "hybrid" && budgetHealth.currentBillingType === "hourly" && budgetHealth.fixedFeeHealth && <p className="text-xs text-muted-foreground">Closed fixed-fee phase: {budgetHealth.fixedFeeHealth.statusLabel}</p>}
       </div>
     );
   }

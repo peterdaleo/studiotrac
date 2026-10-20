@@ -1822,8 +1822,8 @@ export default function ProjectDetail() {
                   />
                 </>
               )}
-              {/* Time Left in Budget — visible to all roles (shows hours/minutes, no dollar amounts) */}
-              {!isInternalProject && burnRate && (
+              {/* Budget-derived estimates are financial information; staff see the categorical bar only. */}
+              {!isInternalProject && canViewProjectFinancials && burnRate && (
                 <TimeLeftInBudget projectId={projectId} burnRate={burnRate} />
               )}
               {/* Overhead cost for internal projects */}

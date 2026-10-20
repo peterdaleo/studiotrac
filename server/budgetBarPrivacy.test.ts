@@ -1,4 +1,5 @@
 import React from "react";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { BudgetBar } from "../client/src/components/BudgetBar";
@@ -13,6 +14,7 @@ describe("project budget-bar role privacy", () => {
       expect(html).toContain("width:75%");
       expect(html).not.toMatch(/\$|82%|consumed|remaining|tooltip|aria-valuenow/);
       expect(html).not.toMatch(/>[^<]*\d+(?:\.\d+)?%/);
+      expect(html).not.toContain("Closed fixed-fee phase");
     });
     it(`keeps hourly staff bars categorical (compact=${compact})`, () => {
       const health = evaluateBudgetHealth({ billingType: "hourly", contractedFee: 0, notToExceedCents: 1_000_000, laborCost: 820_000, billableLaborCost: 700_000, consultantCost: 0, totalMinutes: 500, billableMinutes: 400 });
@@ -39,5 +41,9 @@ describe("project budget-bar role privacy", () => {
     expect(html).toContain("$3,000 remaining");
     expect(html).toContain("Outside capped budget: $2,200 cost, tracked separately.");
     expect(html).not.toContain("92% consumed");
+  });
+  it("keeps the budget-derived time estimate behind the financial role guard", () => {
+    const source = readFileSync(new URL("../client/src/pages/ProjectDetail.tsx", import.meta.url), "utf8");
+    expect(source).toMatch(/!isInternalProject && canViewProjectFinancials && burnRate && \(\s*<TimeLeftInBudget/);
   });
 });
