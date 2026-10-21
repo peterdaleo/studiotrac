@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
+import { ConvertedProspectsSection } from "@/components/ConvertedProspectsSection";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -13,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowDownWideNarrow, Download, Plus, Printer, Search, UserRound, X } from "lucide-react";
-import { escapeCsvCell, getFollowUpStatus, localDateKey, prospectDateInRange, PROSPECT_STAGES, type ProspectStage } from "@shared/prospects";
+import { groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, prospectDateInRange, PROSPECT_STAGES, type ProspectStage } from "@shared/prospects";
 
 type ProspectInteraction = {
   id: number;
@@ -225,6 +226,9 @@ export default function Prospects() {
     return sorted;
   }, [recordList, search, stageFilter, ownerFilter, followUpFilter, followUpFrom, followUpTo, interactionFrom, interactionTo, sortBy, sortDescending, now, memberList]);
 
+  const { working: workingProspects, converted: convertedProspects } = groupProspectsByConversion(visibleProspects);
+  const hasActiveFilters = Boolean(search.trim() || stageFilter !== "all" || ownerFilter !== "all" || followUpFilter !== "all" || followUpFrom || followUpTo || interactionFrom || interactionTo);
+
   const resetFilters = () => {
     setSearch("");
     setStageFilter("all");
@@ -306,6 +310,46 @@ export default function Prospects() {
     setEditId(prospect.id);
     setDraftOpen(true);
   };
+
+  const renderProspectTable = (rows: ProspectRecord[]) => (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[920px] text-left text-sm">
+        <thead className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr><th className="px-4 py-3">Opportunity / client organization</th><th className="px-4 py-3">Stage</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Next follow-up</th><th className="px-4 py-3">Last interaction</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Actions</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((prospect) => {
+            const status = getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now);
+            const rowTone = status === "overdue" ? "border-l-4 border-l-red-800 bg-red-50/80" : status === "today" ? "border-l-4 border-l-amber-600 bg-amber-50/80" : "border-l-4 border-l-transparent";
+            return (
+              <tr key={prospect.id} className={`border-b last:border-0 ${rowTone}`}>
+                <td className="px-4 py-3">
+                  <button type="button" onClick={() => setDetailId(prospect.id)} className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+                    <span className="block font-semibold text-foreground hover:text-primary">{prospect.opportunityName}</span>
+                    {prospect.firm && <span className="block text-xs text-muted-foreground">{prospect.firm}</span>}
+                  </button>
+                  {prospect.convertedProjectId && <Badge variant="outline" className="mt-1">Converted</Badge>}
+                </td>
+                <td className="px-4 py-3"><Badge variant="outline">{prospect.stage}</Badge></td>
+                <td className="px-4 py-3">{getOwnerName(prospect.ownerId)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-col items-start gap-1">{followUpBadge(status)}<span className={status === "overdue" ? "font-semibold text-red-950" : status === "today" ? "font-semibold text-amber-950" : "text-muted-foreground"}>{displayDate(prospect.nextFollowUpDate)}</span></div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{displayDate(prospect.lastInteractionAt)}</td>
+                <td className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">{prospect.contact || "—"}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    {prospect.convertedProjectId != null && <Button variant="outline" size="sm" asChild><Link href={`/projects/${prospect.convertedProjectId}`}>Open project</Link></Button>}
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(prospect)}>Edit</Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 
   if (!canManage) {
     return (
@@ -423,7 +467,7 @@ export default function Prospects() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
+        {(isLoading || error || workingProspects.length > 0 || visibleProspects.length === 0) && <Card className="border-0 shadow-sm">
           <CardContent className="p-0">
             {isLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Loading prospects…</div> : null}
             {error ? <div className="p-8 text-center text-sm text-red-800">Could not load prospects: {error.message}</div> : null}
@@ -434,42 +478,18 @@ export default function Prospects() {
                 <p className="mt-1 text-sm text-muted-foreground">{recordList.length ? "Try clearing one or more filters." : "Add an opportunity here; it will stay separate from projects until you convert it."}</p>
               </div>
             ) : null}
-            {visibleProspects.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] text-left text-sm">
-                  <thead className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr><th className="px-4 py-3">Opportunity / client organization</th><th className="px-4 py-3">Stage</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Next follow-up</th><th className="px-4 py-3">Last interaction</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {visibleProspects.map((prospect) => {
-                      const status = getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now);
-                      const rowTone = status === "overdue" ? "border-l-4 border-l-red-800 bg-red-50/80" : status === "today" ? "border-l-4 border-l-amber-600 bg-amber-50/80" : "border-l-4 border-l-transparent";
-                      return (
-                        <tr key={prospect.id} className={`border-b last:border-0 ${rowTone}`}>
-                          <td className="px-4 py-3">
-                            <button type="button" onClick={() => setDetailId(prospect.id)} className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
-                              <span className="block font-semibold text-foreground hover:text-primary">{prospect.opportunityName}</span>
-                              {prospect.firm && <span className="block text-xs text-muted-foreground">{prospect.firm}</span>}
-                            </button>
-                            {prospect.convertedProjectId && <Badge variant="outline" className="mt-1">Converted</Badge>}
-                          </td>
-                          <td className="px-4 py-3"><Badge variant="outline">{prospect.stage}</Badge></td>
-                          <td className="px-4 py-3">{getOwnerName(prospect.ownerId)}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col items-start gap-1">{followUpBadge(status)}<span className={status === "overdue" ? "font-semibold text-red-950" : status === "today" ? "font-semibold text-amber-950" : "text-muted-foreground"}>{displayDate(prospect.nextFollowUpDate)}</span></div>
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{displayDate(prospect.lastInteractionAt)}</td>
-                          <td className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">{prospect.contact || "—"}</td>
-                          <td className="px-4 py-3"><Button variant="ghost" size="sm" onClick={() => startEdit(prospect)}>Edit</Button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {workingProspects.length > 0 && renderProspectTable(workingProspects)}
           </CardContent>
-        </Card>
+        </Card>}
+
+        {!isLoading && !error && visibleProspects.length > 0 && workingProspects.length === 0 && (
+          <p className="text-sm text-muted-foreground">All matching prospects are in Converted to projects below.</p>
+        )}
+        {!isLoading && !error && (
+          <ConvertedProspectsSection count={convertedProspects.length} hasActiveFilters={hasActiveFilters}>
+            {renderProspectTable(convertedProspects)}
+          </ConvertedProspectsSection>
+        )}
 
         <Dialog open={draftOpen} onOpenChange={(open) => { setDraftOpen(open); if (!open) setEditId(null); }}>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">

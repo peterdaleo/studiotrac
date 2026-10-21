@@ -10,6 +10,16 @@ export const PROSPECT_STAGES = [
 export type ProspectStage = (typeof PROSPECT_STAGES)[number];
 export type FollowUpStatus = "overdue" | "today" | "upcoming" | "none" | "closed";
 
+// Display grouping only: callers retain the full filtered list for CSV and print.
+export function groupProspectsByConversion<T extends { convertedProjectId: number | null }>(prospects: T[]) {
+  const working: T[] = [];
+  const converted: T[] = [];
+  for (const prospect of prospects) {
+    (prospect.convertedProjectId != null ? converted : working).push(prospect);
+  }
+  return { working, converted };
+}
+
 export function localDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
