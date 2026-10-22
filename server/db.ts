@@ -1,4 +1,5 @@
 import { requireOrganizationId } from "./organizationScope";
+import { assertDatabaseSchemaReady } from "./databaseSchema";
 import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
@@ -46,9 +47,7 @@ export type ProjectUpdateInput = Partial<InsertProject> & {
 };
 
 let _db: ReturnType<typeof drizzle> | null = null;
-let _billingSchemaReady: Promise<void> | null = null;
-let _prospectsSchemaReady: Promise<void> | null = null;
-let _subBudgetSchemaReady: Promise<void> | null = null;
+let _schemaReady: Promise<void> | null = null;
 
 function isMissingTableError(error: unknown) {
   if (!error || typeof error !== "object") return false;
@@ -61,172 +60,10 @@ function isMissingTableError(error: unknown) {
   );
 }
 
-async function ensureProjectBillingSchema(db: NonNullable<typeof _db>) {
-  try {
-    await db.execute(sql`ALTER TABLE projects ADD COLUMN billingType enum('fixed_fee','hourly') NOT NULL DEFAULT 'fixed_fee'`);
-  } catch {
-    try {
-      await db.execute(sql`SELECT billingType FROM projects LIMIT 1`);
-    } catch (readError) {
-      console.warn("[Database] projects.billingType is missing and could not be added:", readError);
-      return;
-    }
-  }
-  await db.execute(sql`ALTER TABLE projects ADD COLUMN hourlyRateCents int NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE projects ADD COLUMN notToExceedCents int NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE projects ADD COLUMN revenueTargetCents int NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS project_billing_phases (
-      id int AUTO_INCREMENT NOT NULL,
-      organizationId int,
-      projectId int NOT NULL,
-      billingType enum('fixed_fee','hourly') NOT NULL,
-      startedAt timestamp NOT NULL,
-      endedAt timestamp NULL,
-      contractedFee int NOT NULL DEFAULT 0,
-      hourlyRateCents int NOT NULL DEFAULT 0,
-      notToExceedCents int NOT NULL DEFAULT 0,
-      revenueTargetCents int NOT NULL DEFAULT 0,
-      notes text,
-      createdAt timestamp NOT NULL DEFAULT (now()),
-      updatedAt timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT project_billing_phases_id PRIMARY KEY(id)
-    )
-  `).catch((error) => {
-    console.warn("[Database] Could not create project_billing_phases:", error);
-  });
-  await db.execute(sql`CREATE INDEX idx_project_billing_phases_project ON project_billing_phases (projectId, startedAt)`).catch(() => {});
-  // Classify only rows that still have the column default, no contract sum,
-  // and no billing history yet. Existing fee-bearing projects stay fixed fee.
-  await db.execute(sql`
-    UPDATE projects
-    SET billingType = 'hourly'
-    WHERE (contractedFee IS NULL OR contractedFee = 0)
-      AND billingType = 'fixed_fee'
-      AND id NOT IN (SELECT projectId FROM project_billing_phases)
-  `).catch(() => {});
-  await db.execute(sql`
-    INSERT INTO project_billing_phases (
-      organizationId, projectId, billingType, startedAt, endedAt,
-      contractedFee, hourlyRateCents, notToExceedCents, revenueTargetCents
-    )
-    SELECT
-      organizationId, id, billingType, COALESCE(startDate, createdAt, CURRENT_TIMESTAMP), NULL,
-      contractedFee, hourlyRateCents, notToExceedCents, revenueTargetCents
-    FROM projects
-    WHERE id NOT IN (SELECT projectId FROM project_billing_phases)
-  `).catch((error) => {
-    console.warn("[Database] Could not seed project billing phases:", error);
-  });
-}
-
-async function ensureProspectsSchema(db: NonNullable<typeof _db>) {
-  try {
-    await db.execute(sql`CREATE TABLE IF NOT EXISTS prospects (
-      id int NOT NULL AUTO_INCREMENT,
-      organizationId int NULL,
-      firm varchar(255) NOT NULL,
-      opportunityName varchar(500) NOT NULL,
-      contact varchar(500) NULL,
-      referralSource varchar(255) NULL,
-      stage enum('New','Contacted','Proposal','Negotiation','Won','Lost') NOT NULL DEFAULT 'New',
-      ownerId int NULL,
-      nextFollowUpDate date NULL,
-      lastInteractionAt date NULL,
-      convertedProjectId int NULL,
-      convertedAt timestamp NULL,
-      createdById int NULL,
-      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      PRIMARY KEY (id),
-      KEY idx_prospects_org_stage (organizationId, stage),
-      KEY idx_prospects_followup (organizationId, nextFollowUpDate)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    try {
-      await db.execute(sql`ALTER TABLE prospects ADD COLUMN lastInteractionAt date NULL`);
-    } catch {
-      await db.execute(sql`SELECT lastInteractionAt FROM prospects LIMIT 1`);
-    }
-    await db.execute(sql`CREATE TABLE IF NOT EXISTS prospect_interactions (
-      id int NOT NULL AUTO_INCREMENT,
-      organizationId int NULL,
-      prospectId int NOT NULL,
-      type enum('note','call','email','meeting','proposal') NOT NULL DEFAULT 'note',
-      content text NOT NULL,
-      happenedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      isPrivate tinyint(1) NOT NULL DEFAULT 0,
-      createdById int NULL,
-      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (id),
-      KEY idx_prospect_interactions_timeline (prospectId, happenedAt),
-      KEY idx_prospect_interactions_org (organizationId)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-  } catch (error) {
-    console.warn("[Database] Could not ensure prospect tables:", error);
-  }
-}
-
-async function ensureSubBudgetSchema(db: NonNullable<typeof _db>) {
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS project_sub_budgets (
-    id int NOT NULL AUTO_INCREMENT,
-    organizationId int NULL,
-    projectId int NOT NULL,
-    name varchar(255) NOT NULL,
-    phase enum('pre_design','schematic_design','design_development','construction_documents','bidding_negotiation','construction_administration','post_occupancy') NULL,
-    description text NULL,
-    budgetCents int NOT NULL,
-    kind enum('within_existing','approved_addition') NOT NULL,
-    trackingMode enum('fixed_amount','hourly') NOT NULL DEFAULT 'fixed_amount',
-    notToExceedCents int NULL,
-    status enum('proposed','approved','complete') NOT NULL DEFAULT 'proposed',
-    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_project_sub_budgets_project (projectId),
-    KEY idx_project_sub_budgets_org_project (organizationId, projectId),
-    KEY idx_project_sub_budgets_status_kind (projectId, kind, status)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-
-  // Upgrade existing installations without touching legacy status or budget values.
-  for (const [column, addSql, selectSql] of [
-    ["trackingMode", sql`ALTER TABLE project_sub_budgets ADD COLUMN trackingMode enum('fixed_amount','hourly') NOT NULL DEFAULT 'fixed_amount'`, sql`SELECT trackingMode FROM project_sub_budgets LIMIT 1`],
-    ["notToExceedCents", sql`ALTER TABLE project_sub_budgets ADD COLUMN notToExceedCents int NULL`, sql`SELECT notToExceedCents FROM project_sub_budgets LIMIT 1`],
-  ] as const) {
-    try {
-      await db.execute(addSql);
-    } catch {
-      try {
-        await db.execute(selectSql);
-      } catch (error) {
-        console.error(`[Database] Required project_sub_budgets.${column} column could not be ensured:`, error);
-        throw error;
-      }
-    }
-  }
-
-  for (const table of ["time_entries", "consultant_contracts"] as const) {
-    try {
-      if (table === "time_entries") await db.execute(sql`ALTER TABLE time_entries ADD COLUMN subBudgetId int NULL`);
-      else await db.execute(sql`ALTER TABLE consultant_contracts ADD COLUMN subBudgetId int NULL`);
-    } catch {
-      try {
-        if (table === "time_entries") await db.execute(sql`SELECT subBudgetId FROM time_entries LIMIT 1`);
-        else await db.execute(sql`SELECT subBudgetId FROM consultant_contracts LIMIT 1`);
-      } catch (error) {
-        console.error(`[Database] Required ${table}.subBudgetId column could not be ensured:`, error);
-        throw error;
-      }
-    }
-  }
-  await db.execute(sql`CREATE INDEX idx_time_entries_sub_budget ON time_entries (subBudgetId)`).catch(() => {});
-  await db.execute(sql`CREATE INDEX idx_consultant_contracts_sub_budget ON consultant_contracts (subBudgetId)`).catch(() => {});
-}
-
+/** Validate existing metadata only. Schema changes/backfills require a separate reviewed migration. */
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // Use an explicit pool with higher connectionLimit (default is 10 which
-      // causes queuing when multiple concurrent queries are in-flight).
       const pool = createPool({
         uri: process.env.DATABASE_URL,
         connectionLimit: 25,
@@ -235,35 +72,16 @@ export async function getDb() {
         supportBigNumbers: true,
       });
       _db = drizzle(pool);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
+    } catch {
+      // Never echo a connection URL or driver error containing credentials.
+      throw new Error("Database connection configuration is invalid.");
     }
   }
-  if (_db && !_billingSchemaReady) {
-    _billingSchemaReady = ensureProjectBillingSchema(_db).catch((error) => {
-      console.warn("[Database] Billing schema ensure failed:", error);
-    });
-  }
-  if (_db && !_prospectsSchemaReady) {
-    _prospectsSchemaReady = ensureProspectsSchema(_db).catch((error) => {
-      console.warn("[Database] Prospect schema ensure failed:", error);
-    });
-  }
-  if (_db && !_subBudgetSchemaReady) {
-    _subBudgetSchemaReady = ensureSubBudgetSchema(_db).catch((error) => {
-      console.error("[Database] Required sub-budget schema ensure failed:", error);
-      throw error;
-    });
-  }
-  if (_billingSchemaReady) {
-    await _billingSchemaReady;
-  }
-  if (_prospectsSchemaReady) {
-    await _prospectsSchemaReady;
-  }
-  if (_subBudgetSchemaReady) {
-    await _subBudgetSchemaReady;
+  if (_db) {
+    // Keep rejection cached too: no request may bypass failed readiness checks.
+    // Concurrent callers share one read-only validation per process.
+    if (!_schemaReady) _schemaReady = assertDatabaseSchemaReady(_db);
+    await _schemaReady;
   }
   return _db;
 }

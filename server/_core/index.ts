@@ -14,6 +14,8 @@ import cors from "cors";
 import { sdk } from "./sdk";
 import { createCoordinationImageHandler } from "./coordinationImageRoute";
 import { createProtectedUploadHandler, createUploadAuthorizer } from "./protectedUploadRoute";
+import { getDb } from "../db";
+import { DatabaseSchemaValidationError } from "../databaseSchema";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,6 +37,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // No listener, background job, schema repair, or billing backfill before readiness.
+  if (!(await getDb())) throw new Error("Database connection is not configured.");
+
   const app = express();
   const server = createServer(app);
 
@@ -132,10 +137,14 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    startCoordinationCron();
   });
 }
 
-startServer().catch(console.error);
-
-// Start background cron jobs
-startCoordinationCron();
+startServer().catch(error => {
+  // Only the validation error contains intentionally sanitized metadata diagnostics.
+  console.error("[Startup] Server did not start:", error instanceof DatabaseSchemaValidationError
+    ? error.message
+    : "Database readiness or server startup failed. Automatic database changes are disabled.");
+  process.exit(1);
+});
