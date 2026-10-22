@@ -1,6 +1,7 @@
 // Local filesystem storage — Railway-compatible, no external dependencies
 import fs from "fs";
 import path from "path";
+import { isSafeUploadKey } from "./_core/protectedUploadRoute";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
 
@@ -10,7 +11,8 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
+  if (!isSafeUploadKey(relKey)) throw new Error("Invalid storage key");
+  return relKey;
 }
 
 export async function storagePut(

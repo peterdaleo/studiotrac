@@ -11,6 +11,11 @@ import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe/webhooks";
 import { startCoordinationCron } from "../coordinationCron";
 import cors from "cors";
+import { sdk } from "./sdk";
+import { createCoordinationImageHandler } from "./coordinationImageRoute";
+import { createProtectedUploadHandler, createUploadAuthorizer, getLocalUploadUrl } from "./protectedUploadRoute";
+import { getDb } from "../db";
+import { DatabaseSchemaValidationError } from "../databaseSchema";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -32,6 +37,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // No listener, background job, schema repair, or billing backfill before readiness.
+  if (!(await getDb())) throw new Error("Database connection is not configured.");
+
   const app = express();
   const server = createServer(app);
 
@@ -48,37 +56,61 @@ async function startServer() {
     credentials: true,
   }));
 
-  // Serve uploaded files from /uploads
+  // Private project files require their tenant session or an existing portal capability.
   const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
-  app.use("/uploads", express.static(uploadDir));
+  app.get("/uploads/*", createProtectedUploadHandler({ authorizeFile: createUploadAuthorizer({
+    uploadDir,
+    getAuthenticatedOrganizationId: async req => (await sdk.authenticateRequest(req)).organizationId,
+    loadShare: async token => (await import("../db")).getShareToken(token).then(value => value ?? null),
+    loadFile: async key => {
+      const { getDb } = await import("../db");
+      const database = await getDb();
+      if (!database) return null;
+      const localUrl = getLocalUploadUrl(key);
+      if (!localUrl) return null;
+      const { projectFiles, projects } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [file] = await database.select({ fileName: projectFiles.fileName, projectId: projectFiles.projectId,
+        organizationId: projects.organizationId, fileOrganizationId: projectFiles.organizationId,
+        isClientVisible: projectFiles.isClientVisible, clientName: projects.clientName })
+        .from(projectFiles).innerJoin(projects, eq(projectFiles.projectId, projects.id))
+        .where(eq(projectFiles.url, localUrl)).limit(1);
+      return file ?? null;
+    },
+  }) }));
 
-  // Serve coordination sheet images from database (base64 stored in DB)
-  app.get("/api/coordination-image/:id", async (req, res) => {
-    try {
+  // Serve coordination sheet images only through same-org sessions or scoped share capabilities.
+  app.get("/api/coordination-image/:id", createCoordinationImageHandler({
+    getAuthenticatedOrganizationId: async req => {
+      const user = await sdk.authenticateRequest(req);
+      return user.organizationId ?? null;
+    },
+    loadImage: async attachmentId => {
       const { getDb } = await import("../db");
       const db = await getDb();
-      const { coordinationAttachments } = await import("../../drizzle/schema");
+      const { coordinationAttachments, coordinationItems, coordinationSheets, projects } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       if (!db) throw new Error("Database not available");
       const [att] = await db.select({
+        id: coordinationAttachments.id,
         fileData: coordinationAttachments.fileData,
         mimeType: coordinationAttachments.mimeType,
         fileName: coordinationAttachments.fileName,
-      }).from(coordinationAttachments).where(eq(coordinationAttachments.id, parseInt(req.params.id)));
-      if (!att || !att.fileData) {
-        return res.status(404).send("Image not found");
-      }
-      const buffer = Buffer.from(att.fileData, "base64");
-      res.setHeader("Content-Type", att.mimeType || "image/png");
-      res.setHeader("Content-Length", buffer.length);
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      if (att.fileName) res.setHeader("Content-Disposition", `inline; filename="${att.fileName}"`);
-      res.send(buffer);
-    } catch (e) {
-      console.error("Error serving coordination image:", e);
-      res.status(500).send("Internal server error");
+        attachmentType: coordinationAttachments.type,
+        itemVisibility: coordinationItems.visibility,
+        sheetIsActive: coordinationSheets.isActive,
+        sheetOrganizationId: coordinationSheets.organizationId,
+        projectOrganizationId: projects.organizationId,
+        mainToken: coordinationSheets.token,
+        clientToken: coordinationSheets.clientToken,
+      }).from(coordinationAttachments)
+        .innerJoin(coordinationItems, eq(coordinationAttachments.itemId, coordinationItems.id))
+        .innerJoin(coordinationSheets, eq(coordinationItems.sheetId, coordinationSheets.id))
+        .innerJoin(projects, eq(coordinationSheets.projectId, projects.id))
+        .where(eq(coordinationAttachments.id, attachmentId)).limit(1);
+      return att ?? null;
     }
-  });
+  }));
 
   // Auth routes (signup/login)
   registerOAuthRoutes(app);
@@ -108,10 +140,14 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    startCoordinationCron();
   });
 }
 
-startServer().catch(console.error);
-
-// Start background cron jobs
-startCoordinationCron();
+startServer().catch(error => {
+  // Only the validation error contains intentionally sanitized metadata diagnostics.
+  console.error("[Startup] Server did not start:", error instanceof DatabaseSchemaValidationError
+    ? error.message
+    : "Database readiness or server startup failed. Automatic database changes are disabled.");
+  process.exit(1);
+});

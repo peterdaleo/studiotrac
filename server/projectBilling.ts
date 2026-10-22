@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { requireOrganizationId } from "./organizationScope";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   consultantContracts,
   projectBillingPhases,
@@ -262,9 +263,10 @@ export async function applyProjectBillingUpdate(
   };
 }
 
-export async function buildUserBillingRateMap(db: DbClient) {
-  const allMembers = await db.select().from(teamMembers);
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+export async function buildUserBillingRateMap(db: DbClient, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
+  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.organizationId, orgId));
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.organizationId, orgId));
   const userIdToBillingRate = new Map<number, number>();
   for (const member of allMembers) {
     if (member.userId) userIdToBillingRate.set(member.userId, member.billingRate);
@@ -391,6 +393,7 @@ export async function getProjectBudgetContext(projectId: number) {
 
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project) return empty;
+  requireOrganizationId(project.organizationId);
   const approvedAdditionsCents = (await approvedAdditionTotals(db, [projectId])).get(projectId) ?? 0;
   const originalBudgetCents = project.billingType === "hourly" ? project.notToExceedCents || 0 : project.contractedFee || 0;
   const approvedBudgetCents = project.billingType === "hourly" && originalBudgetCents === 0
@@ -403,14 +406,14 @@ export async function getProjectBudgetContext(projectId: number) {
     status: projectSubBudgets.status,
     trackingMode: projectSubBudgets.trackingMode,
     notToExceedCents: projectSubBudgets.notToExceedCents,
-  }).from(projectSubBudgets).where(eq(projectSubBudgets.projectId, projectId));
+  }).from(projectSubBudgets).where(and(eq(projectSubBudgets.projectId, projectId), eq(projectSubBudgets.organizationId, project.organizationId)));
   const subBudgets = new Map<number, SubBudgetCapMetadata>(subBudgetRows.map((row) => [row.id, {
     kind: row.kind,
     status: row.status,
     trackingMode: row.trackingMode,
     notToExceedCents: row.notToExceedCents,
   }]));
-  const rates = await buildUserBillingRateMap(db);
+  const rates = await buildUserBillingRateMap(db, project.organizationId);
   const laborRows = await db
     .select({
       projectId: timeEntries.projectId,
@@ -421,7 +424,7 @@ export async function getProjectBudgetContext(projectId: number) {
       startTime: timeEntries.startTime,
     })
     .from(timeEntries)
-    .where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
+    .where(and(eq(timeEntries.projectId, projectId), eq(timeEntries.organizationId, project.organizationId), sql`${timeEntries.endTime} IS NOT NULL`));
 
   const consultantRows = await db
     .select({
@@ -431,7 +434,7 @@ export async function getProjectBudgetContext(projectId: number) {
       createdAt: consultantContracts.createdAt,
     })
     .from(consultantContracts)
-    .where(eq(consultantContracts.projectId, projectId));
+    .where(and(eq(consultantContracts.projectId, projectId), or(eq(consultantContracts.organizationId, project.organizationId), isNull(consultantContracts.organizationId))));
 
   let costs = emptyCostSlice();
   for (const row of laborRows) {
@@ -471,6 +474,7 @@ export async function getProjectBudgetContext(projectId: number) {
 }
 
 export async function getAllProjectsBudgetSummary(orgId?: number | null): Promise<BudgetSummaryRow[]> {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
 
@@ -496,7 +500,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
     status: projectSubBudgets.status,
     trackingMode: projectSubBudgets.trackingMode,
     notToExceedCents: projectSubBudgets.notToExceedCents,
-  }).from(projectSubBudgets).where(inArray(projectSubBudgets.projectId, allProjects.map((project) => project.id)));
+  }).from(projectSubBudgets).where(and(eq(projectSubBudgets.organizationId, orgId), inArray(projectSubBudgets.projectId, allProjects.map((project) => project.id))));
   const subBudgets = new Map<number, SubBudgetCapMetadata>(subBudgetRows.map((row) => [row.id, {
     kind: row.kind,
     status: row.status,
@@ -504,7 +508,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
     notToExceedCents: row.notToExceedCents,
   }]));
 
-  const rates = await buildUserBillingRateMap(db);
+  const rates = await buildUserBillingRateMap(db, orgId);
   const laborEntries = await db
     .select({
       projectId: timeEntries.projectId,
@@ -515,7 +519,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
       startTime: timeEntries.startTime,
     })
     .from(timeEntries)
-    .where(sql`${timeEntries.endTime} IS NOT NULL`);
+    .where(and(eq(timeEntries.organizationId, orgId), inArray(timeEntries.projectId, allProjects.map(project => project.id)), sql`${timeEntries.endTime} IS NOT NULL`));
 
   const laborByProject = new Map<number, CostSlice>();
   const laborRowsByProject = new Map<number, RawLaborRow[]>();
@@ -534,7 +538,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
       contractAmount: consultantContracts.contractAmount,
       createdAt: consultantContracts.createdAt,
     })
-    .from(consultantContracts);
+    .from(consultantContracts).where(and(or(eq(consultantContracts.organizationId, orgId), isNull(consultantContracts.organizationId)), inArray(consultantContracts.projectId, allProjects.map(project => project.id))));
 
   const consultantByProject = new Map<number, number>();
   const cappedConsultantByProject = new Map<number, number>();
@@ -551,7 +555,7 @@ export async function getAllProjectsBudgetSummary(orgId?: number | null): Promis
 
   let phases: ProjectBillingPhase[] = [];
   try {
-    phases = await db.select().from(projectBillingPhases);
+    phases = await db.select().from(projectBillingPhases).where(inArray(projectBillingPhases.projectId, allProjects.map(project => project.id)));
   } catch (error) {
     console.warn("[Database] project_billing_phases is not available yet:", error);
   }

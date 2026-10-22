@@ -1,3 +1,4 @@
+import { createSafeCoordinationNotice } from "./coordinationNotifications";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 import { COOKIE_NAME } from "@shared/const";
@@ -18,6 +19,8 @@ import { createInviteSignupUrl, createInviteToken } from "./_core/invite";
 import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
 import { PROJECT_PHASES, toSubBudgetStatusItem } from "@shared/subBudgets";
+import { assertTenantEntity, assertTenantReference, filterTenantRows, listOrganizationEmailLog } from "./tenantAuthorization";
+import { getLocalUploadUrl } from "./_core/protectedUploadRoute";
 // Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
 // The 20MB Twilio package loaded statically was causing the container to crash within ~14s.
 let _resend: import("resend").Resend | null = null;
@@ -63,6 +66,14 @@ function requireFeature(has: boolean, featureName: string) {
       message: `Upgrade your plan to access ${featureName}.`,
     });
   }
+}
+
+async function requireCoordinationItem(sheet: { id: number; organizationId: number | null; clientToken?: string | null }, itemId: number, token: string) {
+  const item = await assertTenantEntity("coordinationItem", itemId, sheet.organizationId);
+  if (item.sheetId !== sheet.id || (sheet.clientToken === token && item.visibility !== "client")) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
+  }
+  return item;
 }
 
 function requireProspectOrganization(organizationId: number | null) {
@@ -138,8 +149,11 @@ export const appRouter = router({
 
   // ── Team Members ─────────────────────────────────────────────
   teamMembers: router({
-    list: protectedProcedure.query(({ ctx }) => db.listTeamMembers(ctx.organizationId)),
-    get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMember(input.id)),
+    list: protectedProcedure.query(async ({ ctx }) => filterTenantRows("teamMember", await db.listTeamMembers(ctx.organizationId), ctx.organizationId)),
+    get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("teamMember", input.id, ctx.organizationId);
+      return db.getTeamMember(input.id);
+    }),
     create: adminProcedure.input(z.object({
       name: z.string().min(1),
       email: z.string().email().optional(),
@@ -164,12 +178,19 @@ export const appRouter = router({
       avatarColor: z.string().optional(),
       isActive: z.boolean().optional(),
       billingRate: z.number().min(0).optional(),
-    })).mutation(({ input }) => {
+     })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await assertTenantEntity("teamMember", id, ctx.organizationId);
       return db.updateTeamMember(id, data);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamMember(input.id)),
-    stats: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamMemberStats(input.id)),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("teamMember", input.id, ctx.organizationId);
+      return db.deleteTeamMember(input.id);
+    }),
+    stats: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("teamMember", input.id, ctx.organizationId);
+      return db.getTeamMemberStats(input.id);
+    }),
     updateRole: adminProcedure.input(z.object({
       userId: z.number(),
       role: z.enum(["user", "pm", "admin"]),
@@ -178,7 +199,8 @@ export const appRouter = router({
       if (input.userId === ctx.user.id && input.role !== "admin") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot change your own role" });
       }
-      await db.updateUserRole(input.userId, input.role);
+      await assertTenantEntity("user", input.userId, ctx.organizationId);
+      await db.updateUserRole(input.userId, input.role, ctx.organizationId);
       return { success: true };
     }),
     listUsers: adminProcedure.query(({ ctx }) => db.listUsers(ctx.organizationId)),
@@ -186,7 +208,8 @@ export const appRouter = router({
       if (input.userId === ctx.user.id) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself from the organization" });
       }
-      await db.removeFromOrganization(input.userId);
+      await assertTenantEntity("user", input.userId, ctx.organizationId);
+      await db.removeFromOrganization(input.userId, ctx.organizationId);
       return { success: true };
     }),
     resetPassword: adminProcedure.input(z.object({
@@ -198,6 +221,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Use your account settings to change your own password" });
       }
       // Verify the target user exists and uses email/password auth
+      await assertTenantEntity("user", input.userId, ctx.organizationId);
       const targetUser = await db.getUserById(input.userId);
       if (!targetUser) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
@@ -206,7 +230,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "This user signed up with Google and does not have a password to reset" });
       }
       const passwordHash = await bcrypt.hash(input.newPassword, 12);
-      await db.updateUserPassword(input.userId, passwordHash);
+      await db.updateUserPassword(input.userId, passwordHash, ctx.organizationId);
       return { success: true };
     }),
     invite: adminProcedure.input(z.object({
@@ -277,9 +301,17 @@ export const appRouter = router({
       teamMemberId: z.number().optional(),
       startDate: z.date().optional(),
       endDate: z.date().optional(),
-    }).optional()).query(({ input, ctx }) => db.listTeamAbsences(input ?? undefined, ctx.organizationId)),
-    get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTeamAbsence(input.id)),
+    }).optional()).query(async ({ input, ctx }) => {
+      if (input?.teamMemberId != null) await assertTenantEntity("teamMember", input.teamMemberId, ctx.organizationId);
+      return filterTenantRows("teamAbsence", await db.listTeamAbsences(input ?? undefined, ctx.organizationId), ctx.organizationId);
+    }),
+    get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("teamAbsence", input.id, ctx.organizationId);
+      return db.getTeamAbsence(input.id);
+    }),
     create: protectedProcedure.input(teamAbsenceSchema).mutation(async ({ input, ctx }) => {
+      const member = await assertTenantEntity("teamMember", input.teamMemberId, ctx.organizationId);
+      if (ctx.user.role !== "admin" && member.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only request absence for yourself" });
       const isAdmin = ctx.user.role === "admin";
       const approvalStatus = isAdmin ? "approved" : "pending";
       const absence = await db.createTeamAbsence({
@@ -305,8 +337,11 @@ export const appRouter = router({
       }
       return absence;
     }),
-    update: protectedProcedure.input(teamAbsenceSchema.safeExtend({ id: z.number() })).mutation(({ input }) => {
+    update: protectedProcedure.input(teamAbsenceSchema.safeExtend({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const absence = await assertTenantEntity("teamAbsence", id, ctx.organizationId);
+      const member = await assertTenantEntity("teamMember", data.teamMemberId, ctx.organizationId);
+      if (ctx.user.role !== "admin" && (absence.createdById !== ctx.user.id || member.userId !== ctx.user.id)) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
       return db.updateTeamAbsence(id, {
         ...data,
         notes: data.notes ?? null,
@@ -315,6 +350,7 @@ export const appRouter = router({
       });
     }),
     approve: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("teamAbsence", input.id, ctx.organizationId);
       await db.updateTeamAbsence(input.id, { approvalStatus: "approved" });
       // Notify the requesting user
       const absence = await db.getTeamAbsence(input.id);
@@ -335,6 +371,7 @@ export const appRouter = router({
       return { success: true };
     }),
     reject: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("teamAbsence", input.id, ctx.organizationId);
       await db.updateTeamAbsence(input.id, { approvalStatus: "rejected" });
       // Notify the requesting user
       const absence = await db.getTeamAbsence(input.id);
@@ -354,7 +391,11 @@ export const appRouter = router({
       }
       return { success: true };
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTeamAbsence(input.id)),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      const absence = await assertTenantEntity("teamAbsence", input.id, ctx.organizationId);
+      if (ctx.user.role !== "admin" && (absence.createdById !== ctx.user.id || absence.approvalStatus !== "pending")) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
+      return db.deleteTeamAbsence(input.id);
+    }),
   }),
 
   // ── Prospects ────────────────────────────────────────────────
@@ -416,9 +457,13 @@ export const appRouter = router({
         return summary.items.map(toSubBudgetStatusItem);
       }),
     list: adminOrPmProcedure.input(z.object({ projectId: z.number().int().positive() }))
-      .query(({ input, ctx }) => db.listProjectSubBudgets(input.projectId, ctx.organizationId)),
+      .query(async ({ input, ctx }) => {
+        return db.listProjectSubBudgets(input.projectId, ctx.organizationId);
+      }),
     options: protectedProcedure.input(z.object({ projectId: z.number().int().positive() }))
-      .query(({ input, ctx }) => db.listProjectSubBudgetOptions(input.projectId, ctx.organizationId)),
+      .query(async ({ input, ctx }) => {
+        return db.listProjectSubBudgetOptions(input.projectId, ctx.organizationId);
+      }),
     create: adminOrPmProcedure.input(z.object({
       projectId: z.number().int().positive(),
       name: z.string().trim().min(1).max(255),
@@ -432,11 +477,13 @@ export const appRouter = router({
       if (value.trackingMode === "fixed_amount" && value.notToExceedCents != null) {
         issue.addIssue({ code: z.ZodIssueCode.custom, path: ["notToExceedCents"], message: "NTE applies only to hourly sub-budgets" });
       }
-    })).mutation(({ input, ctx }) => db.createProjectSubBudget({
+    })).mutation(async ({ input, ctx }) => {
+      return db.createProjectSubBudget({
       ...input,
       phase: input.phase ?? null,
       description: input.description ?? null,
-    }, ctx.organizationId)),
+      }, ctx.organizationId);
+    }),
     update: adminOrPmProcedure.input(z.object({
       id: z.number().int().positive(),
       name: z.string().trim().min(1).max(255).optional(),
@@ -450,12 +497,14 @@ export const appRouter = router({
       if (value.trackingMode === "fixed_amount" && value.notToExceedCents != null) {
         issue.addIssue({ code: z.ZodIssueCode.custom, path: ["notToExceedCents"], message: "NTE applies only to hourly sub-budgets" });
       }
-    })).mutation(({ input, ctx }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       return db.updateProjectSubBudget(id, data, ctx.organizationId);
     }),
     delete: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ input, ctx }) => db.deleteProjectSubBudget(input.id, ctx.organizationId)),
+      .mutation(async ({ input, ctx }) => {
+        return db.deleteProjectSubBudget(input.id, ctx.organizationId);
+      }),
   }),
 
   // ── Projects ─────────────────────────────────────────────────
@@ -464,8 +513,14 @@ export const appRouter = router({
       status: z.string().optional(),
       phase: z.string().optional(),
       managerId: z.number().optional(),
-    }).optional()).query(({ input, ctx }) => db.listProjects(input ?? undefined, ctx.organizationId)),
-    get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getProject(input.id)),
+    }).optional()).query(async ({ input, ctx }) => {
+      if (input?.managerId != null) await assertTenantEntity("teamMember", input.managerId, ctx.organizationId);
+      return filterTenantRows("project", await db.listProjects(input ?? undefined, ctx.organizationId), ctx.organizationId);
+    }),
+    get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.id, ctx.organizationId);
+      return db.getProject(input.id);
+    }),
     financialSummary: adminOrPmProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
       await db.assertProjectInOrganization(input.id, ctx.organizationId);
       const project = await db.getProject(input.id);
@@ -515,6 +570,7 @@ export const appRouter = router({
       revenueTargetCents: z.number().int().min(0).optional(),
       driveFolderUrl: z.string().optional().nullable(),
     })).mutation(async ({ input, ctx }) => {
+      await assertTenantReference("teamMember", input.projectManagerId, ctx.organizationId);
       const limits = await getOrgPlanLimits(ctx);
       const allProjects = await db.listProjects(undefined, ctx.organizationId);
       const activeProjects = allProjects.filter((p: any) => p.status !== "completed");
@@ -555,8 +611,10 @@ export const appRouter = router({
       billingChangeDate: z.date().optional().nullable(),
       billingChangeNotes: z.string().optional().nullable(),
       driveFolderUrl: z.string().optional().nullable(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await assertTenantEntity("project", id, ctx.organizationId);
+      if (data.projectManagerId !== undefined) await assertTenantReference("teamMember", data.projectManagerId, ctx.organizationId);
 
       // If completionPercentage is being updated, check for milestone triggers
       if (data.completionPercentage !== undefined) {
@@ -584,7 +642,7 @@ export const appRouter = router({
 
           // Send email notifications for newly triggered milestones
           if (milestonesToTrigger.length > 0) {
-            const billingEmails = await db.listBillingDepartmentEmails();
+            const billingEmails = await db.listBillingDepartmentEmails(ctx.organizationId);
             const recipients = billingEmails.map(e => e.emailAddress);
             if (recipients.length > 0) {
               for (const milestone of milestonesToTrigger) {
@@ -604,12 +662,18 @@ export const appRouter = router({
 
       return db.updateProject(id, data);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProject(input.id)),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.id, ctx.organizationId);
+      return db.deleteProject(input.id);
+    }),
     purgeArchived: adminProcedure.mutation(({ ctx }) => {
       if (ctx.organizationId == null) throw new TRPCError({ code: "FORBIDDEN", message: "Organization required" });
       return db.purgeArchivedProjects(ctx.organizationId);
     }),
-    billingPhases: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectBillingPhases(input.projectId)),
+    billingPhases: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.listProjectBillingPhases(input.projectId);
+    }),
   }),
 
   // ── Tasks ────────────────────────────────────────────────────
@@ -618,8 +682,15 @@ export const appRouter = router({
       projectId: z.number().optional(),
       assigneeId: z.number().optional(),
       status: z.string().optional(),
-    }).optional()).query(({ input, ctx }) => db.listTasks(input ?? undefined, ctx.organizationId)),
-    get: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getTask(input.id)),
+    }).optional()).query(async ({ input, ctx }) => {
+      if (input?.projectId != null) await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      if (input?.assigneeId != null) await assertTenantEntity("teamMember", input.assigneeId, ctx.organizationId);
+      return filterTenantRows("task", await db.listTasks(input ?? undefined, ctx.organizationId), ctx.organizationId);
+    }),
+    get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("task", input.id, ctx.organizationId);
+      return db.getTask(input.id);
+    }),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
       assigneeId: z.number().optional().nullable(),
@@ -630,7 +701,11 @@ export const appRouter = router({
       sortOrder: z.number().optional(),
       startDate: z.date().optional().nullable(),
       deadline: z.date().optional().nullable(),
-    })).mutation(({ input, ctx }) => db.createTask(input, ctx.organizationId)),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      await assertTenantReference("teamMember", input.assigneeId, ctx.organizationId);
+      return db.createTask(input, ctx.organizationId);
+    }),
     update: protectedProcedure.input(z.object({
       id: z.number(),
       assigneeId: z.number().optional().nullable(),
@@ -643,28 +718,32 @@ export const appRouter = router({
       deadline: z.date().optional().nullable(),
       completedAt: z.date().optional().nullable(),
     })).mutation(async ({ input, ctx }) => {
-      // Staff can only update their own tasks
-      if (ctx.user.role !== 'admin') {
-        const task = await db.getTask(input.id);
-        if (task && task.assigneeId !== null) {
-          // Allow if user is the assignee (match by user id or team member linked to user)
-          // For simplicity, staff can edit any task they can see — restrict delete only
-        }
+      const task = await assertTenantEntity("task", input.id, ctx.organizationId);
+      await assertTenantReference("teamMember", input.assigneeId, ctx.organizationId);
+      if (ctx.user.role !== "admin") {
+        if (task.assigneeId == null) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you" });
+        const assignee = await assertTenantEntity("teamMember", task.assigneeId, ctx.organizationId);
+        if (assignee.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you" });
+        if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) throw new TRPCError({ code: "FORBIDDEN", message: "You cannot reassign this task" });
       }
       const { id, ...data } = input;
       return db.updateTask(id, data);
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== 'admin') {
-        const task = await db.getTask(input.id);
-        if (!task) return;
-        // Staff can only delete tasks they created or are assigned to — simplified check
+      const task = await assertTenantEntity("task", input.id, ctx.organizationId);
+      if (ctx.user.role !== "admin") {
+        if (task.assigneeId == null) throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete tasks assigned to you" });
+        const assignee = await assertTenantEntity("teamMember", task.assigneeId, ctx.organizationId);
+        if (assignee.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete tasks assigned to you" });
       }
       return db.deleteTask(input.id);
     }),
     reorder: protectedProcedure.input(z.object({
       taskOrders: z.array(z.object({ id: z.number(), sortOrder: z.number() })),
-    })).mutation(({ input }) => db.reorderTasks(input.taskOrders)),
+    })).mutation(async ({ input, ctx }) => {
+      await Promise.all(input.taskOrders.map(({ id }) => assertTenantEntity("task", id, ctx.organizationId)));
+      return db.reorderTasks(input.taskOrders);
+    }),
     purgeArchived: adminProcedure.mutation(({ ctx }) => {
       if (ctx.organizationId == null) throw new TRPCError({ code: "FORBIDDEN", message: "Organization required" });
       return db.purgeArchivedTasks(ctx.organizationId);
@@ -673,56 +752,82 @@ export const appRouter = router({
 
   // ── Project Notes ────────────────────────────────────────────
   notes: router({
-    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectNotes(input.projectId)),
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return filterTenantRows("projectNote", await db.listProjectNotes(input.projectId), ctx.organizationId);
+    }),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
       content: z.string().min(1),
       isClientVisible: z.boolean().optional(),
-    })).mutation(({ input, ctx }) => db.createProjectNote({ ...input, authorId: ctx.user.id })),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.createProjectNote({ ...input, authorId: ctx.user.id, organizationId: ctx.organizationId });
+    }),
     update: protectedProcedure.input(z.object({
       id: z.number(),
       content: z.string().min(1).optional(),
       isClientVisible: z.boolean().optional(),
-    })).mutation(({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await assertTenantEntity("projectNote", id, ctx.organizationId);
       return db.updateProjectNote(id, data);
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProjectNote(input.id)),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("projectNote", input.id, ctx.organizationId);
+      return db.deleteProjectNote(input.id);
+    }),
   }),
 
   // ── Project Files ────────────────────────────────────────────
   files: router({
-    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectFiles(input.projectId)),
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return filterTenantRows("projectFile", await db.listProjectFiles(input.projectId, ctx.organizationId), ctx.organizationId);
+    }),
     upload: protectedProcedure.input(z.object({
       projectId: z.number(),
       fileName: z.string().min(1),
       fileData: z.string(), // base64 encoded
       mimeType: z.string().optional(),
       fileSize: z.number().optional(),
-      category: z.enum(["drawing", "specification", "correspondence", "photo", "contract", "other"]).optional(),
+      category: z.enum(["document", "drawing", "image", "other"]).optional(),
     })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
       const buffer = Buffer.from(input.fileData, "base64");
       const ext = input.fileName.split(".").pop() || "bin";
       const fileKey = `projects/${input.projectId}/files/${nanoid()}.${ext}`;
-      const { url } = await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
+      const url = getLocalUploadUrl(fileKey);
+      if (!url) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid upload key" });
+      await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
       return db.createProjectFile({
+        organizationId: ctx.organizationId,
         projectId: input.projectId,
         uploadedById: ctx.user.id,
         fileName: input.fileName,
-        fileKey,
         url,
         mimeType: input.mimeType,
         fileSize: input.fileSize,
         category: input.category || "other",
+        isClientVisible: false,
       });
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteProjectFile(input.id)),
-    count: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectFileCount(input.projectId)),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("projectFile", input.id, ctx.organizationId);
+      return db.deleteProjectFile(input.id);
+    }),
+    count: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.getProjectFileCount(input.projectId, ctx.organizationId);
+    }),
   }),
 
   // ── Invoices ────────────────────────────────────────────────
   invoices: router({
-    list: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listInvoices(input.projectId)),
+    list: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return filterTenantRows("invoice", await db.listInvoices(input.projectId), ctx.organizationId);
+    }),
     create: adminOrPmProcedure.input(z.object({
       projectId: z.number(),
       amount: z.number().min(0),
@@ -732,7 +837,10 @@ export const appRouter = router({
       invoiceDate: z.date().optional(),
       dueDate: z.date().optional().nullable(),
       paidDate: z.date().optional().nullable(),
-    })).mutation(({ input, ctx }) => db.createInvoice(input, ctx.organizationId)),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.createInvoice(input, ctx.organizationId);
+    }),
     update: adminOrPmProcedure.input(z.object({
       id: z.number(),
       amount: z.number().min(0).optional(),
@@ -742,11 +850,15 @@ export const appRouter = router({
       invoiceDate: z.date().optional(),
       dueDate: z.date().optional().nullable(),
       paidDate: z.date().optional().nullable(),
-    })).mutation(({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await assertTenantEntity("invoice", id, ctx.organizationId);
       return db.updateInvoice(id, data);
     }),
-    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteInvoice(input.id)),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("invoice", input.id, ctx.organizationId);
+      return db.deleteInvoice(input.id);
+    }),
   }),
 
   // ── Financial Overview ──────────────────────────────────────
@@ -780,9 +892,13 @@ export const appRouter = router({
   // ── Notifications ────────────────────────────────────────────
   notifications: router({
     list: protectedProcedure.query(({ ctx }) => db.listNotifications(ctx.user.id, 50, ctx.organizationId)),
-    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id)),
-    markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.markNotificationRead(input.id)),
-    markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id)),
+    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id, ctx.organizationId)),
+    markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      const notification = await assertTenantEntity("notification", input.id, ctx.organizationId);
+      if (notification.userId != null && notification.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
+      return db.markNotificationRead(input.id);
+    }),
+    markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id, ctx.organizationId)),
   }),
 
   // ── Billing Department Emails ────────────────────────────────
@@ -793,29 +909,31 @@ export const appRouter = router({
     })).mutation(({ input, ctx }) => db.addBillingDepartmentEmail(input.emailAddress, ctx.organizationId)),
     remove: adminProcedure.input(z.object({
       id: z.number(),
-    })).mutation(({ input }) => db.removeBillingDepartmentEmail(input.id)),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("billingEmail", input.id, ctx.organizationId);
+      return db.removeBillingDepartmentEmail(input.id);
+    }),
   }),
 
   // ── Email Preferences ───────────────────────────────────────
   emailPreferences: router({
     get: protectedProcedure.query(({ ctx }) => db.getEmailPreferences(ctx.user.id)),
     upsert: protectedProcedure.input(z.object({
-      emailAddress: z.string().email(),
       deadlineAlerts: z.boolean().optional(),
       overdueAlerts: z.boolean().optional(),
       statusChangeAlerts: z.boolean().optional(),
       alertDaysBefore: z.number().min(1).max(14).optional(),
-    })).mutation(({ input, ctx }) => db.upsertEmailPreferences(ctx.user.id, input)),
+    }).strict()).mutation(({ input, ctx }) => db.upsertEmailPreferences(ctx.user.id, input)),
   }),
 
   // ── Email Notifications ─────────────────────────────────────
   emailNotifications: router({
-    log: protectedProcedure.query(() => db.listEmailLog()),
-    checkDeadlines: protectedProcedure.mutation(async () => {
-      const tasks3Day = await db.getUpcomingDeadlineTasks(3);
-      const tasks1Day = await db.getUpcomingDeadlineTasks(1);
-      const overdueTasks = await db.getOverdueTasks();
-      const projects3Day = await db.getUpcomingDeadlineProjects(3);
+    log: protectedProcedure.query(async ({ ctx }) => filterTenantRows("emailLog", await listOrganizationEmailLog(ctx.organizationId), ctx.organizationId)),
+    checkDeadlines: protectedProcedure.mutation(async ({ ctx }) => {
+      const tasks3Day = await filterTenantRows("task", await db.getUpcomingDeadlineTasks(3), ctx.organizationId);
+      const tasks1Day = await filterTenantRows("task", await db.getUpcomingDeadlineTasks(1), ctx.organizationId);
+      const overdueTasks = await filterTenantRows("task", await db.getOverdueTasks(), ctx.organizationId);
+      const projects3Day = await filterTenantRows("project", await db.getUpcomingDeadlineProjects(3), ctx.organizationId);
 
       const alerts: Array<{ type: string; title: string; message: string; daysUntil?: number }> = [];
 
@@ -839,10 +957,10 @@ export const appRouter = router({
           type: alert.type.includes("overdue") ? "task_overdue" : "deadline_approaching",
           title: alert.title,
           message: alert.message,
-        });
+        }, ctx.organizationId);
       }
       for (const alert of alerts) {
-        await db.logEmail({ recipientEmail: "team@studio.com", subject: alert.title, body: alert.message });
+        await db.logEmail({ recipientEmail: "team@studio.com", subject: alert.title, body: alert.message, organizationId: ctx.organizationId });
       }
       if (alerts.length > 0) {
         await notifyOwner({ title: `studioTrac: ${alerts.length} deadline alert(s)`, content: alerts.map(a => `• ${a.title}`).join("\n") }).catch(() => {});
@@ -853,7 +971,10 @@ export const appRouter = router({
 
   // ── Client Share Tokens ─────────────────────────────────────
   shareTokens: router({
-    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listShareTokens(input.projectId)),
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return filterTenantRows("shareToken", await db.listShareTokens(input.projectId), ctx.organizationId);
+    }),
     listForClient: protectedProcedure.input(z.object({ clientName: z.string() })).query(({ input, ctx }) =>
       ctx.organizationId == null ? [] : db.listClientShareTokens(input.clientName, ctx.organizationId)),
     create: protectedProcedure.input(z.object({
@@ -861,6 +982,7 @@ export const appRouter = router({
       label: z.string().optional(),
       expiresInDays: z.number().min(1).max(365).optional(),
     })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
       const token = nanoid(32);
       const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86400000) : null;
       return db.createShareToken({ projectId: input.projectId, token, label: input.label || null, isActive: true, expiresAt, createdById: ctx.user.id, organizationId: ctx.organizationId });
@@ -874,7 +996,10 @@ export const appRouter = router({
       const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86400000) : null;
       return db.createShareToken({ clientName: input.clientName, token, label: input.label || `All ${input.clientName} Projects`, isActive: true, expiresAt, createdById: ctx.user.id, organizationId: ctx.organizationId });
     }),
-    revoke: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.revokeShareToken(input.id)),
+    revoke: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("shareToken", input.id, ctx.organizationId);
+      return db.revokeShareToken(input.id);
+    }),
   }),
 
   // ── Public Client Portal ───────────────────────────────────
@@ -890,6 +1015,7 @@ export const appRouter = router({
       }
       // Single-project token
       if (!shareToken.projectId) return { error: "Invalid link configuration", data: null, type: null };
+      await assertTenantEntity("project", shareToken.projectId, shareToken.organizationId);
       const data = await db.getPublicProjectData(shareToken.projectId);
       if (!data) return { error: "Project not found", data: null, type: null };
       return { error: null, data, type: "project" as const };
@@ -903,23 +1029,42 @@ export const appRouter = router({
 
   // ── Project Team Members ────────────────────────────────────
   projectTeam: router({
-    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.listProjectTeamMembers(input.projectId)),
-    listByMember: protectedProcedure.input(z.object({ teamMemberId: z.number() })).query(({ input }) => db.listProjectsForTeamMember(input.teamMemberId)),
+    list: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      const rows = await db.listProjectTeamMembers(input.projectId);
+      await Promise.all(rows.map(row => assertTenantEntity("projectTeamMember", row.id, ctx.organizationId)));
+      return rows;
+    }),
+    listByMember: protectedProcedure.input(z.object({ teamMemberId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("teamMember", input.teamMemberId, ctx.organizationId);
+      return filterTenantRows("project", await db.listProjectsForTeamMember(input.teamMemberId), ctx.organizationId);
+    }),
     add: adminOrPmProcedure.input(z.object({
       projectId: z.number(),
       teamMemberId: z.number(),
       role: z.enum(["designer", "pm", "production"]),
-    })).mutation(({ input }) => db.addProjectTeamMember(input)),
-    remove: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.removeProjectTeamMember(input.id)),
-    avgRate: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectTeamAvgRate(input.projectId)),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      await assertTenantEntity("teamMember", input.teamMemberId, ctx.organizationId);
+      return db.addProjectTeamMember(input);
+    }),
+    remove: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("projectTeamMember", input.id, ctx.organizationId);
+      return db.removeProjectTeamMember(input.id);
+    }),
+    avgRate: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.getProjectTeamAvgRate(input.projectId);
+    }),
   }),
 
   // ── Consultant Contracts ─────────────────────────────────────
   consultants: router({
     list: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
       const limits = await getOrgPlanLimits(ctx);
       requireFeature(limits.hasConsultantManagement, "Consultant Management");
-      return db.listConsultantContracts(input.projectId);
+      return filterTenantRows("consultant", await db.listConsultantContracts(input.projectId), ctx.organizationId);
     }),
     create: adminOrPmProcedure.input(z.object({
       projectId: z.number(),
@@ -930,6 +1075,8 @@ export const appRouter = router({
       status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
       notes: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      if (input.subBudgetId != null) await assertTenantReference("subBudget", input.subBudgetId, ctx.organizationId, { entity: "project", id: input.projectId });
       const limits = await getOrgPlanLimits(ctx);
       requireFeature(limits.hasConsultantManagement, "Consultant Management");
       return db.createConsultantContract(input, ctx.organizationId);
@@ -943,28 +1090,50 @@ export const appRouter = router({
       contractAmount: z.number().min(0).optional(),
       status: z.enum(["active", "completed", "terminated", "pending"]).optional(),
       notes: z.string().optional().nullable(),
-    })).mutation(({ input, ctx }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const existing = await assertTenantEntity("consultant", id, ctx.organizationId);
+      const projectId = data.projectId ?? existing.projectId;
+      await assertTenantEntity("project", projectId, ctx.organizationId);
+      if (data.subBudgetId !== undefined || data.projectId !== undefined) {
+        const subBudgetId = data.subBudgetId !== undefined ? data.subBudgetId : existing.subBudgetId;
+        if (subBudgetId != null) await assertTenantReference("subBudget", subBudgetId, ctx.organizationId, { entity: "project", id: projectId });
+      }
       return db.updateConsultantContract(id, data, ctx.organizationId);
     }),
-    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantContract(input.id)),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("consultant", input.id, ctx.organizationId);
+      return db.deleteConsultantContract(input.id);
+    }),
   }),
 
   // ── Consultant Payments ─────────────────────────────
   consultantPayments: router({
-    list: adminOrPmProcedure.input(z.object({ consultantId: z.number() })).query(({ input }) => db.listConsultantPayments(input.consultantId)),
+    list: adminOrPmProcedure.input(z.object({ consultantId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("consultant", input.consultantId, ctx.organizationId);
+      return filterTenantRows("consultantPayment", await db.listConsultantPayments(input.consultantId), ctx.organizationId);
+    }),
     create: adminOrPmProcedure.input(z.object({
       consultantId: z.number(),
       amount: z.number().min(1),
       paymentDate: z.date().optional(),
       notes: z.string().optional(),
-    })).mutation(({ input }) => db.createConsultantPayment(input)),
-    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteConsultantPayment(input.id)),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("consultant", input.consultantId, ctx.organizationId);
+      return db.createConsultantPayment({ ...input, organizationId: ctx.organizationId });
+    }),
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("consultantPayment", input.id, ctx.organizationId);
+      return db.deleteConsultantPayment(input.id);
+    }),
   }),
 
   // ── Net Income ──────────────────────────────────────────────
   netIncome: router({
-    project: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectNetIncome(input.projectId)),
+    project: adminProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.getProjectNetIncome(input.projectId);
+    }),
     studio: adminProcedure.query(({ ctx }) => db.getStudioNetIncome(ctx.organizationId)),
   }),
 
@@ -976,7 +1145,14 @@ export const appRouter = router({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
       billable: z.boolean().optional(),
-    }).optional()).query(({ input, ctx }) => db.listTimeEntries(input ?? undefined, ctx.organizationId)),
+    }).optional()).query(async ({ input, ctx }) => {
+      if (input?.projectId != null) await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      if (input?.userId != null) {
+        await assertTenantEntity("user", input.userId, ctx.organizationId);
+        if (ctx.user.role !== "admin" && ctx.user.role !== "pm" && input.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
+      }
+      return filterTenantRows("timeEntry", await db.listTimeEntries(input ?? undefined, ctx.organizationId), ctx.organizationId);
+    }),
     create: protectedProcedure.input(z.object({
       projectId: z.number(),
       taskId: z.number().optional().nullable(),
@@ -987,7 +1163,12 @@ export const appRouter = router({
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
       subBudgetId: z.number().int().positive().nullable().optional(),
-    })).mutation(({ input, ctx }) => db.createTimeEntry({ ...input, userId: ctx.user.id }, ctx.organizationId)),
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      if (input.taskId != null) await assertTenantReference("task", input.taskId, ctx.organizationId, { entity: "project", id: input.projectId });
+      if (input.subBudgetId != null) await assertTenantReference("subBudget", input.subBudgetId, ctx.organizationId, { entity: "project", id: input.projectId });
+      return db.createTimeEntry({ ...input, userId: ctx.user.id }, ctx.organizationId);
+    }),
     update: protectedProcedure.input(z.object({
       id: z.number(),
       projectId: z.number().optional(),
@@ -999,12 +1180,30 @@ export const appRouter = router({
       durationMinutes: z.number().min(0).optional(),
       billable: z.boolean().optional(),
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional().nullable(),
-    })).mutation(({ input, ctx }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const entry = await assertTenantEntity("timeEntry", id, ctx.organizationId);
+      if (ctx.user.role !== "admin" && ctx.user.role !== "pm" && entry.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
+      const projectId = data.projectId ?? entry.projectId;
+      await assertTenantEntity("project", projectId, ctx.organizationId);
+      if (data.taskId !== undefined) {
+        if (data.taskId != null) await assertTenantReference("task", data.taskId, ctx.organizationId, { entity: "project", id: projectId });
+      } else if (data.projectId !== undefined && entry.taskId != null) {
+        await assertTenantReference("task", entry.taskId, ctx.organizationId, { entity: "project", id: projectId });
+      }
+      if (data.subBudgetId !== undefined) {
+        if (data.subBudgetId != null) await assertTenantReference("subBudget", data.subBudgetId, ctx.organizationId, { entity: "project", id: projectId });
+      } else if (data.projectId !== undefined && entry.subBudgetId != null) {
+        await assertTenantReference("subBudget", entry.subBudgetId, ctx.organizationId, { entity: "project", id: projectId });
+      }
       return db.updateTimeEntry(id, data, ctx.organizationId);
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.deleteTimeEntry(input.id)),
-    activeTimer: protectedProcedure.query(({ ctx }) => db.getActiveTimer(ctx.user.id)),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      const entry = await assertTenantEntity("timeEntry", input.id, ctx.organizationId);
+      if (ctx.user.role !== "admin" && ctx.user.role !== "pm" && entry.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete your own time entries" });
+      return db.deleteTimeEntry(input.id);
+    }),
+    activeTimer: protectedProcedure.query(({ ctx }) => db.getActiveTimer(ctx.user.id, ctx.organizationId)),
     allActiveTimers: protectedProcedure.query(({ ctx }) =>
       ctx.organizationId == null ? [] : db.getAllActiveTimers(ctx.organizationId)),
     startTimer: protectedProcedure.input(z.object({
@@ -1015,7 +1214,10 @@ export const appRouter = router({
       phase: z.enum(["pre_design", "schematic_design", "design_development", "construction_documents", "bidding_negotiation", "construction_administration", "post_occupancy"]).optional(),
       subBudgetId: z.number().int().positive().nullable().optional(),
     })).mutation(async ({ input, ctx }) => {
-      await db.stopActiveTimer(ctx.user.id);
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      if (input.taskId != null) await assertTenantReference("task", input.taskId, ctx.organizationId, { entity: "project", id: input.projectId });
+      if (input.subBudgetId != null) await assertTenantReference("subBudget", input.subBudgetId, ctx.organizationId, { entity: "project", id: input.projectId });
+      await db.stopActiveTimer(ctx.user.id, undefined, ctx.organizationId);
       return db.createTimeEntry({
         userId: ctx.user.id,
         projectId: input.projectId,
@@ -1030,14 +1232,29 @@ export const appRouter = router({
     }),
     stopTimer: protectedProcedure
       .input(z.object({ id: z.number() }).optional())
-      .mutation(({ input, ctx }) => db.stopActiveTimer(ctx.user.id, input?.id)),
+      .mutation(async ({ input, ctx }) => {
+        if (input?.id != null) {
+          const entry = await assertTenantEntity("timeEntry", input.id, ctx.organizationId);
+          if (entry.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
+        }
+        return db.stopActiveTimer(ctx.user.id, input?.id, ctx.organizationId);
+      }),
   }),
 
   // ── Time Analytics ──────────────────────────────────────────────
   timeAnalytics: router({
-    projectBreakdown: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(({ input, ctx }) => db.getProjectTimeBreakdown(input.projectId, ctx.organizationId)),
-    projectLaborCost: adminProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectLaborCost(input.projectId)),
-    projectBurnRate: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) => db.getProjectBurnRate(input.projectId)),
+    projectBreakdown: adminOrPmProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.getProjectTimeBreakdown(input.projectId, ctx.organizationId);
+    }),
+    projectLaborCost: adminProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.getProjectLaborCost(input.projectId);
+    }),
+    projectBurnRate: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      return db.getProjectBurnRate(input.projectId);
+    }),
     allProjectsBudgetSummary: protectedProcedure.query(({ ctx }) => db.getAllProjectsBudgetSummary(ctx.organizationId)),
     firmUtilization: adminProcedure.input(z.object({
       startDate: z.date().optional(),
@@ -1047,7 +1264,11 @@ export const appRouter = router({
     timesheet: protectedProcedure.input(z.object({
       userId: z.number(),
       weekStart: z.date(),
-    })).query(({ input }) => db.getTimesheetData(input.userId, input.weekStart)),
+    })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("user", input.userId, ctx.organizationId);
+      if (ctx.user.role !== "admin" && ctx.user.role !== "pm" && input.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND", message: "Record not found" });
+      return db.getTimesheetData(input.userId, input.weekStart, ctx.organizationId);
+    }),
     teamTimeReport: adminProcedure.input(z.object({
       startDate: z.date().optional(),
       endDate: z.date().optional(),
@@ -1064,6 +1285,8 @@ export const appRouter = router({
     })).query(async ({ input, ctx }) => {
       const limits = await getOrgPlanLimits(ctx);
       requireFeature(limits.hasTeamReport, "Team Reports");
+      await assertTenantEntity("teamMember", input.teamMemberId, ctx.organizationId);
+      if (input.projectId != null) await assertTenantEntity("project", input.projectId, ctx.organizationId);
       return db.getTeamMemberTimeLog(
         input.teamMemberId,
         input.startDate,
@@ -1077,7 +1300,9 @@ export const appRouter = router({
   // ── Dashboard ────────────────────────────────────────────────
   dashboard: router({
     stats: protectedProcedure.query(({ ctx }) => db.getDashboardStats(ctx.organizationId)),
-    seed: protectedProcedure.mutation(() => db.seedDemoData()),
+    seed: protectedProcedure.mutation(() => {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Demo data seeding is unavailable in tenant workspaces" });
+    }),
   }),
 
   // ── Waitlist ─────────────────────────────────────────────────
@@ -1183,29 +1408,35 @@ export const appRouter = router({
   // ── Coordination Sheets ─────────────────────────────────────────
   coordination: router({
     // Admin: get sheet for a project
-    getForProject: protectedProcedure.input(z.object({ projectId: z.number() })).query(({ input }) =>
-      db.getCoordinationSheetByProject(input.projectId)
-    ),
+    getForProject: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
+      const sheet = await db.getCoordinationSheetByProject(input.projectId);
+      if (sheet) await assertTenantEntity("coordinationSheet", sheet.id, ctx.organizationId);
+      return sheet;
+    }),
 
     // Authenticated: get unread item count for a coordination sheet
     unreadCount: protectedProcedure
       .input(z.object({ sheetId: z.number() }))
-      .query(({ input, ctx }) =>
-        db.getCoordinationUnreadCount(input.sheetId, ctx.user.id)
-      ),
+      .query(async ({ input, ctx }) => {
+        await assertTenantEntity("coordinationSheet", input.sheetId, ctx.organizationId);
+        return db.getCoordinationUnreadCount(input.sheetId, ctx.user.id);
+      }),
 
     // Authenticated: mark a coordination sheet as viewed (resets unread badge)
     markViewed: protectedProcedure
       .input(z.object({ sheetId: z.number() }))
-      .mutation(({ input, ctx }) =>
-        db.markCoordinationSheetViewed(input.sheetId, ctx.user.id)
-      ),
+      .mutation(async ({ input, ctx }) => {
+        await assertTenantEntity("coordinationSheet", input.sheetId, ctx.organizationId);
+        return db.markCoordinationSheetViewed(input.sheetId, ctx.user.id);
+      }),
 
     // Admin: create sheet for a project
     create: adminOrPmProcedure.input(z.object({
       projectId: z.number(),
       projectName: z.string().min(1),
     })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("project", input.projectId, ctx.organizationId);
       const token = nanoid(24);
       const clientToken = nanoid(24);
       return db.createCoordinationSheet({
@@ -1222,14 +1453,16 @@ export const appRouter = router({
     update: adminOrPmProcedure.input(z.object({
       id: z.number(),
       sharedFolderUrl: z.string().url().optional().nullable(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await assertTenantEntity("coordinationSheet", id, ctx.organizationId);
       await db.updateCoordinationSheet(id, data);
       return { success: true };
     }),
 
     // Admin: delete sheet
-    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    delete: adminOrPmProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("coordinationSheet", input.id, ctx.organizationId);
       // Images are stored as base64 in DB, so deleting the sheet cascades cleanup
       await db.deleteCoordinationSheet(input.id);
       return { success: true };
@@ -1239,6 +1472,7 @@ export const appRouter = router({
     getByToken: publicProcedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByToken(input.token);
       if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
       const items = await db.listCoordinationItems(sheet.id);
       const itemIds = items.map(i => i.id);
       const attachments = await db.listCoordinationAttachments(itemIds);
@@ -1252,13 +1486,17 @@ export const appRouter = router({
     getByClientToken: publicProcedure.input(z.object({ clientToken: z.string() })).query(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByClientToken(input.clientToken);
       if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
       const allItems = await db.listCoordinationItems(sheet.id);
       // Only show items marked as client-visible
-      const items = allItems.filter(i => i.visibility === "client");
+      const clientItems = allItems.filter(i => i.visibility === "client");
+      const clientItemIds = new Set(clientItems.map(i => i.id));
+      const items = clientItems.map(item => ({ ...item, parentId: item.parentId != null && clientItemIds.has(item.parentId) ? item.parentId : null }));
       const itemIds = items.map(i => i.id);
       const attachments = await db.listCoordinationAttachments(itemIds);
       const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
-      return { error: null, sheet, items, attachments: lightAttachments, subscribers: [], isClientView: true };
+      const { token: _internalToken, clientToken: _clientToken, ...clientSheet } = sheet;
+      return { error: null, sheet: clientSheet, items, attachments: lightAttachments, subscribers: [], isClientView: true };
     }),
 
     // Public: add item
@@ -1272,9 +1510,11 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
       // If the request came in via the client token, auto-set visibility = "client"
       // so the item immediately appears in the client-filtered view.
       const isClientToken = sheet.clientToken === input.token;
+      if (input.parentId != null) await requireCoordinationItem(sheet, input.parentId, input.token);
       const item = await db.createCoordinationItem({
         sheetId: sheet.id,
         parentId: input.parentId ?? null,
@@ -1302,8 +1542,11 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      const item = await requireCoordinationItem(sheet, input.itemId, input.token);
       const { token, itemId, ...data } = input;
-      return db.updateCoordinationItem(itemId, data);
+      if (sheet.clientToken === token) data.visibility = "client";
+      return db.updateCoordinationItem(item.id, data);
     }),
 
     // Public: delete item
@@ -1313,6 +1556,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await requireCoordinationItem(sheet, input.itemId, input.token);
       await db.deleteCoordinationItem(input.itemId);
       return { success: true };
     }),
@@ -1327,6 +1572,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await requireCoordinationItem(sheet, input.itemId, input.token);
       const mime = input.mimeType || "image/png";
       // Store base64 in DB (fileData column) for persistence across deploys
       return db.createCoordinationAttachment({
@@ -1349,6 +1596,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await requireCoordinationItem(sheet, input.itemId, input.token);
       return db.createCoordinationAttachment({
         itemId: input.itemId,
         type: "link",
@@ -1364,6 +1613,9 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      const attachment = await assertTenantEntity("coordinationAttachment", input.attachmentId, sheet.organizationId);
+      await requireCoordinationItem(sheet, attachment.itemId, input.token);
       await db.deleteCoordinationAttachment(input.attachmentId);
       return { success: true };
     }),
@@ -1379,7 +1631,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Email or phone number is required" });
       }
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
-      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      if (!sheet || !sheet.isActive || sheet.clientToken === input.token) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       return db.addCoordinationSubscriber({
         sheetId: sheet.id,
         email: input.email ? input.email.trim().toLowerCase() : null,
@@ -1393,7 +1645,7 @@ export const appRouter = router({
       emailOrPhone: z.string(),
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
-      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      if (!sheet || !sheet.isActive || sheet.clientToken === input.token) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await db.removeCoordinationSubscriber(sheet.id, input.emailOrPhone.trim());
       return { success: true };
 
@@ -1401,14 +1653,16 @@ export const appRouter = router({
     // Admin/PM: pin an item
     pinItem: adminOrPmProcedure.input(z.object({
       itemId: z.number(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("coordinationItem", input.itemId, ctx.organizationId);
       await db.pinCoordinationItem(input.itemId);
       return { success: true };
     }),
     // Admin/PM: unpin an item
     unpinItem: adminOrPmProcedure.input(z.object({
       itemId: z.number(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      await assertTenantEntity("coordinationItem", input.itemId, ctx.organizationId);
       await db.unpinCoordinationItem(input.itemId);
             return { success: true };
     }),
@@ -1423,7 +1677,7 @@ export const appRouter = router({
 
 // ── Coordination Sheet Email Notifications ──────────────────────
 async function sendCoordinationNotification(
-  sheet: { id: number; token: string; projectName: string },
+  sheet: { id: number; projectId: number; clientToken: string | null; projectName: string },
   _item: any,
   _type: "new" | "reply"
 ) {
@@ -1450,45 +1704,11 @@ async function sendCoordinationNotification(
 
   const resend = getResend();
   const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
-  const sheetUrl = `${baseUrl}/coordination/${sheet.token}`;
-  
-  const subject = unnotifiedItems.length === 1 
-    ? `[${sheet.projectName}] New coordination item from ${unnotifiedItems[0].authorName}`
-    : `[${sheet.projectName}] ${unnotifiedItems.length} new coordination updates`;
-
-  const itemsHtml = unnotifiedItems.map(item => `
-    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
-      <p style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #0f172a;">
-        ${item.authorName} 
-        <span style="font-weight: 400; color: #64748b;">(${item.authorType.replace(/_/g, " ")})</span>
-        ${item.isUrgent ? '<span style="margin-left: 8px; color: #b45309; font-size: 11px; background: #fef3c7; padding: 2px 6px; border-radius: 4px;">URGENT</span>' : ''}
-      </p>
-      <p style="margin: 0; font-size: 14px; color: #334155; white-space: pre-wrap;">${item.content.length > 300 ? item.content.slice(0, 300) + "..." : item.content}</p>
-    </div>
-  `).join("");
-
-  const html = `
-    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
-        <p style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">Coordination Sheet Update</p>
-        <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">${sheet.projectName}</h2>
-        ${itemsHtml}
-        <div style="margin-top: 24px;">
-          <a href="${sheetUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #ffffff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;">View Full Coordination Sheet</a>
-        </div>
-        <p style="margin: 24px 0 0; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; pt: 16px;">
-          You're receiving this because you subscribed to updates for this coordination sheet. 
-          Notifications are batched and sent at most once every 30 minutes.
-        </p>
-      </div>
-    </div>
-  `;
-
+  const { subject, html, smsBody } = createSafeCoordinationNotice(sheet, baseUrl);
   // Twilio SMS client (lazy-cached to avoid OOM on startup)
   const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
   const twilioClient = getTwilioClient();
 
-  const smsBody = `[StudioTrac] New updates on ${sheet.projectName} coordination sheet. Check your email or log in to view. Reply STOP to unsubscribe.`;
 
   // Send to eligible subscribers
   let anySent = false;
