@@ -673,8 +673,8 @@ function NewItemForm({
 
 // ── Helpers ──────────────────────────────────────────────────────────
 // Get displayable image URL from attachment — served via dedicated endpoint
-function getImageUrl(att: any): string {
-  if (att.type === "image") return `/api/coordination-image/${att.id}`;
+function getImageUrl(att: any, token: string): string {
+  if (att.type === "image") return `/api/coordination-image/${att.id}?token=${encodeURIComponent(token)}`;
   return att.url; // link attachments
 }
 
@@ -992,11 +992,11 @@ function ItemRow({
                   <div key={att.id} className="flex flex-col items-center gap-0.5">
                     <button
                       type="button"
-                      onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
+                      onClick={() => { setLightboxUrl(getImageUrl(att, token)); setLightboxName(att.fileName || "Image"); }}
                       className="block rounded-lg overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
                     >
                       <img
-                        src={getImageUrl(att)}
+                        src={getImageUrl(att, token)}
                         alt={att.fileName || "Attachment"}
                         className="h-20 w-20 object-cover"
                       />
@@ -1169,10 +1169,10 @@ function ItemRow({
                             <div key={att.id} className="flex flex-col items-center gap-0.5">
                               <button
                                 type="button"
-                                onClick={() => { setLightboxUrl(getImageUrl(att)); setLightboxName(att.fileName || "Image"); }}
+                                onClick={() => { setLightboxUrl(getImageUrl(att, token)); setLightboxName(att.fileName || "Image"); }}
                                 className="block rounded overflow-hidden border hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
                               >
-                                <img src={getImageUrl(att)} alt="" className="h-14 w-14 object-cover" />
+                                <img src={getImageUrl(att, token)} alt="" className="h-14 w-14 object-cover" />
                               </button>
                               <button
                                 type="button"

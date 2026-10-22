@@ -5,6 +5,7 @@ import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 import { verifyInviteToken } from "./invite";
+import { canCreateInvitedAccount } from "./stage1Security";
 
 export function registerOAuthRoutes(app: Express) {
   // ── Sign Up ────────────────────────────────────────────────────
@@ -50,6 +51,19 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
+      const invitedMember = invite ? await db.getTeamMember(invite.teamMemberId) : null;
+      if (invite && (!invitedMember || invitedMember.updatedAt.getTime() !== invite.teamMemberUpdatedAt || !canCreateInvitedAccount({
+        normalizedRequestEmail: normalizedEmail,
+        inviteEmail: invite.email,
+        existingUserId: null,
+        inviteOrganizationId: invite.organizationId,
+        teamMemberOrganizationId: invitedMember.organizationId,
+        teamMemberActive: invitedMember.isActive,
+      }))) {
+        res.status(400).json({ error: "This invitation is no longer valid for this organization" });
+        return;
+      }
+
       const passwordHash = await bcrypt.hash(password, 12);
       const openId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const displayName = String(name || invite?.name || normalizedEmail.split("@")[0]).trim();
@@ -59,47 +73,40 @@ export function registerOAuthRoutes(app: Express) {
       let orgRole: "owner" | "admin" | "member" = "member";
 
       if (invite) {
-        // For invited users, find the inviter's org from the team member record
-        const teamMember = await db.getTeamMember(invite.teamMemberId);
-        if (teamMember && teamMember.organizationId) {
-          organizationId = teamMember.organizationId;
-          orgRole = invite.role === "admin" ? "admin" : "member";
-        }
+        organizationId = invite.organizationId;
+        orgRole = invite.role === "admin" ? "admin" : "member";
       } else {
         // New user creating their own firm/workspace
         const orgName = String(firmName || `${displayName}'s Firm`).trim();
         const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
         const org = await db.createOrganization({ name: orgName, slug: `${slug}-${Date.now().toString(36)}`, trialStartedAt: new Date() });
-        if (org) {
-          organizationId = org.id;
-          orgRole = "owner";
-        }
+        organizationId = org.id;
+        orgRole = "owner";
       }
 
-      await db.upsertUser({
+      if (!organizationId || organizationId <= 0) {
+        res.status(400).json({ error: "An organization is required to create an account" });
+        return;
+      }
+
+      const account = {
         openId,
         name: displayName,
         email: normalizedEmail,
         passwordHash,
         loginMethod: "email",
         lastSignedIn: new Date(),
-        role: invite?.role ?? "admin", // org creators are admin by default
+        role: invite?.role ?? "admin" as const,
         organizationId,
         orgRole,
-      });
-
-      const createdUser = await db.getUserByEmail(normalizedEmail);
-      if (invite && createdUser) {
-        try {
-          await db.linkUserToInvitedTeamMember({
-            teamMemberId: invite.teamMemberId,
-            userId: createdUser.id,
-            email: normalizedEmail,
-            name: displayName,
-          });
-        } catch (linkError) {
-          console.warn("[Auth] Failed to link invited team member", linkError);
-        }
+      };
+      if (invite) {
+        await db.createInvitedUserForSignup(account, {
+          teamMemberId: invite.teamMemberId,
+          teamMemberUpdatedAt: invite.teamMemberUpdatedAt,
+        });
+      } else {
+        await db.createUserForSignup(account);
       }
 
       const sessionToken = await sdk.createSessionToken(openId, {
@@ -111,6 +118,14 @@ export function registerOAuthRoutes(app: Express) {
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
       res.json({ success: true });
     } catch (error) {
+      if (error instanceof Error && error.message === "INVITATION_NO_LONGER_VALID") {
+        res.status(409).json({ error: "This invitation is no longer valid" });
+        return;
+      }
+      if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
+        res.status(409).json({ error: "An account with this email already exists" });
+        return;
+      }
       console.error("[Auth] Signup failed", error);
       res.status(500).json({ error: "Signup failed" });
     }

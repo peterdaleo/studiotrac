@@ -1,3 +1,4 @@
+import { requireOrganizationId } from "./organizationScope";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { prospectInteractions, prospects, projectNotes, projectTeamMembers, projects, teamMembers, users } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -18,7 +19,8 @@ export type ProspectDraft = {
 export type ProspectPatch = Partial<ProspectDraft>;
 
 function organizationCondition<T extends { organizationId: any }>(table: T, orgId?: number | null) {
-  return orgId == null ? isNull(table.organizationId) : eq(table.organizationId, orgId);
+  requireOrganizationId(orgId);
+  return eq(table.organizationId, orgId);
 }
 
 function scopedConditions<T extends { organizationId: any; id: any }>(
@@ -42,6 +44,7 @@ async function validateOwner(ownerId: number | null | undefined, orgId?: number 
 }
 
 export async function listProspects(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const orgCondition = organizationCondition(prospects, orgId);
@@ -60,7 +63,7 @@ export async function listProspects(orgId?: number | null) {
 
   const authorIds = Array.from(new Set(history.map((item) => item.createdById).filter((id): id is number => id != null)));
   const authors = authorIds.length
-    ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, authorIds))
+    ? await db.select({ id: users.id, name: users.name }).from(users).where(and(inArray(users.id, authorIds), eq(users.organizationId, orgId)))
     : [];
   const authorNames = new Map(authors.map((author) => [author.id, author.name || "Team member"]));
   const historyByProspect = new Map<number, Array<(typeof history)[number] & { authorName: string }>>();
@@ -81,6 +84,7 @@ export async function listProspects(orgId?: number | null) {
 }
 
 export async function createProspect(data: ProspectDraft, orgId: number | null, createdById: number) {
+  requireOrganizationId(orgId);
   await validateOwner(data.ownerId, orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -104,6 +108,7 @@ export async function updateProspect(
   data: ProspectPatch,
   orgId?: number | null,
 ) {
+  requireOrganizationId(orgId);
   if (data.ownerId !== undefined) await validateOwner(data.ownerId, orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -141,6 +146,7 @@ export async function addProspectInteraction(
   orgId: number | null,
   createdById: number,
 ) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
@@ -163,6 +169,7 @@ export async function addProspectInteraction(
 }
 
 export async function convertProspectToProject(id: number, orgId: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 

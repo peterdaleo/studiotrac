@@ -1,3 +1,4 @@
+import { requireOrganizationId } from "./organizationScope";
 import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
@@ -351,9 +352,55 @@ export async function getUserByEmail(email: string) {
   const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
+// Existing-account row lock serializes signup email checks without modifying any row.
+// Both signup paths use this lock, including while an invite is consumed. Existing users
+// are never overwritten; the current-read duplicate check remains authoritative.
+async function assertSignupEmailAvailable(tx: any, email: string) {
+  await tx.select({ id: users.id }).from(users).orderBy(asc(users.id)).limit(1).for("update");
+  const [existing] = await tx.select({ id: users.id }).from(users)
+    .where(sql`lower(${users.email}) = ${email}`).limit(1).for("update");
+  if (existing) throw new Error("EMAIL_ALREADY_EXISTS");
+}
+
+/** Insert-only signup; unlike upsertUser, key collisions can never update an existing account. */
+export async function createUserForSignup(user: InsertUser) {
+  if (!user.openId || !user.email || !user.organizationId || user.organizationId <= 0) {
+    throw new Error("Signup requires an email, openId, and organization");
+  }
+  const database = await getDbOrThrow();
+  return database.transaction(async tx => {
+    await assertSignupEmailAvailable(tx, user.email!.trim().toLowerCase());
+    await tx.insert(users).values(user);
+    const [created] = await tx.select().from(users).where(eq(users.openId, user.openId!)).limit(1);
+    if (!created) throw new Error("Signup account could not be loaded after insertion");
+    return created;
+  });
+}
+/** Lock and consume an invite while creating its account; failure rolls back the new row. */
+export async function createInvitedUserForSignup(user: InsertUser, invite: { teamMemberId: number; teamMemberUpdatedAt: number }) {
+  requireOrganizationId(user.organizationId);
+  if (!user.email || !user.openId) throw new Error("Invalid invited account");
+  const email = user.email.trim().toLowerCase();
+  const database = await getDbOrThrow();
+  return database.transaction(async tx => {
+    const [member] = await tx.select().from(teamMembers).where(eq(teamMembers.id, invite.teamMemberId)).limit(1).for("update");
+    if (!member || !member.isActive || member.userId != null || member.organizationId !== user.organizationId ||
+      member.updatedAt.getTime() !== invite.teamMemberUpdatedAt || (member.email ?? "").trim().toLowerCase() !== email) {
+      throw new Error("INVITATION_NO_LONGER_VALID");
+    }
+    await assertSignupEmailAvailable(tx, email);
+    await tx.insert(users).values({ ...user, email });
+    const [created] = await tx.select().from(users).where(eq(users.openId, user.openId!)).limit(1);
+    if (!created) throw new Error("Invited account could not be loaded");
+    await tx.update(teamMembers).set({ userId: created.id, email, ...(user.name ? { name: user.name } : {}) })
+      .where(and(eq(teamMembers.id, member.id), eq(teamMembers.organizationId, user.organizationId!), isNull(teamMembers.userId)));
+    return created;
+  });
+}
 
 // ── Team Members ───────────────────────────────────────────────────
 export async function listTeamMembers(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(teamMembers.isActive, true)];
@@ -369,6 +416,7 @@ export async function getTeamMember(id: number) {
 }
 
 export async function createTeamMember(data: InsertTeamMember, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const values = orgId ? { ...data, organizationId: orgId } : data;
@@ -388,54 +436,35 @@ export async function deleteTeamMember(id: number) {
   await db.update(teamMembers).set({ isActive: false }).where(eq(teamMembers.id, id));
 }
 
-export async function removeFromOrganization(userId: number) {
+export async function removeFromOrganization(userId: number, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(users).set({ organizationId: null, orgRole: "member" }).where(eq(users.id, userId));
+  await db.update(users).set({ organizationId: null, orgRole: "member" }).where(and(eq(users.id, userId), eq(users.organizationId, orgId)));
 }
 
-export async function updateUserRole(userId: number, role: "user" | "pm" | "admin") {
+export async function updateUserRole(userId: number, role: "user" | "pm" | "admin", orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(users).set({ role }).where(eq(users.id, userId));
+  await db.update(users).set({ role }).where(and(eq(users.id, userId), eq(users.organizationId, orgId)));
 }
 
-export async function updateUserPassword(userId: number, passwordHash: string) {
+export async function updateUserPassword(userId: number, passwordHash: string, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  await db.update(users).set({ passwordHash }).where(and(eq(users.id, userId), eq(users.organizationId, orgId)));
 }
 
 export async function listUsers(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
-  // Return all users who either:
-  // 1. Belong to this org (organizationId matches), OR
-  // 2. Have an email that matches a team member in this org (covers manually-added members who registered without an org link)
-  if (orgId) {
-    const members = await db.select({ email: teamMembers.email, userId: teamMembers.userId })
-      .from(teamMembers)
-      .where(and(eq(teamMembers.organizationId, orgId), eq(teamMembers.isActive, true)));
-    const memberEmails = members.map(m => m.email).filter(Boolean) as string[];
-    const memberUserIds = members.map(m => m.userId).filter(Boolean) as number[];
-    if (memberEmails.length === 0 && memberUserIds.length === 0) {
-      return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole })
-        .from(users).where(eq(users.organizationId, orgId)).orderBy(asc(users.name));
-    }
-    // Build OR conditions: org members + email matches + userId matches
-    const orConditions = [eq(users.organizationId, orgId)];
-    if (memberEmails.length > 0) {
-      orConditions.push(...memberEmails.map(e => eq(users.email, e)));
-    }
-    if (memberUserIds.length > 0) {
-      orConditions.push(...memberUserIds.map(uid => eq(users.id, uid)));
-    }
-    return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole })
-      .from(users).where(or(...orConditions)).orderBy(asc(users.name));
-  }
-  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole }).from(users).orderBy(asc(users.name));
+  // A matching email or stale team-member link is not organization membership.
+  return db.select({ id: users.id, openId: users.openId, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod, createdAt: users.createdAt, organizationId: users.organizationId, orgRole: users.orgRole })
+    .from(users).where(eq(users.organizationId, orgId)).orderBy(asc(users.name));
 }
-
 export async function getUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
@@ -446,6 +475,7 @@ export async function getUserById(id: number) {
 export async function inviteTeamMember(data: { name: string; email: string; title?: string; role?: "user" | "pm" | "admin" }, orgId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  if (!orgId || !Number.isInteger(orgId) || orgId <= 0) throw new Error("Invitations require an organization");
   const normalizedEmail = data.email.trim().toLowerCase();
   // Create a team member record as a placeholder for the invited user
   const result = await db.insert(teamMembers).values({
@@ -453,22 +483,24 @@ export async function inviteTeamMember(data: { name: string; email: string; titl
     email: normalizedEmail,
     title: data.title ?? null,
     isActive: true,
-    ...(orgId ? { organizationId: orgId } : {}),
+    organizationId: orgId,
   });
   return { id: result[0].insertId };
 }
 
-export async function linkUserToInvitedTeamMember(data: { teamMemberId: number; userId: number; email: string; name?: string }) {
+export async function linkUserToInvitedTeamMember(data: { teamMemberId: number; userId: number; email: string; organizationId: number; name?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   const normalizedEmail = data.email.trim().toLowerCase();
+  if (!Number.isInteger(data.organizationId) || data.organizationId <= 0) return false;
   const result = await db.select().from(teamMembers).where(eq(teamMembers.id, data.teamMemberId)).limit(1);
   const member = result[0];
-
   if (!member) return false;
+  if (!member.isActive || member.organizationId !== data.organizationId || (member.userId != null && member.userId !== data.userId)) return false;
   if ((member.email ?? "").trim().toLowerCase() !== normalizedEmail) return false;
-
+  const [user] = await db.select({ id: users.id, email: users.email, organizationId: users.organizationId })
+    .from(users).where(eq(users.id, data.userId)).limit(1);
+  if (!user || user.organizationId !== data.organizationId || (user.email ?? "").trim().toLowerCase() !== normalizedEmail) return false;
   const update: Partial<InsertTeamMember> = {
     userId: data.userId,
     email: normalizedEmail,
@@ -478,12 +510,18 @@ export async function linkUserToInvitedTeamMember(data: { teamMemberId: number; 
     update.name = data.name.trim();
   }
 
-  await db.update(teamMembers).set(update).where(eq(teamMembers.id, data.teamMemberId));
-  return true;
+  const updated = await db.update(teamMembers).set(update).where(and(
+    eq(teamMembers.id, data.teamMemberId),
+    eq(teamMembers.organizationId, data.organizationId),
+    isNull(teamMembers.userId),
+    eq(teamMembers.isActive, true),
+  ));
+  return (updated[0] as { affectedRows?: number }).affectedRows !== 0;
 }
 
 // ── Team Absences ──────────────────────────────────────────────────
 export async function listTeamAbsences(filters?: { teamMemberId?: number; startDate?: Date; endDate?: Date }, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -515,7 +553,7 @@ export async function listTeamAbsences(filters?: { teamMemberId?: number; startD
         teamMemberIsActive: teamMembers.isActive,
       })
       .from(teamAbsences)
-      .innerJoin(teamMembers, eq(teamAbsences.teamMemberId, teamMembers.id))
+      .innerJoin(teamMembers, and(eq(teamAbsences.teamMemberId, teamMembers.id), eq(teamAbsences.organizationId, teamMembers.organizationId)))
       .where(where)
       .orderBy(asc(teamAbsences.startDate), asc(teamMembers.name));
   } catch (error) {
@@ -552,7 +590,7 @@ export async function getTeamAbsence(id: number) {
         teamMemberIsActive: teamMembers.isActive,
       })
       .from(teamAbsences)
-      .innerJoin(teamMembers, eq(teamAbsences.teamMemberId, teamMembers.id))
+      .innerJoin(teamMembers, and(eq(teamAbsences.teamMemberId, teamMembers.id), eq(teamAbsences.organizationId, teamMembers.organizationId)))
       .where(eq(teamAbsences.id, id))
       .limit(1);
 
@@ -567,6 +605,7 @@ export async function getTeamAbsence(id: number) {
 }
 
 export async function createTeamAbsence(data: InsertTeamAbsence, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
@@ -609,6 +648,7 @@ export async function deleteTeamAbsence(id: number) {
 
 // ── Projects ───────────────────────────────────────────────────────
 export async function listProjects(filters?: { status?: string; phase?: string; managerId?: number }, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -627,6 +667,7 @@ export async function listProjects(filters?: { status?: string; phase?: string; 
   }).from(invoices)
     .where(and(
       inArray(invoices.projectId, projectIds),
+      eq(invoices.organizationId, orgId),
       ne(invoices.status, 'paid'),
       ne(invoices.status, 'draft'),
     ))
@@ -694,7 +735,8 @@ export async function getProject(id: number) {
 }
 
 function organizationCondition(column: AnyMySqlColumn, orgId: number | null | undefined) {
-  return orgId == null ? isNull(column) : eq(column, orgId);
+  requireOrganizationId(orgId);
+  return eq(column, orgId);
 }
 
 type ProjectScopeDb = Pick<ReturnType<typeof drizzle>, "select">;
@@ -728,12 +770,14 @@ async function validateSubBudgetAssignment(
 }
 
 export async function assertProjectInOrganization(projectId: number, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
   return requireOwnedProject(db, projectId, orgId);
 }
 
 export async function listProjectSubBudgetOptions(projectId: number, orgId: number | null | undefined): Promise<SubBudgetOption[]> {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   await requireOwnedProject(db, projectId, orgId);
@@ -744,6 +788,7 @@ export async function listProjectSubBudgetOptions(projectId: number, orgId: numb
 }
 
 export async function listProjectSubBudgets(projectId: number, orgId: number | null | undefined): Promise<ProjectSubBudgetSummary> {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { items: [], originalBudgetCents: 0, approvedAdditionsCents: 0, approvedBudgetCents: 0 };
   const project = await requireOwnedProject(db, projectId, orgId);
@@ -752,7 +797,7 @@ export async function listProjectSubBudgets(projectId: number, orgId: number | n
     .orderBy(asc(projectSubBudgets.name), asc(projectSubBudgets.id));
 
   const [rates, entries, contracts] = await Promise.all([
-    buildUserBillingRateMap(db),
+    buildUserBillingRateMap(db, orgId),
     db.select({ subBudgetId: timeEntries.subBudgetId, userId: timeEntries.userId, durationMinutes: timeEntries.durationMinutes, billable: timeEntries.billable })
       .from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`)),
     db.select({ subBudgetId: consultantContracts.subBudgetId, contractAmount: consultantContracts.contractAmount })
@@ -806,6 +851,7 @@ export async function listProjectSubBudgets(projectId: number, orgId: number | n
 }
 
 export async function createProjectSubBudget(data: Omit<InsertProjectSubBudget, "organizationId" | "status">, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await requireOwnedProject(db, data.projectId, orgId);
@@ -823,6 +869,7 @@ export async function createProjectSubBudget(data: Omit<InsertProjectSubBudget, 
 }
 
 export async function updateProjectSubBudget(id: number, data: Partial<Omit<InsertProjectSubBudget, "id" | "organizationId" | "projectId" | "status">>, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
@@ -853,6 +900,7 @@ export async function updateProjectSubBudget(id: number, data: Partial<Omit<Inse
 }
 
 export async function deleteProjectSubBudget(id: number, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
@@ -874,6 +922,7 @@ export async function deleteProjectSubBudget(id: number, orgId: number | null | 
 }
 
 export async function createProject(data: InsertProject, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const terms = normalizeBillingTerms({
@@ -1024,6 +1073,7 @@ export async function deleteProject(id: number) {
 
 // ── Tasks ──────────────────────────────────────────────────────────
 export async function listTasks(filters?: { projectId?: number; assigneeId?: number; status?: string }, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -1043,6 +1093,7 @@ export async function getTask(id: number) {
 }
 
 export async function createTask(data: InsertTask, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   // The form defaults to today; retain a server-side fallback for every create path.
@@ -1073,12 +1124,14 @@ export async function reorderTasks(taskOrders: { id: number; sortOrder: number }
 }
 
 export async function purgeArchivedTasks(orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(tasks).where(and(eq(tasks.status, "done"), eq(tasks.organizationId, orgId)));
 }
 
 export async function purgeArchivedProjects(orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   // Get all completed project IDs for this org
@@ -1140,6 +1193,7 @@ export async function deleteProjectNote(id: number) {
 
 // ── Notifications ──────────────────────────────────────────────────
 export async function listNotifications(userId?: number, limit = 50, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -1149,6 +1203,7 @@ export async function listNotifications(userId?: number, limit = 50, orgId?: num
   return db.select().from(notifications).where(and(...conditions)).orderBy(desc(notifications.createdAt)).limit(limit);
 }
 export async function createNotification(data: InsertNotification, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const values = orgId ? { ...data, organizationId: orgId } : data;
@@ -1162,18 +1217,20 @@ export async function markNotificationRead(id: number) {
   await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
 }
 
-export async function markAllNotificationsRead(userId?: number) {
+export async function markAllNotificationsRead(userId: number, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const conditions = [eq(notifications.isRead, false)];
+  const conditions = [eq(notifications.isRead, false), eq(notifications.organizationId, orgId)];
   if (userId) conditions.push(or(eq(notifications.userId, userId), isNull(notifications.userId))!);
   await db.update(notifications).set({ isRead: true }).where(and(...conditions));
 }
 
-export async function getUnreadNotificationCount(userId?: number) {
+export async function getUnreadNotificationCount(userId: number, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return 0;
-  const conditions = [eq(notifications.isRead, false)];
+  const conditions = [eq(notifications.isRead, false), eq(notifications.organizationId, orgId)];
   if (userId) conditions.push(or(eq(notifications.userId, userId), isNull(notifications.userId))!);
   const result = await db.select({ count: sql<number>`count(*)` }).from(notifications).where(and(...conditions));
   return result[0]?.count ?? 0;
@@ -1296,6 +1353,7 @@ export async function getUpcomingDeadlineProjects(daysAhead: number) {
 
 // ── Gantt Data ────────────────────────────────────────────────────
 export async function getGanttData(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { projects: [], tasks: [], members: [] };
   const pConds = [ne(projects.status, 'completed')];
@@ -1316,6 +1374,7 @@ export async function listInvoices(projectId: number) {
 }
 
 export async function createInvoice(data: InsertInvoice, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const values = orgId ? { ...data, organizationId: orgId } : data;
@@ -1355,12 +1414,13 @@ async function recalcProjectInvoiced(projectId: number) {
 
 // ── Financial Overview ────────────────────────────────────────────
 export async function getFinancialOverview(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { projects: [], totals: { contracted: 0, invoiced: 0, outstanding: 0, paid: 0, consultantPaid: 0, netIncome: 0 } };
   const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db.select().from(projects).where(pWhere).orderBy(desc(projects.updatedAt));
-  const allInvoices = await db.select().from(invoices).orderBy(desc(invoices.invoiceDate));
-  const allContracts = await db.select().from(consultantContracts);
+  const allInvoices = await db.select().from(invoices).where(eq(invoices.organizationId, orgId)).orderBy(desc(invoices.invoiceDate));
+  const allContracts = await db.select().from(consultantContracts).where(or(eq(consultantContracts.organizationId, orgId), isNull(consultantContracts.organizationId)));
   const allPayments = await db.select().from(consultantPayments);
   
   let totalContracted = 0;
@@ -1418,11 +1478,12 @@ export async function getFinancialOverview(orgId?: number | null) {
 
 // ── Export Data Helpers ──────────────────────────────────────────
 export async function getExportProjectsSummary(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db.select().from(projects).where(pWhere).orderBy(asc(projects.name));
-  const allMembers = await db.select().from(teamMembers);
+  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.organizationId, orgId));
   return allProjects.map(p => {
     const manager = allMembers.find(m => m.id === p.projectManagerId);
     return {
@@ -1442,12 +1503,13 @@ export async function getExportProjectsSummary(orgId?: number | null) {
 }
 
 export async function getExportTasksList(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const tWhere = orgId ? eq(tasks.organizationId, orgId) : undefined;
   const allTasks = await db.select().from(tasks).where(tWhere).orderBy(asc(tasks.priority));
-  const allMembers = await db.select().from(teamMembers);
-  const allProjects = await db.select().from(projects);
+  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.organizationId, orgId));
+  const allProjects = await db.select().from(projects).where(eq(projects.organizationId, orgId));
   return allTasks.map(t => {
     const assignee = allMembers.find(m => m.id === t.assigneeId);
     const project = allProjects.find(p => p.id === t.projectId);
@@ -1464,6 +1526,7 @@ export async function getExportTasksList(orgId?: number | null) {
 }
 
 export async function getExportTeamWorkload(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const mConds = [eq(teamMembers.isActive, true)];
@@ -1492,6 +1555,7 @@ export async function getExportTeamWorkload(orgId?: number | null) {
 
 // ── Dashboard Stats ────────────────────────────────────────────────
 export async function getDashboardStats(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { totalProjects: 0, onTrack: 0, delayed: 0, onHold: 0, completed: 0, totalTasks: 0, overdueTasks: 0, completedTasks: 0 };
   const projectWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
@@ -1674,6 +1738,7 @@ export async function listConsultantContracts(projectId: number) {
 }
 
 export async function createConsultantContract(data: InsertConsultantContract, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
@@ -1684,18 +1749,21 @@ export async function createConsultantContract(data: InsertConsultantContract, o
 }
 
 export async function updateConsultantContract(id: number, data: Partial<InsertConsultantContract>, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.transaction(async (tx) => {
     const [current] = await tx.select().from(consultantContracts)
-      .where(eq(consultantContracts.id, id))
+      .where(and(eq(consultantContracts.id, id), or(eq(consultantContracts.organizationId, orgId), isNull(consultantContracts.organizationId))))
       .limit(1).for("update");
     if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Consultant contract not found" });
+    // A legacy null org stamp is authorized only by its CURRENT owning project, never by a requested replacement.
+    await requireOwnedProject(tx, current.projectId, orgId);
     const projectId = data.projectId ?? current.projectId;
     const subBudgetId = data.subBudgetId === undefined ? current.subBudgetId : data.subBudgetId;
     await validateSubBudgetAssignment(tx, projectId, subBudgetId, orgId);
     await tx.update(consultantContracts).set({ ...data, ...(data.projectId !== undefined ? { organizationId: orgId ?? null } : {}) })
-      .where(eq(consultantContracts.id, id));
+      .where(and(eq(consultantContracts.id, id), or(eq(consultantContracts.organizationId, orgId), isNull(consultantContracts.organizationId))));
   });
 }
 
@@ -1774,12 +1842,13 @@ export async function getProjectNetIncome(projectId: number) {
 }
 
 export async function getStudioNetIncome(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { totalFeesCollected: 0, totalConsultantPayments: 0, totalNetIncome: 0, projectBreakdown: [] as any[] };
   const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db.select().from(projects).where(pWhere);
-  const allInvoices = await db.select().from(invoices);
-  const allContracts = await db.select().from(consultantContracts);
+  const allInvoices = await db.select().from(invoices).where(eq(invoices.organizationId, orgId));
+  const allContracts = await db.select().from(consultantContracts).where(or(eq(consultantContracts.organizationId, orgId), isNull(consultantContracts.organizationId)));
   const allPayments = await db.select().from(consultantPayments);
   
   let totalFeesCollected = 0;
@@ -1823,6 +1892,7 @@ export async function getStudioNetIncome(orgId?: number | null) {
 
 // ── Time Entries ──────────────────────────────────────────────────
 export async function listTimeEntries(filters?: { userId?: number; projectId?: number; startDate?: Date; endDate?: Date; billable?: boolean }, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -1836,6 +1906,7 @@ export async function listTimeEntries(filters?: { userId?: number; projectId?: n
   return db.select().from(timeEntries).where(where).orderBy(desc(timeEntries.startTime));
 }
 export async function createTimeEntry(data: InsertTimeEntry, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
@@ -1847,18 +1918,19 @@ export async function createTimeEntry(data: InsertTimeEntry, orgId?: number | nu
 }
 
 export async function updateTimeEntry(id: number, data: Partial<InsertTimeEntry>, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.transaction(async (tx) => {
     const [current] = await tx.select().from(timeEntries)
-      .where(eq(timeEntries.id, id))
+      .where(and(eq(timeEntries.id, id), eq(timeEntries.organizationId, orgId)))
       .limit(1).for("update");
     if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found" });
     const projectId = data.projectId ?? current.projectId;
     const subBudgetId = data.subBudgetId === undefined ? current.subBudgetId : data.subBudgetId;
     await validateSubBudgetAssignment(tx, projectId, subBudgetId, orgId);
     await tx.update(timeEntries).set({ ...data, ...(data.projectId !== undefined ? { organizationId: orgId ?? null } : {}) })
-      .where(eq(timeEntries.id, id));
+      .where(and(eq(timeEntries.id, id), eq(timeEntries.organizationId, orgId)));
   });
 }
 
@@ -1868,23 +1940,25 @@ export async function deleteTimeEntry(id: number) {
   await db.delete(timeEntries).where(eq(timeEntries.id, id));
 }
 
-export async function getActiveTimer(userId: number) {
+export async function getActiveTimer(userId: number, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return undefined;
   const result = await db
     .select()
     .from(timeEntries)
-    .where(and(eq(timeEntries.userId, userId), isNull(timeEntries.endTime)))
+    .where(and(eq(timeEntries.userId, userId), eq(timeEntries.organizationId, orgId), isNull(timeEntries.endTime)))
     .orderBy(desc(timeEntries.startTime), desc(timeEntries.id))
     .limit(1);
   return result[0];
 }
 
-export async function stopActiveTimer(userId: number, timerId?: number) {
+export async function stopActiveTimer(userId: number, timerId: number | undefined, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const conditions = [eq(timeEntries.userId, userId), isNull(timeEntries.endTime)];
+  const conditions = [eq(timeEntries.userId, userId), eq(timeEntries.organizationId, orgId), isNull(timeEntries.endTime)];
   if (timerId !== undefined) conditions.push(eq(timeEntries.id, timerId));
 
   const activeEntries = await db
@@ -1914,6 +1988,7 @@ export async function stopActiveTimer(userId: number, timerId?: number) {
 
 // ── Time Analytics ────────────────────────────────────────────────
 export async function getProjectTimeBreakdown(projectId: number, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { totalMinutes: 0, billableMinutes: 0, byMember: [] as any[], byPhase: [] as any[], estimatedHours: 0 };
   
@@ -1980,11 +2055,14 @@ export async function getProjectLaborCost(projectId: number) {
   const db = await getDb();
   if (!db) return { totalLaborCost: 0, billableLaborCost: 0 };
   
+  const project = await getProject(projectId);
+  const orgId = project?.organizationId;
+  requireOrganizationId(orgId);
   const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.projectId, projectId), sql`${timeEntries.endTime} IS NOT NULL`));
-  const members = await db.select().from(teamMembers);
+  const members = await db.select().from(teamMembers).where(eq(teamMembers.organizationId, orgId));
   
   // Build lookup: users.id -> teamMember (via userId link, email fallback, or name fallback)
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.organizationId, orgId));
   const userIdToMember = new Map<number, typeof members[0]>();
   for (const m of members) {
     if (m.userId) {
@@ -2068,6 +2146,7 @@ export async function getProjectBurnRate(projectId: number) {
 }
 
 export async function getFirmUtilization(startDate?: Date, endDate?: Date, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { members: [] as any[], firmBillableHours: 0, firmTotalHours: 0, firmUtilizationRate: 0 };
   const mConds = [eq(teamMembers.isActive, true)];
@@ -2080,7 +2159,7 @@ export async function getFirmUtilization(startDate?: Date, endDate?: Date, orgId
   const entries = await db.select().from(timeEntries).where(and(...conditions));
 
   // Build email -> users.id and name -> users.id maps as fallback for team members whose userId is NULL
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.organizationId, orgId));
   const emailToUserId = new Map<string, number>();
   const nameToUserId = new Map<string, number>();
   for (const u of allUsers) {
@@ -2124,18 +2203,19 @@ export async function getFirmUtilization(startDate?: Date, endDate?: Date, orgId
 }
 
 export async function getTrueProfitability(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { projects: [] as any[], firmTotal: { feesCollected: 0, laborCost: 0, consultantCost: 0, netProfit: 0 } };
   const pWhere = orgId ? eq(projects.organizationId, orgId) : undefined;
   const allProjects = await db.select().from(projects).where(pWhere);
-  const allInvoices = await db.select().from(invoices);
-  const allContracts = await db.select().from(consultantContracts);
+  const allInvoices = await db.select().from(invoices).where(eq(invoices.organizationId, orgId));
+  const allContracts = await db.select().from(consultantContracts).where(or(eq(consultantContracts.organizationId, orgId), isNull(consultantContracts.organizationId)));
   const allPayments = await db.select().from(consultantPayments);
-  const allEntries = await db.select().from(timeEntries).where(sql`${timeEntries.endTime} IS NOT NULL`);
-  const allMembers = await db.select().from(teamMembers);
+  const allEntries = await db.select().from(timeEntries).where(and(eq(timeEntries.organizationId, orgId), sql`${timeEntries.endTime} IS NOT NULL`));
+  const allMembers = await db.select().from(teamMembers).where(eq(teamMembers.organizationId, orgId));
   
   // Build userId (users.id) -> teamMember lookup for correct billing rate resolution
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.organizationId, orgId));
   const userIdToMember = new Map<number, typeof allMembers[0]>();
   for (const m of allMembers) {
     if (m.userId) {
@@ -2202,20 +2282,21 @@ export async function getTrueProfitability(orgId?: number | null) {
   };
 }
 
-export async function getTimesheetData(userId: number, weekStart: Date) {
+export async function getTimesheetData(userId: number, weekStart: Date, orgId: number) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { entries: [] as any[], dailyTotals: {} as Record<string, number>, weekTotal: 0 };
   
   const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
   const entries = await db.select().from(timeEntries).where(and(
-    eq(timeEntries.userId, userId),
+    eq(timeEntries.userId, userId), eq(timeEntries.organizationId, orgId),
     gte(timeEntries.startTime, weekStart),
     lte(timeEntries.startTime, weekEnd),
     sql`${timeEntries.endTime} IS NOT NULL`
   )).orderBy(asc(timeEntries.startTime));
   
-  const allProjects = await db.select().from(projects);
-  const allTasks = await db.select().from(tasks);
+  const allProjects = await db.select().from(projects).where(eq(projects.organizationId, orgId));
+  const allTasks = await db.select().from(tasks).where(eq(tasks.organizationId, orgId));
   
   const dailyTotals: Record<string, number> = {};
   let weekTotal = 0;
@@ -2430,6 +2511,7 @@ export async function getTeamMemberTimeLog(
   projectId?: number,
   orgId?: number | null,
 ) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   const empty = {
     member: null as { id: number; name: string; title: string | null } | null,
@@ -2445,7 +2527,7 @@ export async function getTeamMemberTimeLog(
 
   // Match the Team Report's member-to-user fallback behavior so a member's
   // drill-down always represents the same time records as their report row.
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.organizationId, orgId));
   const emailToUserId = new Map<string, number>();
   const nameToUserId = new Map<string, number>();
   for (const user of allUsers) {
@@ -2499,6 +2581,7 @@ export async function getTeamMemberTimeLog(
 }
 
 export async function getTeamTimeReport(startDate?: Date, endDate?: Date, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return { rows: [] as any[], members: [] as any[], projects: [] as any[] };
   const mConds = [eq(teamMembers.isActive, true)];
@@ -2514,7 +2597,7 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date, orgId?
 
   // Build email -> users.id and name -> users.id maps as fallback for team members whose userId is NULL
   // (e.g. the account owner who was migrated without going through the invite flow)
-  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users);
+  const allUsers = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.organizationId, orgId));
   const emailToUserId = new Map<string, number>();
   const nameToUserId = new Map<string, number>();
   for (const u of allUsers) {
@@ -2563,6 +2646,7 @@ export async function getTeamTimeReport(startDate?: Date, endDate?: Date, orgId?
 
 // ── Billing Department Emails ─────────────────────────────────────
 export async function listBillingDepartmentEmails(orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return [];
   try {
@@ -2577,6 +2661,7 @@ export async function listBillingDepartmentEmails(orgId?: number | null) {
   }
 }
 export async function addBillingDepartmentEmail(emailAddress: string, orgId?: number | null) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
@@ -2602,6 +2687,7 @@ export async function removeBillingDepartmentEmail(id: number) {
  * Used by the Projects list page to render BudgetBar without N+1 queries.
  */
 export async function getAllProjectsBudgetSummary(orgId?: number | null) {
+  requireOrganizationId(orgId);
   return getAllProjectsBudgetSummaryFromBilling(orgId);
 }
 
@@ -2677,6 +2763,7 @@ export async function getActiveSubscription(userId: number): Promise<Subscriptio
 }
 
 export async function getActiveSubscriptionByOrg(orgId: number): Promise<Subscription | undefined> {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return undefined;
   try {
@@ -2763,6 +2850,7 @@ export async function updateSubscriptionPlan(stripeSubscriptionId: string, plan:
  * Used to grant enterprise-level limits to all members of a superAdmin-owned org.
  */
 export async function orgHasSuperAdminOwner(orgId: number): Promise<boolean> {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) return false;
   try {
