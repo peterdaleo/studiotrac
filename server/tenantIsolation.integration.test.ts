@@ -31,7 +31,7 @@ function assertSafeDatabaseTarget(): URL {
   }
   // Explicit localhost-only synthetic schemas; the legacy fixture is generated
   // from the runtime ORM, never copied from production.
-  if (!["stage1_test", "studiotrac_stage1_test", "stage1_legacy_test"].includes(database)) {
+  if (!["stage1_test", "studiotrac_stage1_test", "stage1_legacy_test", "stage2_access_test"].includes(database)) {
     throw new Error(`Refusing tenant integration tests against database ${database}; expected an approved synthetic schema`);
   }
   return url;

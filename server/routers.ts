@@ -1,3 +1,5 @@
+import { assertOrganizationWorkspaceAccess, isOrganizationWorkspaceAccessible, resolveOrganizationWorkspaceAccess } from "./workspaceAccess";
+import { platformAccessRouter } from "./platformAccessRouter";
 import { createSafeCoordinationNotice } from "./coordinationNotifications";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -50,6 +52,8 @@ function getTwilioClient() {
  * Members of a superAdmin-owned org also get enterprise limits (no plan restrictions).
  */
 async function getOrgPlanLimits(ctx: { user: { isSuperAdmin: boolean }; organizationId: number | null }) {
+  const access = await resolveOrganizationWorkspaceAccess(ctx.organizationId, ctx.user.isSuperAdmin);
+  if (access.managed) return getPlanLimits(access.plan);
   if (ctx.user.isSuperAdmin) return getPlanLimits("enterprise");
   if (!ctx.organizationId) return getPlanLimits(null);
   // If the org owner is a superAdmin, all org members get enterprise limits
@@ -137,6 +141,7 @@ const teamAbsenceSchema = z.object({
 });
 
 export const appRouter = router({
+  platformAccess: platformAccessRouter,
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -1007,6 +1012,7 @@ export const appRouter = router({
     getProject: publicProcedure.input(z.object({ token: z.string() })).query(async ({ input }) => {
       const shareToken = await db.getShareToken(input.token);
       if (!shareToken) return { error: "Invalid or expired link", data: null, type: null };
+      if (!await isOrganizationWorkspaceAccessible(shareToken.organizationId)) return { error: "Invalid or expired link", data: null, type: null };
       // Client-level token (all projects for a client)
       if (shareToken.clientName && shareToken.organizationId) {
         const data = await db.getPublicClientData(shareToken.clientName, shareToken.organizationId);
@@ -1473,6 +1479,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByToken(input.token);
       if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       const items = await db.listCoordinationItems(sheet.id);
       const itemIds = items.map(i => i.id);
       const attachments = await db.listCoordinationAttachments(itemIds);
@@ -1487,6 +1494,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByClientToken(input.clientToken);
       if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       const allItems = await db.listCoordinationItems(sheet.id);
       // Only show items marked as client-visible
       const clientItems = allItems.filter(i => i.visibility === "client");
@@ -1511,6 +1519,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       // If the request came in via the client token, auto-set visibility = "client"
       // so the item immediately appears in the client-filtered view.
       const isClientToken = sheet.clientToken === input.token;
@@ -1543,6 +1552,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       const item = await requireCoordinationItem(sheet, input.itemId, input.token);
       const { token, itemId, ...data } = input;
       if (sheet.clientToken === token) data.visibility = "client";
@@ -1557,6 +1567,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       await requireCoordinationItem(sheet, input.itemId, input.token);
       await db.deleteCoordinationItem(input.itemId);
       return { success: true };
@@ -1573,6 +1584,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       await requireCoordinationItem(sheet, input.itemId, input.token);
       const mime = input.mimeType || "image/png";
       // Store base64 in DB (fileData column) for persistence across deploys
@@ -1597,6 +1609,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       await requireCoordinationItem(sheet, input.itemId, input.token);
       return db.createCoordinationAttachment({
         itemId: input.itemId,
@@ -1614,6 +1627,7 @@ export const appRouter = router({
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       const attachment = await assertTenantEntity("coordinationAttachment", input.attachmentId, sheet.organizationId);
       await requireCoordinationItem(sheet, attachment.itemId, input.token);
       await db.deleteCoordinationAttachment(input.attachmentId);
@@ -1632,6 +1646,8 @@ export const appRouter = router({
       }
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive || sheet.clientToken === input.token) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       return db.addCoordinationSubscriber({
         sheetId: sheet.id,
         email: input.email ? input.email.trim().toLowerCase() : null,
@@ -1646,6 +1662,8 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive || sheet.clientToken === input.token) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
+      await assertOrganizationWorkspaceAccess(sheet.organizationId);
       await db.removeCoordinationSubscriber(sheet.id, input.emailOrPhone.trim());
       return { success: true };
 
@@ -1677,10 +1695,11 @@ export const appRouter = router({
 
 // ── Coordination Sheet Email Notifications ──────────────────────
 async function sendCoordinationNotification(
-  sheet: { id: number; projectId: number; clientToken: string | null; projectName: string },
+  sheet: { id: number; projectId: number; organizationId: number | null; clientToken: string | null; projectName: string },
   _item: any,
   _type: "new" | "reply"
 ) {
+  if (!await isOrganizationWorkspaceAccessible(sheet.organizationId)) return;
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
 

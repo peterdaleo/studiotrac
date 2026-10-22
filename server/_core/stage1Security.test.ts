@@ -94,9 +94,10 @@ describe("coordination image HTTP handler (synthetic DB/session mocks)", () => {
     clientToken: "client-secret",
   };
 
-  async function requestImage(options: { image?: Partial<CoordinationImageRecord>; cookie?: string; referer?: string; token?: string }) {
+  async function requestImage(options: { workspaceAllowed?: boolean; image?: Partial<CoordinationImageRecord>; cookie?: string; referer?: string; token?: string }) {
     const app = express();
     app.get("/api/coordination-image/:id", createCoordinationImageHandler({
+      isWorkspaceAccessible: async () => options.workspaceAllowed !== false,
       loadImage: async id => id === 1 ? { ...record, ...options.image } : null,
       getAuthenticatedOrganizationId: async req => {
         if (req.headers.cookie === "mock-session=same-org") return 17;
@@ -117,6 +118,15 @@ describe("coordination image HTTP handler (synthetic DB/session mocks)", () => {
       await new Promise<void>((resolve, reject) => (server as Server).close(error => error ? reject(error) : resolve()));
     }
   }
+
+  it("blocks suspended workspaces even with valid existing sessions and sharing tokens", async () => {
+    for (const options of [{ cookie: "mock-session=same-org" }, { token: "main-secret" }, { token: "client-secret", image: { itemVisibility: "client" as const } }]) {
+      const response = await requestImage({ ...options, workspaceAllowed: false });
+      expect(response.status).toBe(404);
+      expect(await response.text()).not.toContain("synthetic image bytes");
+    }
+    expect((await requestImage({ token: "main-secret", workspaceAllowed: true })).status).toBe(200);
+  });
 
   it("blocks unauthenticated ID guessing and returns authorized images without public caching", async () => {
     const denied = await requestImage({});

@@ -1,3 +1,4 @@
+import { formatAccessAuditDetails } from "@shared/workspaceAudit";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,6 +52,7 @@ vi.mock("@/lib/trpc", () => {
 
 import Billing from "@/pages/Billing";
 import { shouldShowBillingNavigation } from "@/components/DashboardLayout";
+import { shouldRenderManagedWorkspace } from "@/components/WorkspaceAccessGate";
 
 const plans = [
   { id: "starter", name: "Starter", amount: 1900, description: "For small teams", features: ["Projects"] },
@@ -158,6 +160,35 @@ describe("Billing page owner gate", () => {
     expect(html).not.toContain("Cancel Subscription");
   });
 
+  it("shows complimentary access without Stripe purchase or cancellation controls", () => {
+    setQueryResults({
+      id: null,
+      plan: null,
+      status: "none",
+      cancelAtPeriodEnd: false,
+      accessSource: "complimentary",
+      workspaceAccess: {
+        managed: true,
+        state: "active",
+        allowed: true,
+        reason: null,
+        plan: "professional",
+        complimentaryPlan: "professional",
+      },
+    });
+
+    const html = renderBilling();
+
+    expect(html).toContain("Complimentary access");
+    expect(html).toContain("professional");
+    expect(html).toContain("not a paid subscription");
+    expect(html).not.toContain("Manage Billing");
+    expect(html).not.toContain("Cancel Subscription");
+    expect(html).not.toContain("Resume Subscription");
+    expect(html).not.toContain("Subscribe");
+    expect(html).not.toContain("Upgrade");
+  });
+
   it("keeps trial plan choices but hides manage and cancel for a null-id trial", () => {
     setQueryResults({
       id: null,
@@ -184,5 +215,39 @@ describe("Billing sidebar policy", () => {
     expect(shouldShowBillingNavigation({ role: "admin", orgRole: "member", organizationId: 42 }, false)).toBe(false);
     expect(shouldShowBillingNavigation({ orgRole: "owner", organizationId: 0 }, false)).toBe(false);
     expect(shouldShowBillingNavigation({ orgRole: "owner", organizationId: null }, false)).toBe(false);
+  });
+});
+
+describe("managed workspace route gate policy", () => {
+  const denied = { managed: true, state: "suspended" as const, allowed: false, reason: "suspended" as const };
+
+  it("preserves behavior for legacy accounts and unmanaged workspaces", () => {
+    expect(shouldRenderManagedWorkspace(undefined, "/projects", makeOwner())).toBe(true);
+    expect(shouldRenderManagedWorkspace({ managed: false, allowed: false }, "/projects", makeOwner())).toBe(true);
+  });
+
+  it("blocks denied business pages but permits valid owner Billing recovery", () => {
+    expect(shouldRenderManagedWorkspace(denied, "/projects", makeOwner())).toBe(false);
+    expect(shouldRenderManagedWorkspace(denied, "/billing", makeOwner())).toBe(true);
+    expect(shouldRenderManagedWorkspace(denied, "/billing", { orgRole: "owner", organizationId: null })).toBe(false);
+    expect(shouldRenderManagedWorkspace(denied, "/billing", { orgRole: "member", organizationId: 42 })).toBe(false);
+  });
+
+  it("fails closed when a managed workspace has no explicit allowed decision", () => {
+    expect(shouldRenderManagedWorkspace({ managed: true, state: "active" }, "/projects", makeOwner())).toBe(false);
+  });
+
+  it("allows the existing super-admin page but does not treat super-admin status as Billing ownership", () => {
+    const nonOwnerSuperAdmin = { isSuperAdmin: true, orgRole: "member", organizationId: 42 };
+    expect(shouldRenderManagedWorkspace(denied, "/admin/platform", nonOwnerSuperAdmin)).toBe(true);
+    expect(shouldRenderManagedWorkspace(denied, "/billing", nonOwnerSuperAdmin)).toBe(false);
+  });
+});
+
+describe("non-secret access audit presentation", () => {
+  it("renders policy changes without displaying malformed or unknown raw details", () => {
+    expect(formatAccessAuditDetails(JSON.stringify({ previousState: "pending", nextState: "active", previousPlan: null, nextPlan: "professional" }))).toBe("Workspace: pending → active; complimentary plan: none → professional");
+    expect(formatAccessAuditDetails("not JSON")).toBe("Policy change recorded");
+    expect(formatAccessAuditDetails(JSON.stringify({ previousState: "unknown-raw-content", nextState: "active" }))).toBe("Policy change recorded");
   });
 });

@@ -1,3 +1,4 @@
+import { isOrganizationWorkspaceAccessible } from "../workspaceAccess";
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
@@ -60,6 +61,7 @@ async function startServer() {
   const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
   app.get("/uploads/*", createProtectedUploadHandler({ authorizeFile: createUploadAuthorizer({
     uploadDir,
+    isWorkspaceAccessible: isOrganizationWorkspaceAccessible,
     getAuthenticatedOrganizationId: async req => (await sdk.authenticateRequest(req)).organizationId,
     loadShare: async token => (await import("../db")).getShareToken(token).then(value => value ?? null),
     loadFile: async key => {
@@ -81,6 +83,7 @@ async function startServer() {
 
   // Serve coordination sheet images only through same-org sessions or scoped share capabilities.
   app.get("/api/coordination-image/:id", createCoordinationImageHandler({
+    isWorkspaceAccessible: isOrganizationWorkspaceAccessible,
     getAuthenticatedOrganizationId: async req => {
       const user = await sdk.authenticateRequest(req);
       return user.organizationId ?? null;

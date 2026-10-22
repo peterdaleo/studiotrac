@@ -29,9 +29,9 @@ function assertSafeDatabaseTarget(): URL {
       `Refusing legacy compatibility tests against non-local database host: ${hostname}`
     );
   }
-  if (database !== "stage1_legacy_test") {
+  if (database !== "stage1_legacy_test" && database !== "stage2_access_test") {
     throw new Error(
-      `Refusing legacy compatibility tests against database ${database}; expected stage1_legacy_test`
+      `Refusing legacy compatibility tests against database ${database}; expected an approved localhost synthetic schema`
     );
   }
   if (url.protocol !== "mysql:" && url.protocol !== "mariadb:") {
@@ -192,7 +192,7 @@ suite("legacy ORM compatibility — isolated MariaDB integration", () => {
     applicationDb = await dbModule.getDb();
     if (!applicationDb)
       throw new Error(
-        "Application DB pool did not connect to stage1_legacy_test"
+        "Application DB pool did not connect to an approved localhost synthetic schema"
       );
 
     const a = await makeOrganization("a");

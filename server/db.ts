@@ -174,7 +174,7 @@ export async function getUserByEmail(email: string) {
 // Existing-account row lock serializes signup email checks without modifying any row.
 // Both signup paths use this lock, including while an invite is consumed. Existing users
 // are never overwritten; the current-read duplicate check remains authoritative.
-async function assertSignupEmailAvailable(tx: any, email: string) {
+export async function assertSignupEmailAvailable(tx: any, email: string) {
   await tx.select({ id: users.id }).from(users).orderBy(asc(users.id)).limit(1).for("update");
   const [existing] = await tx.select({ id: users.id }).from(users)
     .where(sql`lower(${users.email}) = ${email}`).limit(1).for("update");

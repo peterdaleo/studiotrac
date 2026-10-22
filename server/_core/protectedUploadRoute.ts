@@ -16,6 +16,7 @@ export type UploadRecord = {
 export type UploadShare = { projectId: number | null; organizationId: number | null; clientName: string | null; isActive: boolean; expiresAt: Date | null };
 type AuthorizerDependencies = {
   uploadDir: string;
+  isWorkspaceAccessible: (organizationId: number) => Promise<boolean>;
   loadFile: (key: string) => Promise<UploadRecord | null>;
   loadShare: (token: string) => Promise<UploadShare | null>;
   getAuthenticatedOrganizationId: (req: Request) => Promise<number | null>;
@@ -45,6 +46,7 @@ export function createUploadAuthorizer(dependencies: AuthorizerDependencies) {
     if (!file || !Number.isSafeInteger(file.projectId) || file.projectId <= 0 ||
       !Number.isSafeInteger(file.organizationId) || file.organizationId == null || file.organizationId <= 0 ||
       (file.fileOrganizationId != null && file.fileOrganizationId !== file.organizationId)) return null;
+    if (!await dependencies.isWorkspaceAccessible(file.organizationId)) return null;
     let organizationId: number | null = null;
     try { organizationId = await dependencies.getAuthenticatedOrganizationId(req); } catch { /* Public capability may still authorize. */ }
     let allowed = organizationId === file.organizationId;

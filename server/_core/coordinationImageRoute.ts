@@ -16,6 +16,7 @@ export type CoordinationImageRecord = {
 };
 
 type Dependencies = {
+  isWorkspaceAccessible: (organizationId: number | null) => Promise<boolean>;
   loadImage: (id: number) => Promise<CoordinationImageRecord | null>;
   getAuthenticatedOrganizationId: (req: Request) => Promise<number | null>;
 };
@@ -28,6 +29,7 @@ export function createCoordinationImageHandler(dependencies: Dependencies): Requ
       const att = await dependencies.loadImage(attachmentId);
       if (!att || !att.fileData || att.attachmentType !== "image") return res.status(404).send("Image not found");
 
+      if (!await dependencies.isWorkspaceAccessible(att.projectOrganizationId)) return res.status(404).send("Image not found");
       let authenticatedOrganizationId: number | null = null;
       try {
         authenticatedOrganizationId = await dependencies.getAuthenticatedOrganizationId(req);

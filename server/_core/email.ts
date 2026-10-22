@@ -134,6 +134,55 @@ export async function sendTeamInviteEmail(params: SendTeamInviteEmailParams) {
   };
 }
 
+type SendFirmOwnerInviteEmailParams = {
+  to: string;
+  firmName: string;
+  invitationUrl: string;
+};
+
+/** Deliver a one-time owner invite without recording the bearer link or body. */
+export async function sendFirmOwnerInviteEmail(params: SendFirmOwnerInviteEmailParams) {
+  if (!ENV.resendApiKey) {
+    return { sent: false as const, reason: "missing_api_key" as const };
+  }
+
+  const firmName = params.firmName.trim();
+  const subject = "You're invited to set up a studioTrac firm";
+  const text = [
+    `You've been invited to set up ${firmName} on studioTrac.`,
+    "",
+    "Use this one-time link to create the firm owner account:",
+    params.invitationUrl,
+  ].join("\n");
+  const html = `<!DOCTYPE html>
+<html lang="en">
+  <body style="margin: 0; padding: 32px 16px; background-color: #f8fafc; font-family: Inter, Arial, sans-serif; color: #0f172a;">
+    <div style="max-width: 640px; margin: 0 auto; padding: 32px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+      <h1 style="margin: 0 0 16px; font-size: 26px;">Set up your studioTrac firm</h1>
+      <p style="line-height: 1.7; color: #334155;">You've been invited to set up <strong>${escapeHtml(firmName)}</strong> on studioTrac.</p>
+      <p style="margin: 24px 0; text-align: center;"><a href="${escapeHtml(params.invitationUrl)}" style="display: inline-block; padding: 14px 24px; border-radius: 12px; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 600;">Create your firm owner account</a></p>
+      <p style="font-size: 14px; color: #64748b;">If the button does not open, copy and paste this one-time link:</p>
+      <p style="font-size: 14px; line-height: 1.7; word-break: break-word;"><a href="${escapeHtml(params.invitationUrl)}">${escapeHtml(params.invitationUrl)}</a></p>
+    </div>
+  </body>
+</html>`;
+
+  try {
+    const { error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: [params.to],
+      subject,
+      html,
+      text,
+    });
+    if (error) return { sent: false as const, reason: "delivery_failed" as const };
+    return { sent: true as const };
+  } catch {
+    // Provider exceptions can contain recipient data, bearer links, or credentials.
+    return { sent: false as const, reason: "delivery_failed" as const };
+  }
+}
+
 // ── Billing Milestone Email ────────────────────────────────────────
 
 type SendBillingMilestoneEmailParams = {

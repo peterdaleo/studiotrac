@@ -1,3 +1,4 @@
+import { formatAccessAuditDetails } from "@shared/workspaceAudit";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -30,6 +31,8 @@ import {
   DollarSign,
   Eye,
   XCircle,
+  Copy,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -56,9 +59,19 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+export function canManagePlatformAccess(user: {
+  isSuperAdmin?: boolean | null;
+  orgRole?: string | null;
+  organizationId?: number | null;
+} | null | undefined) {
+  return user?.isSuperAdmin === true && user.orgRole === "owner"
+    && Number.isSafeInteger(user.organizationId) && (user.organizationId ?? 0) > 0;
+}
+
 export default function SuperAdmin() {
   const { user } = useAuth({ redirectOnUnauthenticated: true });
   const isSuperAdmin = user?.isSuperAdmin ?? false;
+  const isPlatformOwner = canManagePlatformAccess(user);
   const utils = trpc.useUtils();
   const { data: metrics, isLoading: metricsLoading } = trpc.superAdmin.metrics.useQuery(
     undefined, { enabled: isSuperAdmin }
@@ -149,6 +162,8 @@ export default function SuperAdmin() {
           loading={metricsLoading}
         />
       </div>
+
+      {isPlatformOwner && <PlatformAccessManager firms={firms ?? []} protectedOrganizationId={user?.organizationId ?? 0} />}
 
       {/* Firms Table */}
       <Card>
@@ -352,5 +367,150 @@ function MetricCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+type FirmRow = { id: number; name: string; planTier: string; subscriptionStatus: string };
+type PlatformAction = "suspend" | "revokeComplimentary" | "revokeInvitation";
+
+function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: FirmRow[]; protectedOrganizationId: number }) {
+  const utils = trpc.useUtils();
+  const [email, setEmail] = useState("");
+  const [firmName, setFirmName] = useState("");
+  const [issuedLink, setIssuedLink] = useState<string | null>(null);
+  const [complimentaryPlan, setComplimentaryPlan] = useState<Record<number, "starter" | "professional" | "enterprise">>({});
+  const [action, setAction] = useState<{ kind: PlatformAction; organizationId?: number; invitationId?: number; label: string } | null>(null);
+  const [reason, setReason] = useState("");
+
+  const overview = trpc.platformAccess.overview.useQuery(undefined, { retry: false });
+  const audit = trpc.platformAccess.audit.useQuery({ limit: 50 }, { retry: false });
+  const refresh = () => {
+    utils.platformAccess.overview.invalidate();
+    utils.platformAccess.audit.invalidate();
+  };
+  const issueInvite = trpc.platformAccess.inviteFirmOwner.useMutation({
+    onSuccess: (result) => {
+      setIssuedLink(result.invitationUrl);
+      setEmail("");
+      setFirmName("");
+      refresh();
+      if (result.emailSent) toast.success("Owner invitation emailed. Copy the one-time link now if you also want a backup copy.");
+      else toast.warning("Invitation created, but email was not sent. Copy and send the link to the owner.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const grantWorkspace = trpc.platformAccess.grantWorkspaceAccess.useMutation({ onSuccess: refresh, onError: (error) => toast.error(error.message) });
+  const suspendWorkspace = trpc.platformAccess.suspendWorkspace.useMutation({ onSuccess: () => { refresh(); setAction(null); setReason(""); }, onError: (error) => toast.error(error.message) });
+  const reactivateWorkspace = trpc.platformAccess.reactivateWorkspace.useMutation({ onSuccess: refresh, onError: (error) => toast.error(error.message) });
+  const grantComplimentary = trpc.platformAccess.grantComplimentaryPlan.useMutation({ onSuccess: refresh, onError: (error) => toast.error(error.message) });
+  const revokeComplimentary = trpc.platformAccess.revokeComplimentaryPlan.useMutation({ onSuccess: () => { refresh(); setAction(null); setReason(""); }, onError: (error) => toast.error(error.message) });
+  const revokeInvitation = trpc.platformAccess.revokeFirmInvitation.useMutation({ onSuccess: () => { refresh(); setAction(null); setReason(""); }, onError: (error) => toast.error(error.message) });
+
+  const controls = overview.data?.controls ?? [];
+  const invitations = overview.data?.invitations ?? [];
+  const audits = audit.data ?? [];
+  const isActionPending = suspendWorkspace.isPending || revokeComplimentary.isPending || revokeInvitation.isPending;
+
+  function submitReasonedAction() {
+    if (!action || !reason.trim()) return;
+    if (action.kind === "suspend" && action.organizationId) suspendWorkspace.mutate({ organizationId: action.organizationId, reason: reason.trim() });
+    if (action.kind === "revokeComplimentary" && action.organizationId) revokeComplimentary.mutate({ organizationId: action.organizationId, reason: reason.trim() });
+    if (action.kind === "revokeInvitation" && action.invitationId) revokeInvitation.mutate({ invitationId: action.invitationId, reason: reason.trim() });
+  }
+
+  return (
+    <section className="space-y-5" aria-labelledby="platform-access-heading">
+      <div>
+        <h2 id="platform-access-heading" className="text-xl font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Workspace access management</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Manual workspace access and complimentary plans are separate from Stripe. Suspending workspace access does not stop billing.</p>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Invite a firm owner</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1 text-sm">Firm name<input className="w-full rounded-md border bg-background px-3 py-2" value={firmName} onChange={(event) => setFirmName(event.target.value)} maxLength={255} /></label>
+            <label className="space-y-1 text-sm">Owner email<input type="email" className="w-full rounded-md border bg-background px-3 py-2" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={320} /></label>
+          </div>
+          <Button onClick={() => issueInvite.mutate({ email: email.trim(), firmName: firmName.trim() })} disabled={!email.trim() || !firmName.trim() || issueInvite.isPending}>
+            {issueInvite.isPending ? "Creating invitation…" : "Create owner invitation"}
+          </Button>
+          {issuedLink && <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
+            <p className="font-medium">One-time invitation link</p>
+            <p className="mt-1 break-all"><a className="underline" href={issuedLink}>{issuedLink}</a></p>
+            <p className="mt-1 text-muted-foreground">Copy this link now. The raw link is shown only in this session and is never written to audit logs.</p>
+            <Button className="mt-2" variant="outline" size="sm" onClick={() => { void navigator.clipboard?.writeText(issuedLink).then(() => toast.success("Invitation link copied")); }}><Copy className="mr-2 h-4 w-4" />Copy link</Button>
+          </div>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Workspace and complimentary access</CardTitle></CardHeader>
+        <CardContent>
+          {overview.isLoading ? <Skeleton className="h-16 w-full" /> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left text-muted-foreground"><th className="pb-2 pr-3">Firm</th><th className="pb-2 pr-3">Workspace access</th><th className="pb-2 pr-3">Complimentary plan</th><th className="pb-2">Platform actions</th></tr></thead>
+                <tbody>{firms.map((firm) => {
+                  const control = controls.find((row) => row.organizationId === firm.id);
+                  const state = control?.state ?? "legacy";
+                  const manualPlan = control?.complimentaryPlan ?? null;
+                  return <tr key={firm.id} className="border-b last:border-0 align-top">
+                    <td className="py-3 pr-3 font-medium">{firm.name}</td>
+                    <td className="py-3 pr-3"><Badge variant={state === "suspended" ? "destructive" : state === "active" ? "secondary" : "outline"}>{state}</Badge><div className="mt-1 text-xs text-muted-foreground">Stripe: {firm.subscriptionStatus}</div></td>
+                    <td className="py-3 pr-3">{manualPlan ? <Badge variant="outline">{manualPlan}</Badge> : <span className="text-muted-foreground">None</span>}</td>
+                    <td className="py-3">{firm.id === protectedOrganizationId ? <span className="text-muted-foreground">Protected platform-owner firm</span> : <div className="flex min-w-[330px] flex-wrap items-center gap-2">
+                      {(state === "pending" || state === "suspended") && <Button size="sm" variant="outline" disabled={grantWorkspace.isPending || reactivateWorkspace.isPending} onClick={() => state === "suspended" ? reactivateWorkspace.mutate({ organizationId: firm.id }) : grantWorkspace.mutate({ organizationId: firm.id })}>Grant / reactivate access</Button>}
+                      {(state === "active" || state === "legacy") && <Button size="sm" variant="destructive" onClick={() => { setReason(""); setAction({ kind: "suspend", organizationId: firm.id, label: `Suspend access for ${firm.name}` }); }}>Suspend</Button>}
+                      <select aria-label={`Complimentary plan for ${firm.name}`} className="rounded-md border bg-background px-2 py-1.5" value={complimentaryPlan[firm.id] ?? "starter"} onChange={(event) => setComplimentaryPlan((previous) => ({ ...previous, [firm.id]: event.target.value as "starter" | "professional" | "enterprise" }))}>
+                        <option value="starter">Starter</option><option value="professional">Professional</option><option value="enterprise">Enterprise</option>
+                      </select>
+                      <Button size="sm" variant="outline" disabled={grantComplimentary.isPending} onClick={() => grantComplimentary.mutate({ organizationId: firm.id, plan: complimentaryPlan[firm.id] ?? "starter" })}>Grant plan</Button>
+                      {manualPlan && <Button size="sm" variant="ghost" onClick={() => { setReason(""); setAction({ kind: "revokeComplimentary", organizationId: firm.id, label: `Revoke complimentary plan for ${firm.name}` }); }}>Revoke plan</Button>}
+                    </div>}</td>
+                  </tr>;
+                })}</tbody>
+              </table>
+              {firms.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No firms are available.</p>}
+              <p className="mt-3 text-xs text-muted-foreground">Workspace state, complimentary plan, and Stripe subscription status are independent. Suspending access does not cancel a Stripe subscription.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Owner invitations</CardTitle></CardHeader>
+        <CardContent>
+          {invitations.length === 0 ? <p className="text-sm text-muted-foreground">No invitations.</p> : <div className="space-y-2">{invitations.map((invite) => {
+            const status = invite.acceptedAt ? "Accepted" : invite.revokedAt ? "Revoked" : new Date(invite.expiresAt).getTime() <= Date.now() ? "Expired" : "Pending";
+            return <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm last:border-0">
+              <div><span className="font-medium">{invite.firmName}</span><span className="ml-2 text-muted-foreground">{invite.email}</span><div className="text-xs text-muted-foreground">{status} · expires {formatDate(invite.expiresAt)}</div></div>
+              {status === "Pending" && <Button size="sm" variant="outline" onClick={() => { setReason(""); setAction({ kind: "revokeInvitation", invitationId: invite.id, label: `Revoke invitation for ${invite.email}` }); }}>Revoke invitation</Button>}
+            </div>;
+          })}</div>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Platform access audit</CardTitle></CardHeader>
+        <CardContent>
+          {audit.isLoading ? <Skeleton className="h-16 w-full" /> : audits.length === 0 ? <p className="text-sm text-muted-foreground">No access-management audit events.</p> : <div className="max-h-72 space-y-2 overflow-y-auto">{audits.map((event) => <div key={event.id} className="flex flex-wrap justify-between gap-x-4 border-b pb-2 text-sm last:border-0"><div><span className="font-medium">{event.action.replaceAll("_", " ")}</span><span className="ml-2 text-muted-foreground">{event.organizationId ? `Organization ${event.organizationId}` : event.invitationId ? `Invitation ${event.invitationId}` : "Platform"}</span>{event.details && <p className="mt-0.5 text-xs text-muted-foreground">{formatAccessAuditDetails(event.details)}</p>}<p className="text-xs text-muted-foreground">Actor {event.actorUserId}</p>{event.reason && <p className="mt-0.5 text-xs text-muted-foreground">Reason: {event.reason}</p>}</div><time className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</time></div>)}</div>}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={action !== null} onOpenChange={(open) => { if (!open) { setAction(null); setReason(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm {action?.label}</AlertDialogTitle>
+            <AlertDialogDescription>This action will be recorded in the platform access audit. Enter a reason before continuing.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <textarea aria-label="Reason for platform access change" className="min-h-24 w-full rounded-md border bg-background p-2 text-sm" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep unchanged</AlertDialogCancel>
+            <AlertDialogAction disabled={!reason.trim() || isActionPending} onClick={(event) => { event.preventDefault(); submitReasonedAction(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm and record</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   );
 }

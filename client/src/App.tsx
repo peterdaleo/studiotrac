@@ -27,6 +27,7 @@ import WaitlistAdmin from "./pages/WaitlistAdmin";
 import Billing from "./pages/Billing";
 import Onboarding from "./pages/Onboarding";
 import SuperAdmin from "./pages/SuperAdmin";
+import WorkspaceAccessGate from "./components/WorkspaceAccessGate";
 
 function DashboardRouter() {
   return (
@@ -58,6 +59,22 @@ function DashboardRouter() {
   );
 }
 
+function AccessControlledDashboard() {
+  return (
+    <WorkspaceAccessGate>
+      <DashboardRouter />
+    </WorkspaceAccessGate>
+  );
+}
+
+function AccessControlledOnboarding() {
+  return (
+    <WorkspaceAccessGate>
+      <Onboarding />
+    </WorkspaceAccessGate>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -68,14 +85,14 @@ function App() {
             {/* Auth pages — no dashboard layout */}
             <Route path="/login" component={Login} />
             <Route path="/signup" component={Signup} />
-            <Route path="/onboarding" component={Onboarding} />
+            <Route path="/onboarding" component={AccessControlledOnboarding} />
             {/* Public client portal — no auth, no dashboard layout */}
             <Route path="/portal/:token" component={ClientPortal} />
             {/* Public coordination sheet — no auth, no dashboard layout */}
             <Route path="/coordination/:token" component={CoordinationSheet} />
             <Route path="/coordination/client/:clientToken" component={CoordinationSheet} />
             {/* All other routes go through the dashboard */}
-            <Route component={DashboardRouter} />
+            <Route component={AccessControlledDashboard} />
           </Switch>
         </TooltipProvider>
       </ThemeProvider>

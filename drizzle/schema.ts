@@ -494,4 +494,40 @@ export const prospectInteractions = mysqlTable("prospect_interactions", {
   organizationIdx: index("idx_prospect_interactions_org").on(table.organizationId),
 }));
 export type ProspectInteraction = typeof prospectInteractions.$inferSelect;
+
+// ── Platform access controls (reviewed additive schema only) ─────────
+export const firmOwnerInvitations = mysqlTable("firm_owner_invitations", {
+  id: int("id").autoincrement().primaryKey(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  email: varchar("email", { length: 320 }).notNull(),
+  firmName: varchar("firmName", { length: 255 }).notNull(),
+  createdById: int("createdById").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  acceptedAt: timestamp("acceptedAt"),
+  revokedAt: timestamp("revokedAt"),
+  acceptedOrganizationId: int("acceptedOrganizationId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [index("idx_firm_owner_invitations_email").on(table.email)]);
+export type FirmOwnerInvitation = typeof firmOwnerInvitations.$inferSelect;
+
+export const organizationAccessControls = mysqlTable("organization_access_controls", {
+  organizationId: int("organizationId").primaryKey(),
+  state: mysqlEnum("state", ["pending", "active", "suspended"]).notNull(),
+  complimentaryPlan: mysqlEnum("complimentaryPlan", ["starter", "professional", "enterprise"]),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OrganizationAccessControl = typeof organizationAccessControls.$inferSelect;
+
+export const platformAccessAudit = mysqlTable("platform_access_audit", {
+  id: int("id").autoincrement().primaryKey(),
+  action: varchar("action", { length: 100 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  organizationId: int("organizationId"),
+  invitationId: int("invitationId"),
+  reason: text("reason"),
+  details: text("details"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [index("idx_platform_access_audit_org_created").on(table.organizationId, table.createdAt)]);
+export type PlatformAccessAuditEntry = typeof platformAccessAudit.$inferSelect;
 export type InsertProspectInteraction = typeof prospectInteractions.$inferInsert;

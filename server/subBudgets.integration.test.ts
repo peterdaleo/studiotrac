@@ -81,8 +81,10 @@ describe.skipIf(!enabled)("sub-budgets — isolated database integration", () =>
 
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL || "mysql://invalid");
-    if (!["localhost", "127.0.0.1"].includes(url.hostname) || !url.pathname.includes("test")) {
-      throw new Error("Integration suite requires a localhost database with 'test' in its name");
+    const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+    if (!["localhost", "127.0.0.1"].includes(url.hostname.toLowerCase()) ||
+        !["stage1_test", "studiotrac_stage1_test", "stage1_legacy_test", "stage2_access_test"].includes(database)) {
+      throw new Error("Integration suite requires an approved localhost synthetic test database");
     }
     conn = (await db.getDb())!;
     const unique = `subbudget-test-${Date.now()}`;

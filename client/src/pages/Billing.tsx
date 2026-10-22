@@ -136,11 +136,17 @@ function BillingContent() {
     );
   }
 
-  const currentPlan = currentSubscription?.plan ?? null;
-  const isActive = currentSubscription?.status === "active";
-  const isCanceling = currentSubscription?.cancelAtPeriodEnd;
   const hasPaidSubscription = currentSubscription?.accessSource === "subscription"
     && currentSubscription.id !== null;
+  const workspaceAccess = (currentSubscription as typeof currentSubscription & {
+    workspaceAccess?: { managed: boolean; state: string; allowed: boolean; plan: string | null; complimentaryPlan?: string | null };
+  } | null | undefined)?.workspaceAccess;
+  const hasComplimentaryOnly = !hasPaidSubscription && currentSubscription?.accessSource === "complimentary";
+  const currentPlan = hasPaidSubscription
+    ? currentSubscription?.plan ?? null
+    : workspaceAccess?.complimentaryPlan ?? (hasComplimentaryOnly ? currentSubscription?.plan : null) ?? null;
+  const isActive = currentSubscription?.status === "active";
+  const isCanceling = currentSubscription?.cancelAtPeriodEnd;
 
   function getPlanIcon(planId: string) {
     switch (planId) {
@@ -153,6 +159,7 @@ function BillingContent() {
 
   function getStatusBadge() {
     if (!currentSubscription) return null;
+    if (hasComplimentaryOnly) return <Badge variant="secondary">Complimentary</Badge>;
     const { status } = currentSubscription;
     switch (status) {
       case "active":
@@ -193,6 +200,30 @@ function BillingContent() {
         )}
       </div>
 
+      {workspaceAccess?.managed && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Workspace access</CardTitle>
+            <CardDescription>Platform workspace access is separate from your Stripe subscription.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p><span className="font-medium">Workspace status:</span> <span className="capitalize">{workspaceAccess.state}</span></p>
+            <p><span className="font-medium">Effective access plan:</span> {workspaceAccess.plan ? <span className="capitalize">{workspaceAccess.plan}</span> : "No plan"}</p>
+            <p><span className="font-medium">Complimentary plan:</span> {workspaceAccess.complimentaryPlan ? <span className="capitalize">{workspaceAccess.complimentaryPlan}</span> : "None"}</p>
+            {!workspaceAccess.allowed && <p className="text-amber-700">Workspace access is not currently enabled. Billing management remains available to the organization owner.</p>}
+          </CardContent>
+        </Card>
+      )}
+
+      {hasComplimentaryOnly && (
+        <Card>
+          <CardHeader><CardTitle className="text-lg">Complimentary access</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Your organization has a platform-granted complimentary plan. It is not a paid subscription; no Stripe billing or cancellation controls apply.</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Current Subscription Status */}
       {currentSubscription && (
         <Card>
@@ -213,7 +244,9 @@ function BillingContent() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold capitalize">{currentSubscription.plan}</p>
+                <p className="text-2xl font-bold capitalize">{hasComplimentaryOnly
+                  ? workspaceAccess?.complimentaryPlan ?? currentSubscription.plan ?? "Complimentary"
+                  : currentSubscription.plan ?? "No paid plan"}</p>
                 {currentSubscription.currentPeriodEnd && (
                   <p className="text-sm text-muted-foreground mt-1">
                     {isCanceling ? "Access until" : "Renews on"}{" "}
@@ -268,10 +301,10 @@ function BillingContent() {
         </Card>
       )}
 
-      <Separator />
+      {!hasComplimentaryOnly && <Separator />}
 
       {/* Plan Cards */}
-      <div>
+      {!hasComplimentaryOnly && <div>
         <h2 className="text-lg font-semibold mb-4">
           {currentSubscription ? "Change Plan" : "Choose a Plan"}
         </h2>
@@ -392,7 +425,7 @@ function BillingContent() {
             );
           })}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

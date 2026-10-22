@@ -1,3 +1,4 @@
+import { isOrganizationWorkspaceAccessible } from "./workspaceAccess";
 import { createSafeCoordinationNotice } from "./coordinationNotifications";
 /**
  * Coordination Sheet Notification Cron Job
@@ -56,6 +57,7 @@ async function runCoordinationDigest() {
     const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
 
     for (const sheet of sheetsWithPending) {
+      if (!await isOrganizationWorkspaceAccessible(sheet.organizationId)) continue;
       const subscribers = await db.listCoordinationSubscribers(sheet.id);
       if (subscribers.length === 0) continue;
       const now = new Date();

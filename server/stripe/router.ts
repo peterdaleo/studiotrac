@@ -1,35 +1,23 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
+import { accountProcedure, router } from "../_core/trpc";
 import { getStripe, STRIPE_PLANS, type StripePlanTier } from "./config";
 import * as db from "../db";
 import { canManageBilling } from "../../shared/billingAccess";
+import { assertOrganizationBillingApproval, resolveOrganizationWorkspaceAccess } from "../workspaceAccess";
 
 // Re-export PlanTier alias for backward compat
 export type PlanTier = StripePlanTier;
 
-const billingOwnerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+const billingOwnerProcedure = accountProcedure.use(async ({ ctx, next }) => {
   if (!canManageBilling(ctx.user)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Organization owner access required to manage billing." });
   }
   return next({ ctx });
 });
 
-export const subscriptionRouter = router({
-  // Get available plans (public info — no Stripe call needed)
-  plans: protectedProcedure.query(() => {
-    return Object.entries(STRIPE_PLANS).map(([key, plan]) => ({
-      id: key as StripePlanTier,
-      name: plan.name,
-      amount: plan.amount,
-      description: plan.description,
-      features: plan.features,
-      priceId: plan.priceId,
-    }));
-  }),
 
-  // Get current organization's subscription (or trial status)
-  current: protectedProcedure.query(async ({ ctx }) => {
+async function legacySubscriptionStatus(ctx: { organizationId: number; user: { isSuperAdmin: boolean } }) {
     if (!ctx.organizationId) return null;
 
     // Super-admins have permanent, unlimited access — skip all trial/subscription logic
@@ -117,12 +105,45 @@ export const subscriptionRouter = router({
       isTrialExpired: false,
       accessSource: "subscription" as const,
     };
+}
+
+export const subscriptionRouter = router({
+  // Get available plans (public info — no Stripe call needed)
+  plans: accountProcedure.query(() => {
+    return Object.entries(STRIPE_PLANS).map(([key, plan]) => ({
+      id: key as StripePlanTier,
+      name: plan.name,
+      amount: plan.amount,
+      description: plan.description,
+      features: plan.features,
+      priceId: plan.priceId,
+    }));
+  }),
+
+  // Get current organization's subscription (or trial status)
+  current: accountProcedure.query(async ({ ctx }) => {
+    const workspaceAccess = await resolveOrganizationWorkspaceAccess(ctx.organizationId, ctx.user.isSuperAdmin);
+    const existing = await legacySubscriptionStatus(ctx);
+    if (!existing) return null;
+    if (!workspaceAccess.managed) return { ...existing, workspaceAccess };
+    const noTrial = { trialStartedAt: null, trialExpiresAt: null, trialDaysLeft: null, isTrialActive: false, isTrialExpired: false };
+    // Real paid records remain the Billing source, even if access is suspended
+    // or a separate complimentary grant supplies higher workspace limits.
+    if (existing.accessSource === "subscription") return { ...existing, ...noTrial, workspaceAccess };
+    return {
+      id: null, plan: workspaceAccess.plan,
+      status: workspaceAccess.allowed ? "active" as const : "expired" as const,
+      currentPeriodEnd: null, cancelAtPeriodEnd: false, canceledAt: null,
+      ...noTrial, workspaceAccess,
+      accessSource: workspaceAccess.complimentaryPlan ? "complimentary" as const : "none" as const,
+    };
   }),
 
   // Create a Stripe Checkout session (organization owner only — billing is org-level)
   createCheckout: billingOwnerProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
+      await assertOrganizationBillingApproval(ctx.organizationId, ctx.user.isSuperAdmin);
       const stripe = getStripe();
       const planConfig = STRIPE_PLANS[input.plan];
       if (!planConfig.priceId) {
@@ -240,6 +261,7 @@ export const subscriptionRouter = router({
   changePlan: billingOwnerProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
+      await assertOrganizationBillingApproval(ctx.organizationId, ctx.user.isSuperAdmin);
       const stripe = getStripe();
       if (!ctx.organizationId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });

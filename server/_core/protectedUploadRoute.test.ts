@@ -14,6 +14,7 @@ import {
 } from "./protectedUploadRoute";
 
 type FixtureOptions = {
+  workspaceAllowed?: boolean;
   files?: Record<string, string>;
   records?: Record<string, UploadRecord>;
   shares?: Record<string, UploadShare>;
@@ -76,6 +77,7 @@ async function withUploadServer<T>(options: FixtureOptions, run: (request: (key:
   const app = express();
   const authorizeFile = createUploadAuthorizer({
     uploadDir,
+    isWorkspaceAccessible: async () => options.workspaceAllowed !== false,
     loadFile: async key => records[key] ?? null,
     loadShare: async token => shares[token] ?? null,
     getAuthenticatedOrganizationId: async req => {
@@ -248,6 +250,20 @@ describe("protected upload route", () => {
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       expect(response.headers.get("content-type")).toBe("application/octet-stream");
       expect(response.headers.get("content-disposition")).toBe('attachment; filename="project-document.pdf"');
+    });
+  });
+});
+
+
+describe("managed workspace suspension for local downloads", () => {
+  it("denies owner/admin/PM/staff sessions and valid client capabilities without altering file records", async () => {
+    await withUploadServer({ workspaceAllowed: false, records: { "document.pdf": orgRecord({ isClientVisible: true }) } }, async request => {
+      for (const cookie of ["session=admin", "session=pm", "session=staff"]) expect((await request("document.pdf", { cookie })).status).toBe(404);
+      expect((await request("document.pdf", { token: "project-token" })).status).toBe(404);
+      expect((await request("document.pdf", { token: "client-token" })).status).toBe(404);
+    });
+    await withUploadServer({ workspaceAllowed: true, records: { "document.pdf": orgRecord({ isClientVisible: true }) } }, async request => {
+      expect(await (await request("document.pdf", { token: "project-token" })).text()).toBe("synthetic upload bytes");
     });
   });
 });
