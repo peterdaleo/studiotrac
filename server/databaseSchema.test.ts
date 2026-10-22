@@ -18,6 +18,21 @@ function fakeDatabase(result: unknown) {
 }
 
 describe("assertDatabaseSchemaReady", () => {
+  it("requires the verified legacy file and preference columns, not API aliases or invented storage", () => {
+    expect([...REQUIRED_DATABASE_SCHEMA.project_files].sort()).toEqual([
+      "id", "organizationId", "projectId", "uploadedById", "fileName", "fileUrl",
+      "fileSize", "mimeType", "category", "isClientVisible", "createdAt",
+    ].sort());
+    expect([...REQUIRED_DATABASE_SCHEMA.email_preferences].sort()).toEqual([
+      "id", "userId", "deadlineAlerts", "taskOverdueAlerts", "statusChangeAlerts",
+      "weeklyDigest", "alertDaysBefore", "createdAt", "updatedAt",
+    ].sort());
+    expect(REQUIRED_DATABASE_SCHEMA.project_files).not.toContain("fileKey");
+    expect(REQUIRED_DATABASE_SCHEMA.project_files).not.toContain("url");
+    expect(REQUIRED_DATABASE_SCHEMA.email_preferences).not.toContain("emailAddress");
+    expect(REQUIRED_DATABASE_SCHEMA.email_preferences).not.toContain("overdueAlerts");
+  });
+
   it("derives a non-empty required inventory from the runtime schema and accepts complete metadata", async () => {
     expect(Object.keys(REQUIRED_DATABASE_SCHEMA).length).toBeGreaterThan(0);
     expect(Object.values(REQUIRED_DATABASE_SCHEMA).every((columns) => columns.length > 0)).toBe(true);
@@ -58,6 +73,18 @@ describe("assertDatabaseSchemaReady", () => {
     await expect(assertDatabaseSchemaReady(db as never)).rejects.toMatchObject({
       name: "DatabaseSchemaValidationError",
       missingColumns: { [tableName]: [missingColumn] },
+    });
+  });
+
+  it.each([
+    ["project_files", "fileUrl"],
+    ["project_files", "isClientVisible"],
+    ["email_preferences", "taskOverdueAlerts"],
+  ])("does not waive required legacy %s.%s metadata", async (tableName, columnName) => {
+    const rows = completeMetadata().filter(row => row.tableName !== tableName || row.columnName !== columnName);
+    await expect(assertDatabaseSchemaReady(fakeDatabase(rows) as never)).rejects.toMatchObject({
+      name: "DatabaseSchemaValidationError",
+      missingColumns: { [tableName]: [columnName] },
     });
   });
 

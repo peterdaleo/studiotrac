@@ -20,6 +20,7 @@ import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
 import { PROJECT_PHASES, toSubBudgetStatusItem } from "@shared/subBudgets";
 import { assertTenantEntity, assertTenantReference, filterTenantRows, listOrganizationEmailLog } from "./tenantAuthorization";
+import { getLocalUploadUrl } from "./_core/protectedUploadRoute";
 // Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
 // The 20MB Twilio package loaded statically was causing the container to crash within ~14s.
 let _resend: import("resend").Resend | null = null;
@@ -782,7 +783,7 @@ export const appRouter = router({
   files: router({
     list: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
       await assertTenantEntity("project", input.projectId, ctx.organizationId);
-      return filterTenantRows("projectFile", await db.listProjectFiles(input.projectId), ctx.organizationId);
+      return filterTenantRows("projectFile", await db.listProjectFiles(input.projectId, ctx.organizationId), ctx.organizationId);
     }),
     upload: protectedProcedure.input(z.object({
       projectId: z.number(),
@@ -790,22 +791,25 @@ export const appRouter = router({
       fileData: z.string(), // base64 encoded
       mimeType: z.string().optional(),
       fileSize: z.number().optional(),
-      category: z.enum(["drawing", "specification", "correspondence", "photo", "contract", "other"]).optional(),
+      category: z.enum(["document", "drawing", "image", "other"]).optional(),
     })).mutation(async ({ input, ctx }) => {
       await assertTenantEntity("project", input.projectId, ctx.organizationId);
       const buffer = Buffer.from(input.fileData, "base64");
       const ext = input.fileName.split(".").pop() || "bin";
       const fileKey = `projects/${input.projectId}/files/${nanoid()}.${ext}`;
-      const { url } = await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
+      const url = getLocalUploadUrl(fileKey);
+      if (!url) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid upload key" });
+      await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
       return db.createProjectFile({
+        organizationId: ctx.organizationId,
         projectId: input.projectId,
         uploadedById: ctx.user.id,
         fileName: input.fileName,
-        fileKey,
         url,
         mimeType: input.mimeType,
         fileSize: input.fileSize,
         category: input.category || "other",
+        isClientVisible: false,
       });
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
@@ -814,7 +818,7 @@ export const appRouter = router({
     }),
     count: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
       await assertTenantEntity("project", input.projectId, ctx.organizationId);
-      return db.getProjectFileCount(input.projectId);
+      return db.getProjectFileCount(input.projectId, ctx.organizationId);
     }),
   }),
 
@@ -915,12 +919,11 @@ export const appRouter = router({
   emailPreferences: router({
     get: protectedProcedure.query(({ ctx }) => db.getEmailPreferences(ctx.user.id)),
     upsert: protectedProcedure.input(z.object({
-      emailAddress: z.string().email(),
       deadlineAlerts: z.boolean().optional(),
       overdueAlerts: z.boolean().optional(),
       statusChangeAlerts: z.boolean().optional(),
       alertDaysBefore: z.number().min(1).max(14).optional(),
-    })).mutation(({ input, ctx }) => db.upsertEmailPreferences(ctx.user.id, input)),
+    }).strict()).mutation(({ input, ctx }) => db.upsertEmailPreferences(ctx.user.id, input)),
   }),
 
   // ── Email Notifications ─────────────────────────────────────

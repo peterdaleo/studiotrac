@@ -29,10 +29,10 @@ function assertSafeDatabaseTarget(): URL {
   if (hostname !== "localhost" && hostname !== "127.0.0.1" && hostname !== "::1") {
     throw new Error(`Refusing tenant integration tests against non-local database host: ${hostname}`);
   }
-  // stage1_test is the designated safe test schema; the prefixed spelling is
-  // accepted for the coordinator's local schema name (studiotrac_stage1_test).
-  if (database !== "stage1_test" && database !== "studiotrac_stage1_test") {
-    throw new Error(`Refusing tenant integration tests against database ${database}; expected stage1_test`);
+  // Explicit localhost-only synthetic schemas; the legacy fixture is generated
+  // from the runtime ORM, never copied from production.
+  if (!["stage1_test", "studiotrac_stage1_test", "stage1_legacy_test"].includes(database)) {
+    throw new Error(`Refusing tenant integration tests against database ${database}; expected an approved synthetic schema`);
   }
   return url;
 }
@@ -177,7 +177,7 @@ suite("tenant isolation — isolated MariaDB integration", () => {
     const task = await insert("tasks", { organizationId: orgId, projectId: project, assigneeId: teamMember, title: `Task ${suffix} ${marker}`, status: "todo", priority: 10, sortOrder: 0 });
     const invoice = await insert("invoices", { organizationId: orgId, projectId: project, amount: 50000, description: `Invoice ${suffix} ${marker}`, invoiceNumber: `INV-${suffix}-${marker}`, status: "draft", invoiceDate: new Date() });
     const note = await insert("project_notes", { organizationId: orgId, projectId: project, authorId: admin.id, content: `Note ${suffix} ${marker}` });
-    const file = await insert("project_files", { projectId: project, uploadedById: admin.id, fileName: `file-${suffix}-${marker}.txt`, fileKey: `synthetic/${suffix}/${marker}.txt`, url: "https://example.invalid/synthetic-file", category: "other" });
+    const file = await insert("project_files", { projectId: project, uploadedById: admin.id, fileName: `file-${suffix}-${marker}.txt`, fileUrl: `/uploads/synthetic/${suffix}/${marker}.txt`, category: "other" });
     const notification = await insert("notifications", { organizationId: orgId, userId: user.id, type: "general", title: `Notification ${suffix} ${marker}`, message: "synthetic" , relatedProjectId: project });
     const token = `${marker}-${suffix}-share-token`;
     const share = await insert("client_share_tokens", { organizationId: orgId, projectId: project, token, label: `Share ${suffix}`, createdById: admin.id });

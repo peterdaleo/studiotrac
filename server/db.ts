@@ -29,6 +29,7 @@ import {
   projectBillingPhases, projectSubBudgets, InsertProjectSubBudget,
 } from "../drizzle/schema";
 import { getSubBudgetCapContribution, type ProjectSubBudgetSummary, type SubBudgetItem, type SubBudgetOption } from "../shared/subBudgets";
+import { getLocalUploadKey, getLocalUploadUrl } from "./_core/protectedUploadRoute";
 import {
   applyProjectBillingUpdate,
   buildUserBillingRateMap,
@@ -1055,10 +1056,34 @@ export async function getUnreadNotificationCount(userId: number, orgId: number) 
 }
 
 // ── Project Files ─────────────────────────────────────────────────
-export async function listProjectFiles(projectId: number) {
+type EmailPreferenceSettings = Pick<Partial<InsertEmailPreference>, "deadlineAlerts" | "overdueAlerts" | "statusChangeAlerts" | "alertDaysBefore">;
+const emailPreferenceSettingKeys = ["deadlineAlerts", "overdueAlerts", "statusChangeAlerts", "alertDaysBefore"] as const;
+export function buildEmailPreferenceUpdateValues(data: EmailPreferenceSettings): EmailPreferenceSettings {
+  return Object.fromEntries(emailPreferenceSettingKeys
+    .filter(key => data[key] !== undefined)
+    .map(key => [key, data[key]])) as EmailPreferenceSettings;
+}
+export function buildEmailPreferenceInsertValues(userId: number, data: EmailPreferenceSettings) {
+  return { userId, ...buildEmailPreferenceUpdateValues(data) };
+}
+export function filterProjectFileRows<T extends { organizationId: number | null; isClientVisible: boolean; url: string }>(
+  files: T[], organizationId: number, clientVisibleOnly = false,
+): T[] {
+  return files.filter(file =>
+    (file.organizationId == null || file.organizationId === organizationId) &&
+    (!clientVisibleOnly || file.isClientVisible === true) &&
+    getLocalUploadKey(file.url) !== null,
+  );
+}
+
+export async function listProjectFiles(projectId: number, organizationId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId)).orderBy(desc(projectFiles.createdAt));
+  const files = await db.select().from(projectFiles).where(and(
+    eq(projectFiles.projectId, projectId),
+    or(isNull(projectFiles.organizationId), eq(projectFiles.organizationId, organizationId)),
+  )).orderBy(desc(projectFiles.createdAt));
+  return filterProjectFileRows(files, organizationId);
 }
 
 export async function createProjectFile(data: InsertProjectFile) {
@@ -1073,14 +1098,20 @@ export async function deleteProjectFile(id: number) {
   if (!db) throw new Error("Database not available");
   const file = await db.select().from(projectFiles).where(eq(projectFiles.id, id)).limit(1);
   await db.delete(projectFiles).where(eq(projectFiles.id, id));
-  // Clean up the actual file from disk
-  if (file[0]?.fileKey) {
+  // Only unlink files whose metadata contains the exact canonical local URL.
+  const key = file[0] ? getLocalUploadKey(file[0].url) : null;
+  if (key && getLocalUploadUrl(key) === file[0]?.url) {
     const fs = await import("fs");
     const path = await import("path");
     const uploadDir = process.env.UPLOAD_DIR || path.default.resolve(process.cwd(), "uploads");
-    const filePath = path.default.join(uploadDir, file[0].fileKey);
     try {
-      await fs.promises.unlink(filePath);
+      const root = await fs.promises.realpath(uploadDir);
+      const filePath = path.default.resolve(root, key);
+      const resolvedPath = await fs.promises.realpath(filePath);
+      const relativePath = path.default.relative(root, resolvedPath);
+      if (relativePath && relativePath !== ".." && !relativePath.startsWith(`..${path.default.sep}`) && !path.default.isAbsolute(relativePath)) {
+        await fs.promises.unlink(filePath);
+      }
     } catch (e) {
       // File may already be missing (e.g., after redeploy); ignore
     }
@@ -1088,11 +1119,8 @@ export async function deleteProjectFile(id: number) {
   return file[0];
 }
 
-export async function getProjectFileCount(projectId: number) {
-  const db = await getDb();
-  if (!db) return 0;
-  const result = await db.select({ count: sql<number>`count(*)` }).from(projectFiles).where(eq(projectFiles.projectId, projectId));
-  return result[0]?.count ?? 0;
+export async function getProjectFileCount(projectId: number, organizationId: number) {
+  return (await listProjectFiles(projectId, organizationId)).length;
 }
 
 // ── Email Preferences ─────────────────────────────────────────────
@@ -1103,15 +1131,16 @@ export async function getEmailPreferences(userId: number) {
   return result[0];
 }
 
-export async function upsertEmailPreferences(userId: number, data: Partial<InsertEmailPreference>) {
+export async function upsertEmailPreferences(userId: number, data: Pick<Partial<InsertEmailPreference>, "deadlineAlerts" | "overdueAlerts" | "statusChangeAlerts" | "alertDaysBefore">) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const values = buildEmailPreferenceUpdateValues(data);
   const existing = await db.select().from(emailPreferences).where(eq(emailPreferences.userId, userId)).limit(1);
   if (existing.length > 0) {
-    await db.update(emailPreferences).set(data).where(eq(emailPreferences.userId, userId));
+    await db.update(emailPreferences).set(values).where(eq(emailPreferences.userId, userId));
     return { id: existing[0]!.id };
   } else {
-    const result = await db.insert(emailPreferences).values({ userId, emailAddress: data.emailAddress || '', ...data });
+    const result = await db.insert(emailPreferences).values(buildEmailPreferenceInsertValues(userId, values));
     return { id: result[0].insertId };
   }
 }
@@ -1475,7 +1504,11 @@ export async function getPublicClientData(clientName: string, organizationId: nu
       .where(and(eq(projectNotes.projectId, project.id), eq(projectNotes.isClientVisible, true)))
       .orderBy(desc(projectNotes.createdAt));
     const files = await db.select().from(projectFiles)
-      .where(eq(projectFiles.projectId, project.id))
+      .where(and(
+        eq(projectFiles.projectId, project.id),
+        eq(projectFiles.isClientVisible, true),
+        or(isNull(projectFiles.organizationId), eq(projectFiles.organizationId, organizationId)),
+      ))
       .orderBy(desc(projectFiles.createdAt));
     let managerName = null;
     if (project.projectManagerId) {
@@ -1503,7 +1536,7 @@ export async function getPublicClientData(clientName: string, organizationId: nu
         managerName,
       },
       notes: visibleNotes,
-      files,
+      files: filterProjectFileRows(files, organizationId, true),
     };
   }));
   return { clientName, projects: projectsData };
@@ -1513,11 +1546,17 @@ export async function getPublicProjectData(projectId: number) {
   const db = await getDb();
   if (!db) return null;
   const project = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!project[0]) return null;
+  if (!project[0] || project[0].organizationId == null) return null;
   // Get client-visible notes only
   const visibleNotes = await db.select().from(projectNotes).where(and(eq(projectNotes.projectId, projectId), eq(projectNotes.isClientVisible, true))).orderBy(desc(projectNotes.createdAt));
   // Get files
-  const files = await db.select().from(projectFiles).where(eq(projectFiles.projectId, projectId)).orderBy(desc(projectFiles.createdAt));
+  const files = await db.select().from(projectFiles)
+    .where(and(
+      eq(projectFiles.projectId, projectId),
+      eq(projectFiles.isClientVisible, true),
+      or(isNull(projectFiles.organizationId), eq(projectFiles.organizationId, project[0].organizationId)),
+    ))
+    .orderBy(desc(projectFiles.createdAt));
   // Get project manager name
   let managerName = null;
   if (project[0].projectManagerId) {
@@ -1544,7 +1583,7 @@ export async function getPublicProjectData(projectId: number) {
       managerName,
     },
     notes: visibleNotes,
-    files,
+      files: filterProjectFileRows(files, project[0].organizationId, true),
   };
 }
 

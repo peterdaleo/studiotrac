@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "./db";
 import { assertTenantEntity, assertTenantReference } from "./tenantAuthorization";
-import { consultantContracts, projects, tasks, teamMembers, timeEntries, users } from "../drizzle/schema";
+import { consultantContracts, projectFiles, projects, tasks, teamMembers, timeEntries, users } from "../drizzle/schema";
 
 vi.mock("./db", () => ({ getDb: vi.fn() }));
 
@@ -54,6 +54,19 @@ describe("tenant route ownership assertions", () => {
 
   it("returns NOT_FOUND when a same-org child points at a foreign project", async () => {
     await expectNotFound(assertTenantEntity("task", 6, 11));
+  });
+
+  it("derives a legacy project-file's ownership from its same-tenant project only", async () => {
+    rows.set(projectFiles, [
+      { id: 30, organizationId: null, projectId: 1 },
+      { id: 31, organizationId: null, projectId: 2 },
+      { id: 32, organizationId: 11, projectId: 2 },
+      { id: 33, organizationId: 22, projectId: 1 },
+    ]);
+    await expect(assertTenantEntity("projectFile", 30, 11)).resolves.toMatchObject({ id: 30 });
+    await expectNotFound(assertTenantEntity("projectFile", 31, 11));
+    await expectNotFound(assertTenantEntity("projectFile", 32, 11));
+    await expectNotFound(assertTenantEntity("projectFile", 33, 11));
   });
 
   it("checks both same-tenant ownership and the exact supplied parent", async () => {

@@ -13,7 +13,7 @@ import { startCoordinationCron } from "../coordinationCron";
 import cors from "cors";
 import { sdk } from "./sdk";
 import { createCoordinationImageHandler } from "./coordinationImageRoute";
-import { createProtectedUploadHandler, createUploadAuthorizer } from "./protectedUploadRoute";
+import { createProtectedUploadHandler, createUploadAuthorizer, getLocalUploadUrl } from "./protectedUploadRoute";
 import { getDb } from "../db";
 import { DatabaseSchemaValidationError } from "../databaseSchema";
 
@@ -66,12 +66,15 @@ async function startServer() {
       const { getDb } = await import("../db");
       const database = await getDb();
       if (!database) return null;
+      const localUrl = getLocalUploadUrl(key);
+      if (!localUrl) return null;
       const { projectFiles, projects } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       const [file] = await database.select({ fileName: projectFiles.fileName, projectId: projectFiles.projectId,
-        organizationId: projects.organizationId, clientName: projects.clientName })
+        organizationId: projects.organizationId, fileOrganizationId: projectFiles.organizationId,
+        isClientVisible: projectFiles.isClientVisible, clientName: projects.clientName })
         .from(projectFiles).innerJoin(projects, eq(projectFiles.projectId, projects.id))
-        .where(eq(projectFiles.fileKey, key)).limit(1);
+        .where(eq(projectFiles.url, localUrl)).limit(1);
       return file ?? null;
     },
   }) }));

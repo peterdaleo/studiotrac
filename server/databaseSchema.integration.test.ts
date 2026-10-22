@@ -7,9 +7,9 @@ import { assertDatabaseSchemaReady } from "./databaseSchema";
 // This suite is intentionally inert unless explicitly opted into. It only
 // accepts the dedicated local fixture user and the three named synthetic DBs.
 const enabled = process.env.STARTUP_SCHEMA_INTEGRATION === "1";
-const FULL_SCHEMA = "stage1_startup_test";
-const MISSING_TABLE_SCHEMA = "stage1_startup_test_missing_table";
-const MISSING_COLUMN_SCHEMA = "stage1_startup_test_missing_column";
+const FULL_SCHEMA = "stage1_legacy_startup_test";
+const MISSING_TABLE_SCHEMA = "stage1_legacy_startup_test_missing_table";
+const MISSING_COLUMN_SCHEMA = "stage1_legacy_startup_test_missing_column";
 const LEGACY_PROJECT_ID = 910001;
 const LEGACY_PROJECT_NAME = "STARTUP_GUARD_LEGACY_FIXED_ZERO";
 
@@ -46,7 +46,7 @@ function validatedFixtureUrl(): URL {
     database !== FULL_SCHEMA ||
     !url.password
   ) {
-    throw new Error("Refusing startup schema integration tests outside the dedicated localhost stage1_startup_test fixture");
+    throw new Error("Refusing startup schema integration tests outside the dedicated localhost stage1_legacy_startup_test fixture");
   }
   return url;
 }

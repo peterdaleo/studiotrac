@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createProtectedUploadHandler,
   createUploadAuthorizer,
+  getLocalUploadKey,
+  getLocalUploadUrl,
   type UploadRecord,
   type UploadShare,
 } from "./protectedUploadRoute";
@@ -22,6 +24,8 @@ const orgRecord = (overrides: Partial<UploadRecord> = {}): UploadRecord => ({
   fileName: "project-document.pdf",
   projectId: 100,
   organizationId: 17,
+  fileOrganizationId: null,
+  isClientVisible: false,
   clientName: "Acme",
   ...overrides,
 });
@@ -135,7 +139,10 @@ describe("protected upload route", () => {
   it("allows a project capability only for its linked project and organization", async () => {
     await withUploadServer({
       files: { "other-project.pdf": "other project" },
-      records: { "other-project.pdf": orgRecord({ projectId: 101 }) },
+      records: {
+        "document.pdf": orgRecord({ isClientVisible: true }),
+        "other-project.pdf": orgRecord({ projectId: 101, isClientVisible: true }),
+      },
       shares: { "wrong-org-project": { ...projectShare, organizationId: 18 } },
     }, async request => {
       expect((await request("document.pdf", { token: "project-token" })).status).toBe(200);
@@ -148,8 +155,9 @@ describe("protected upload route", () => {
     await withUploadServer({
       files: { "other-client.pdf": "other client", "cross-org.pdf": "cross org" },
       records: {
-        "other-client.pdf": orgRecord({ clientName: "Other Client" }),
-        "cross-org.pdf": orgRecord({ organizationId: 18 }),
+        "document.pdf": orgRecord({ isClientVisible: true }),
+        "other-client.pdf": orgRecord({ clientName: "Other Client", isClientVisible: true }),
+        "cross-org.pdf": orgRecord({ organizationId: 18, isClientVisible: true }),
       },
     }, async request => {
       expect((await request("document.pdf", { token: "client-token" })).status).toBe(200);
@@ -165,11 +173,44 @@ describe("protected upload route", () => {
   });
 
   it("preserves existing /portal/<token> links supplied through Referer", async () => {
-    await withUploadServer({}, async request => {
+    await withUploadServer({ records: { "document.pdf": orgRecord({ isClientVisible: true }) } }, async request => {
       const response = await request("document.pdf", { referer: "https://app.studiotrac.app/portal/project-token" });
       expect(response.status).toBe(200);
       expect(await response.text()).toBe("synthetic upload bytes");
     });
+  });
+
+  it("keeps private files available to same-org sessions but not public tokens", async () => {
+    await withUploadServer({}, async request => {
+      expect((await request("document.pdf", { cookie: "session=admin" })).status).toBe(200);
+      expect((await request("document.pdf", { token: "project-token" })).status).toBe(404);
+    });
+  });
+
+  it("rejects contradictory file organization stamps and permits null legacy stamps via project ownership", async () => {
+    await withUploadServer({
+      files: { "contradictory.pdf": "wrong owner" },
+      records: {
+        "document.pdf": orgRecord({ fileOrganizationId: null }),
+        "contradictory.pdf": orgRecord({ fileOrganizationId: 18 }),
+      },
+    }, async request => {
+      expect((await request("document.pdf", { cookie: "session=admin" })).status).toBe(200);
+      expect((await request("contradictory.pdf", { cookie: "session=admin" })).status).toBe(404);
+    });
+  });
+
+  it("accepts only strict canonical local upload URLs", () => {
+    expect(getLocalUploadKey("/uploads/projects/12/files/Ab9-x.pdf")).toBe("projects/12/files/Ab9-x.pdf");
+    expect(getLocalUploadUrl("projects/12/files/Ab9-x.pdf")).toBe("/uploads/projects/12/files/Ab9-x.pdf");
+    for (const url of [
+      "https://example.com/uploads/file.pdf", "//example.com/uploads/file.pdf", "/uploads/file.pdf?x=1",
+      "/uploads/file.pdf#fragment", "/uploads/%2e%2e/secret", "/uploads/%252e%252e/secret",
+      "/uploads/../secret", "/uploads/a\\b", "/uploads/a%2Fb", "/uploads/a//b",
+    ]) expect(getLocalUploadKey(url)).toBeNull();
+    for (const key of ["../secret", "%2e%2e/secret", "/absolute", "a\\b", "a//b", "a?b"]) {
+      expect(getLocalUploadUrl(key)).toBeNull();
+    }
   });
 
   it("does not serve an on-disk file without matching upload metadata", async () => {

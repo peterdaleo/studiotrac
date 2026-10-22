@@ -75,7 +75,8 @@ async function belongs(entity: TenantEntity, id: number, organizationId: OrgId):
   const row = await rowById(tableByEntity[entity], id);
   if (!row) return notFound();
   const legacyProjectOwnedConsultant = entity === "consultant" && row.organizationId == null && row.projectId != null;
-  if ("organizationId" in row && row.organizationId !== organizationId && !legacyProjectOwnedConsultant) return notFound();
+  const legacyProjectOwnedFile = entity === "projectFile" && row.organizationId == null && row.projectId != null;
+  if ("organizationId" in row && row.organizationId !== organizationId && !legacyProjectOwnedConsultant && !legacyProjectOwnedFile) return notFound();
 
   switch (entity) {
     case "project":

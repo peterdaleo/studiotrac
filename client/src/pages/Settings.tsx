@@ -79,7 +79,6 @@ export default function Settings() {
     onError: (err) => toast.error(err.message),
   });
 
-  const [emailAddress, setEmailAddress] = useState("");
   const [deadlineAlerts, setDeadlineAlerts] = useState(true);
   const [overdueAlerts, setOverdueAlerts] = useState(true);
   const [statusChangeAlerts, setStatusChangeAlerts] = useState(true);
@@ -88,7 +87,6 @@ export default function Settings() {
 
   useEffect(() => {
     if (emailPrefs) {
-      setEmailAddress(emailPrefs.emailAddress || "");
       setDeadlineAlerts(emailPrefs.deadlineAlerts);
       setOverdueAlerts(emailPrefs.overdueAlerts);
       setStatusChangeAlerts(emailPrefs.statusChangeAlerts);
@@ -97,12 +95,7 @@ export default function Settings() {
   }, [emailPrefs]);
 
   const handleSavePrefs = () => {
-    if (!emailAddress.trim()) {
-      toast.error("Please enter an email address");
-      return;
-    }
     upsertPrefs.mutate({
-      emailAddress: emailAddress.trim(),
       deadlineAlerts,
       overdueAlerts,
       statusChangeAlerts,
@@ -241,23 +234,6 @@ export default function Settings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Email Address */}
-          <div className="space-y-2">
-            <Label htmlFor="email">Notification Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@studio.com"
-              value={emailAddress}
-              onChange={(e) => setEmailAddress(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Alerts will be sent to this address and logged in the notification center.
-            </p>
-          </div>
-
-          <Separator />
-
           {/* Alert Types */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold">Alert Types</h3>
