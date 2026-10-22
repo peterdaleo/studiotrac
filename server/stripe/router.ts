@@ -1,11 +1,19 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { getStripe, STRIPE_PLANS, type StripePlanTier } from "./config";
 import * as db from "../db";
+import { canManageBilling } from "../../shared/billingAccess";
 
 // Re-export PlanTier alias for backward compat
 export type PlanTier = StripePlanTier;
+
+const billingOwnerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (!canManageBilling(ctx.user)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Organization owner access required to manage billing." });
+  }
+  return next({ ctx });
+});
 
 export const subscriptionRouter = router({
   // Get available plans (public info — no Stripe call needed)
@@ -38,6 +46,7 @@ export const subscriptionRouter = router({
         trialDaysLeft: null as null,
         isTrialActive: false,
         isTrialExpired: false,
+        accessSource: "platform_owner" as const,
       };
     }
 
@@ -56,6 +65,7 @@ export const subscriptionRouter = router({
         trialDaysLeft: null as null,
         isTrialActive: false,
         isTrialExpired: false,
+        accessSource: "platform_owner" as const,
       };
     }
 
@@ -89,6 +99,7 @@ export const subscriptionRouter = router({
         trialDaysLeft,
         isTrialActive,
         isTrialExpired,
+        accessSource: "trial" as const,
       };
     }
 
@@ -104,11 +115,12 @@ export const subscriptionRouter = router({
       trialDaysLeft,
       isTrialActive: false, // paid subscription supersedes trial
       isTrialExpired: false,
+      accessSource: "subscription" as const,
     };
   }),
 
-  // Create a Stripe Checkout session (admin only — billing is org-level)
-  createCheckout: adminProcedure
+  // Create a Stripe Checkout session (organization owner only — billing is org-level)
+  createCheckout: billingOwnerProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
       const stripe = getStripe();
@@ -159,7 +171,7 @@ export const subscriptionRouter = router({
     }),
 
   // Create a Stripe Customer Portal session (for managing subscription)
-  createPortalSession: adminProcedure.mutation(async ({ ctx }) => {
+  createPortalSession: billingOwnerProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
     if (!ctx.organizationId) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
@@ -181,7 +193,7 @@ export const subscriptionRouter = router({
   }),
 
   // Cancel subscription (at period end)
-  cancel: adminProcedure.mutation(async ({ ctx }) => {
+  cancel: billingOwnerProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
     if (!ctx.organizationId) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
@@ -201,7 +213,7 @@ export const subscriptionRouter = router({
   }),
 
   // Resume a canceled subscription (undo cancel_at_period_end)
-  resume: adminProcedure.mutation(async ({ ctx }) => {
+  resume: billingOwnerProcedure.mutation(async ({ ctx }) => {
     const stripe = getStripe();
     if (!ctx.organizationId) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No organization found" });
@@ -225,7 +237,7 @@ export const subscriptionRouter = router({
   }),
 
   // Change plan (upgrade/downgrade)
-  changePlan: adminProcedure
+  changePlan: billingOwnerProcedure
     .input(z.object({ plan: z.enum(["starter", "professional"]) }))
     .mutation(async ({ input, ctx }) => {
       const stripe = getStripe();

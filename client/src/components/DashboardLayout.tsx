@@ -53,6 +53,14 @@ import { trpc } from "@/lib/trpc";
 import { useSubscription } from "@/hooks/useSubscription";
 import TrialBanner from "@/components/TrialBanner";
 import TrialExpiredScreen from "@/components/TrialExpiredScreen";
+import { canManageBilling, type BillingPrincipal } from "@shared/billingAccess";
+
+export function shouldShowBillingNavigation(
+  user: BillingPrincipal | null | undefined,
+  isStaffPreview: boolean,
+) {
+  return canManageBilling(user) && !isStaffPreview;
+}
 
 const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -67,7 +75,7 @@ const baseMenuItems = [
   { icon: FileSpreadsheet, label: "Reports", path: "/reports" },
   { icon: ClipboardList, label: "Waitlist", path: "/admin/waitlist", superAdminOnly: true },
   { icon: Building2, label: "Platform Admin", path: "/admin/platform", superAdminOnly: true },
-  { icon: Receipt, label: "Billing", path: "/billing", adminOnly: true },
+  { icon: Receipt, label: "Billing", path: "/billing", billingOwnerOnly: true },
 ] as const;
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -196,6 +204,9 @@ function DashboardLayoutContent({
   const showTrialUI = !isSuperAdmin && user?.orgRole === "owner";
   const menuItems = baseMenuItems.filter((item) => {
     if ("superAdminOnly" in item && item.superAdminOnly) return isSuperAdmin;
+    if ("billingOwnerOnly" in item && item.billingOwnerOnly) {
+      return shouldShowBillingNavigation(user, isStaffPreview);
+    }
     if ("adminOrPmOnly" in item && item.adminOrPmOnly) return effectiveRole === "admin" || effectiveRole === "pm";
     if ("adminOnly" in item && item.adminOnly) {
       if (!isAdmin) return false;

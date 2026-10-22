@@ -1,6 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useStaffPreview } from "@/contexts/StaffPreviewContext";
+import { canManageBilling } from "@shared/billingAccess";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,21 @@ import { toast } from "sonner";
 
 export default function Billing() {
   const { user } = useAuth();
+
+  const { isStaffPreview } = useStaffPreview();
+  if (!canManageBilling(user) || isStaffPreview) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold">Access denied</h1>
+        <p className="text-muted-foreground mt-1">Only your organization owner can manage billing.</p>
+      </div>
+    );
+  }
+
+  return <BillingContent />;
+}
+
+function BillingContent() {
   const utils = trpc.useUtils();
   const [changingTo, setChangingTo] = useState<string | null>(null);
 
@@ -83,14 +100,16 @@ export default function Billing() {
   });
 
   // Check for checkout result in URL
-  const params = new URLSearchParams(window.location.search);
-  const checkoutResult = params.get("checkout");
-  if (checkoutResult === "success") {
-    // Clean URL
-    window.history.replaceState({}, "", window.location.pathname);
-    toast.success("Subscription activated successfully!");
-  } else if (checkoutResult === "canceled") {
-    window.history.replaceState({}, "", window.location.pathname);
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const checkoutResult = params.get("checkout");
+    if (checkoutResult === "success") {
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+      toast.success("Subscription activated successfully!");
+    } else if (checkoutResult === "canceled") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }
 
   const isLoading = plansLoading || subLoading;
@@ -108,9 +127,20 @@ export default function Billing() {
     );
   }
 
+  if (currentSubscription?.accessSource === "platform_owner") {
+    return (
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+        <h1 className="text-2xl font-bold">Billing &amp; Subscription</h1>
+        <p className="text-muted-foreground">Platform-owner access—no paid subscription</p>
+      </div>
+    );
+  }
+
   const currentPlan = currentSubscription?.plan ?? null;
   const isActive = currentSubscription?.status === "active";
   const isCanceling = currentSubscription?.cancelAtPeriodEnd;
+  const hasPaidSubscription = currentSubscription?.accessSource === "subscription"
+    && currentSubscription.id !== null;
 
   function getPlanIcon(planId: string) {
     switch (planId) {
@@ -147,7 +177,7 @@ export default function Billing() {
             Manage your subscription plan and billing details
           </p>
         </div>
-        {currentSubscription && (
+        {hasPaidSubscription && (
           <Button
             variant="outline"
             onClick={() => createPortal.mutate()}
@@ -195,7 +225,7 @@ export default function Billing() {
                   </p>
                 )}
               </div>
-              <div className="flex gap-2">
+              {hasPaidSubscription && <div className="flex gap-2">
                 {isCanceling ? (
                   <Button
                     onClick={() => resumeSubscription.mutate()}
@@ -232,7 +262,7 @@ export default function Billing() {
                     </AlertDialogContent>
                   </AlertDialog>
                 )}
-              </div>
+              </div>}
             </div>
           </CardContent>
         </Card>
