@@ -46,7 +46,7 @@ export function registerOAuthRoutes(app: Express) {
         res.status(failure.status).json({ error: failure.error });
         return;
       }
-      res.json({ email: invitation.email, firmName: invitation.firmName, expiresAt: invitation.expiresAt });
+      res.json({ email: invitation.email, firmName: invitation.firmName, expiresAt: invitation.expiresAt, complimentaryPlan: invitation.complimentaryPlan });
     } catch (error) {
       const failure = firmInvitationError(invitationStatus(error));
       res.status(failure.status).json({ error: failure.error });

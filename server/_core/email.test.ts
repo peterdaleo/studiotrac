@@ -44,8 +44,23 @@ describe("sendFirmOwnerInviteEmail", () => {
     expect(message.from).toContain("invites@studiotrac.app");
     expect(message.html).toContain("&lt;Example &amp; &quot;Sons&quot;&gt;");
     expect(message.html).toContain("firmInvite=synthetic-token&amp;next=%22ok%22");
+    expect(message.text).toContain("pending approval");
+    expect(message.html).toContain("pending approval");
     expect(message.text).toContain(params.invitationUrl);
     expect(mocks.logEmail).not.toHaveBeenCalled();
+  });
+
+  it("explains the selected complimentary plan activates on acceptance without a trial or automatic charge", async () => {
+    await sendFirmOwnerInviteEmail({ ...params, complimentaryPlan: "professional" });
+
+    const message = mocks.send.mock.calls[0][0];
+    expect(message.text).toContain("complimentary Professional plan");
+    expect(message.html).toContain("complimentary Professional plan");
+    expect(message.text).toContain("will activate when you accept this invitation");
+    expect(message.html).toContain("will activate when you accept this invitation");
+    expect(message.text).toContain("There is no trial and no automatic charge.");
+    expect(message.html).toContain("There is no trial and no automatic charge.");
+    expect(message.html).not.toContain('<Example & "Sons">');
   });
 
   it("returns only a sanitized delivery failure when the provider returns an error", async () => {

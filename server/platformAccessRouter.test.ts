@@ -58,6 +58,7 @@ describe("platformAccessRouter owner guard", () => {
       invitationId: 33,
       invitationUrl: "https://app.example.test/invite?firmInvite=synthetic-bearer",
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      complimentaryPlan: "starter" as const,
     };
     storeMocks.issueFirmOwnerInvitation.mockResolvedValue(issued);
     emailMocks.sendFirmOwnerInviteEmail.mockResolvedValue({ sent: false, reason: "missing_api_key" });
@@ -69,6 +70,7 @@ describe("platformAccessRouter owner guard", () => {
     expect(storeMocks.issueFirmOwnerInvitation).toHaveBeenCalledWith({
       email: "owner@example.test",
       firmName: "Example Firm",
+      complimentaryPlan: "starter",
       actorUserId: 9,
       origin: "https://app.studiotrac.app",
     });
@@ -77,7 +79,44 @@ describe("platformAccessRouter owner guard", () => {
       to: "owner@example.test",
       firmName: "Example Firm",
       invitationUrl: issued.invitationUrl,
+      complimentaryPlan: "starter",
     });
     expect(result).toEqual({ ...issued, emailSent: false, emailFailureReason: "missing_api_key" });
+  });
+
+  it("preserves an explicitly selected complimentary plan", async () => {
+    const issued = {
+      invitationId: 34,
+      invitationUrl: "https://app.example.test/invite?firmInvite=synthetic-bearer",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      complimentaryPlan: "enterprise" as const,
+    };
+    storeMocks.issueFirmOwnerInvitation.mockResolvedValue(issued);
+    emailMocks.sendFirmOwnerInviteEmail.mockResolvedValue({ sent: true });
+
+    await caller({ id: 9, isSuperAdmin: true, orgRole: "owner", organizationId: 9 })
+      .inviteFirmOwner({ email: "owner@example.test", firmName: "Example Firm", complimentaryPlan: "enterprise" });
+
+    expect(storeMocks.issueFirmOwnerInvitation).toHaveBeenCalledWith({
+      email: "owner@example.test",
+      firmName: "Example Firm",
+      complimentaryPlan: "enterprise",
+      actorUserId: 9,
+      origin: "https://app.studiotrac.app",
+    });
+    expect(emailMocks.sendFirmOwnerInviteEmail).toHaveBeenCalledWith({
+      to: "owner@example.test",
+      firmName: "Example Firm",
+      invitationUrl: issued.invitationUrl,
+      complimentaryPlan: "enterprise",
+    });
+  });
+
+  it("rejects unsupported complimentary plans before invitation side effects", async () => {
+    await expect(caller({ id: 9, isSuperAdmin: true, orgRole: "owner", organizationId: 9 })
+      .inviteFirmOwner({ email: "owner@example.test", firmName: "Example Firm", complimentaryPlan: "unknown" as any }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(storeMocks.issueFirmOwnerInvitation).not.toHaveBeenCalled();
+    expect(emailMocks.sendFirmOwnerInviteEmail).not.toHaveBeenCalled();
   });
 });

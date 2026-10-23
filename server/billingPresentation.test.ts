@@ -25,7 +25,7 @@ vi.mock("@/lib/trpc", () => {
   const query = (name: string) => ({
     useQuery: () => {
       state.queryCalls.push(name);
-      return state.queryResults[name];
+      return state.queryResults[name] ?? { data: undefined, isLoading: false };
     },
   });
   const mutation = (name: string) => ({
@@ -36,7 +36,11 @@ vi.mock("@/lib/trpc", () => {
   });
   return {
     trpc: {
-      useUtils: () => ({ subscription: { current: { invalidate: vi.fn() } } }),
+      useUtils: () => ({
+        subscription: { current: { invalidate: vi.fn() } },
+        superAdmin: { firms: { invalidate: vi.fn() }, metrics: { invalidate: vi.fn() } },
+        platformAccess: { overview: { invalidate: vi.fn() }, audit: { invalidate: vi.fn() } },
+      }),
       subscription: {
         plans: query("plans"),
         current: query("current"),
@@ -46,11 +50,30 @@ vi.mock("@/lib/trpc", () => {
         changePlan: mutation("changePlan"),
         createPortalSession: mutation("createPortalSession"),
       },
+      superAdmin: {
+        metrics: query("superAdmin.metrics"),
+        firms: query("superAdmin.firms"),
+        firmDetail: query("superAdmin.firmDetail"),
+        cancelSubscription: mutation("superAdmin.cancelSubscription"),
+      },
+      platformAccess: {
+        overview: query("platformAccess.overview"),
+        audit: query("platformAccess.audit"),
+        inviteFirmOwner: mutation("platformAccess.inviteFirmOwner"),
+        grantWorkspaceAccess: mutation("platformAccess.grantWorkspaceAccess"),
+        suspendWorkspace: mutation("platformAccess.suspendWorkspace"),
+        reactivateWorkspace: mutation("platformAccess.reactivateWorkspace"),
+        grantComplimentaryPlan: mutation("platformAccess.grantComplimentaryPlan"),
+        revokeComplimentaryPlan: mutation("platformAccess.revokeComplimentaryPlan"),
+        revokeFirmInvitation: mutation("platformAccess.revokeFirmInvitation"),
+      },
     },
   };
 });
 
 import Billing from "@/pages/Billing";
+import SuperAdmin from "@/pages/SuperAdmin";
+import { FirmInviteAccessNotice } from "@/pages/Signup";
 import { shouldShowBillingNavigation } from "@/components/DashboardLayout";
 import { shouldRenderManagedWorkspace } from "@/components/WorkspaceAccessGate";
 
@@ -241,6 +264,47 @@ describe("managed workspace route gate policy", () => {
     const nonOwnerSuperAdmin = { isSuperAdmin: true, orgRole: "member", organizationId: 42 };
     expect(shouldRenderManagedWorkspace(denied, "/admin/platform", nonOwnerSuperAdmin)).toBe(true);
     expect(shouldRenderManagedWorkspace(denied, "/billing", nonOwnerSuperAdmin)).toBe(false);
+  });
+});
+
+describe("complimentary firm invitation presentation", () => {
+  it("renders Starter as the default invite tier with all alternatives and explicit activation terms", () => {
+    state.user = { ...makeOwner(), isSuperAdmin: true };
+
+    const html = renderToStaticMarkup(React.createElement(SuperAdmin));
+
+    expect(html).toContain('id="invite-complimentary-plan"');
+    expect(html).toMatch(/<option value="starter" selected(?:="")?>Starter<\/option>/);
+    expect(html).toContain('<option value="professional">Professional</option>');
+    expect(html).toContain('<option value="enterprise">Enterprise</option>');
+    expect(html).toContain("Invite with complimentary Starter access");
+    expect(html).toContain("activates when the owner accepts");
+    expect(html).toContain("no second access grant is needed");
+    expect(html).toContain("not a trial");
+    expect(html).toContain("will not trigger an automatic charge");
+  });
+
+  it("renders complimentary activation and no-charge copy for a selected signup tier", () => {
+    const html = renderToStaticMarkup(React.createElement(FirmInviteAccessNotice, {
+      firmName: "Example Studio",
+      complimentaryPlan: "enterprise",
+    }));
+
+    expect(html).toContain("Complimentary Enterprise access");
+    expect(html).toContain("activates when you accept this invitation");
+    expect(html).toContain("no trial");
+    expect(html).toContain("no automatic charge");
+  });
+
+  it("keeps legacy invitation signup copy pending approval without promising complimentary access", () => {
+    const html = renderToStaticMarkup(React.createElement(FirmInviteAccessNotice, {
+      firmName: "Legacy Studio",
+      complimentaryPlan: null,
+    }));
+
+    expect(html).toContain("Workspace access is pending approval");
+    expect(html).toContain("no complimentary plan is confirmed yet");
+    expect(html).not.toContain("Complimentary");
   });
 });
 

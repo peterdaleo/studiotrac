@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createConnection } from "mysql2/promise";
 
 // This suite is the only ordinary Vitest suite that opts into the real store.
@@ -162,7 +162,7 @@ suite("platform access store — isolated synthetic MariaDB integration", () => 
     else process.env.DATABASE_URL = savedDatabaseUrl;
   });
 
-  it("atomically creates a pending no-trial/no-plan tenant and rejects email collision and replay", async () => {
+  it("atomically activates the default Starter tenant without a trial and rejects collision and replay", async () => {
     const invitedEmail = `  invitee-${marker}@Example.Invalid `;
     const issued = await store.issueFirmOwnerInvitation({
       email: invitedEmail,
@@ -172,8 +172,9 @@ suite("platform access store — isolated synthetic MariaDB integration", () => 
     });
     const token = new URL(issued.invitationUrl).searchParams.get("firmInvite");
     expect(token).toBeTruthy();
+    expect(issued).toMatchObject({ complimentaryPlan: "starter" });
     const preview = await store.previewFirmOwnerInvitation(token!);
-    expect(preview).toMatchObject({ email: `invitee-${marker}@example.invalid`, firmName: `Synthetic invited firm ${marker}` });
+    expect(preview).toMatchObject({ email: `invitee-${marker}@example.invalid`, firmName: `Synthetic invited firm ${marker}`, complimentaryPlan: "starter" });
 
     const [storedToken] = await rows("SELECT tokenHash FROM firm_owner_invitations WHERE id = ?", [issued.invitationId]);
     expect(storedToken.tokenHash).not.toBe(token);
@@ -217,24 +218,10 @@ suite("platform access store — isolated synthetic MariaDB integration", () => 
     const [organization] = await rows("SELECT trialStartedAt FROM organizations WHERE id = ?", [organizationId]);
     const [control] = await rows("SELECT state, complimentaryPlan FROM organization_access_controls WHERE organizationId = ?", [organizationId]);
     expect(organization.trialStartedAt).toBeNull();
-    expect(control).toMatchObject({ state: "pending", complimentaryPlan: null });
+    expect(control).toMatchObject({ state: "active", complimentaryPlan: "starter" });
     const accessPolicy = await import("./workspaceAccess");
-    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ managed: true, allowed: false, reason: "awaiting_approval" });
-    await store.setComplimentaryPlan({ organizationId, plan: "enterprise", actorUserId });
-    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: false, state: "pending" });
-    await store.setWorkspaceAccess({ organizationId, state: "active", actorUserId });
-    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: true, plan: "enterprise" });
-    await expect(store.setWorkspaceAccess({ organizationId, state: "suspended", actorUserId, reason: issued.invitationUrl })).rejects.toThrow("INVALID_AUDIT_REASON");
-    await store.setComplimentaryPlan({ organizationId, plan: null, actorUserId });
-    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: false, reason: "no_entitlement" });
+    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ managed: true, allowed: true, plan: "starter" });
     expect(await store.hasAcceptedFirmInvitation(organizationId)).toBe(true);
-    // Only this test's newly created synthetic policy row is removed to model corruption.
-    await connection.execute("DELETE FROM organization_access_controls WHERE organizationId = ?", [organizationId]);
-    await expect(accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await store.setWorkspaceAccess({ organizationId, state: "active", actorUserId });
-    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: false, reason: "no_entitlement" });
-
-
     expect(await rows("SELECT id FROM subscriptions WHERE organizationId = ?", [organizationId])).toEqual([]);
     expect(await store.previewFirmOwnerInvitation(token!)).toBeNull();
     await expect(store.acceptFirmOwnerInvitation({ token: token!, email: `invitee-${marker}@example.invalid`, passwordHash: "synthetic-replay-hash", name: "Replay", openId: `replay-${marker}` })).rejects.toBeTruthy();
@@ -247,6 +234,11 @@ suite("platform access store — isolated synthetic MariaDB integration", () => 
     expect(auditJson).not.toContain(token!);
     expect(auditJson).not.toContain("synthetic-accepted-hash-not-a-credential");
     expect(audit.every((entry: any) => !("tokenHash" in entry) && !("passwordHash" in entry))).toBe(true);
+    const acceptedAudit = audit.find((entry: any) => entry.action === "invitation_accepted" && entry.organizationId === organizationId);
+    expect(acceptedAudit).toBeTruthy();
+    expect(acceptedAudit.details).toBeTruthy();
+    expect(JSON.parse(acceptedAudit.details)).toMatchObject({ selectedPlan: "starter", activation: "active" });
+    expect(acceptedAudit.details).not.toContain(token!);
     expect(await rows("SELECT acceptedAt, acceptedOrganizationId FROM firm_owner_invitations WHERE id = ?", [issued.invitationId])).toHaveLength(1);
     await expectBusinessDataUnchanged();
   }, 30_000);
@@ -267,6 +259,86 @@ suite("platform access store — isolated synthetic MariaDB integration", () => 
     const [persisted] = await rows("SELECT revokedAt FROM firm_owner_invitations WHERE id = ?", [revoked.invitationId]);
     expect(persisted.revokedAt).toBeTruthy();
     expect((await store.listFirmInvitations()).some((item: any) => item.id === revoked.invitationId)).toBe(true);
+    await expectBusinessDataUnchanged();
+  }, 30_000);
+
+  it.each(["professional", "enterprise"] as const)("activates an invited %s firm with its selected tier and ignores signup plan overrides", async plan => {
+    const email = `tier-${plan}-${marker}@example.invalid`;
+    const issued = await store.issueFirmOwnerInvitation({ email, firmName: `Synthetic ${plan} firm`, actorUserId, origin: "https://local.example.test", complimentaryPlan: plan });
+    expect(issued.complimentaryPlan).toBe(plan);
+    const token = new URL(issued.invitationUrl).searchParams.get("firmInvite")!;
+    expect(token).toMatch(new RegExp(`^c1\\.${plan}\\.[A-Za-z0-9_-]{43}$`));
+    expect(await store.previewFirmOwnerInvitation(token)).toMatchObject({ email, complimentaryPlan: plan });
+    const user = await store.acceptFirmOwnerInvitation({ token, email, passwordHash: `synthetic-${plan}-hash`, name: `Synthetic ${plan}`, openId: `synthetic-${plan}-${marker}`, complimentaryPlan: "starter" } as any);
+    const organizationId = Number(user.organizationId);
+    expect(await rows("SELECT state, complimentaryPlan FROM organization_access_controls WHERE organizationId = ?", [organizationId])).toEqual([{ state: "active", complimentaryPlan: plan }]);
+    expect(await rows("SELECT id FROM subscriptions WHERE organizationId = ?", [organizationId])).toEqual([]);
+    expect(await rows("SELECT trialStartedAt FROM organizations WHERE id = ?", [organizationId])).toEqual([{ trialStartedAt: null }]);
+    const accessPolicy = await import("./workspaceAccess");
+    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: true, plan });
+    const accepted = (await store.listPlatformAccessAudit({ organizationId, limit: 20 })).find((event: any) => event.action === "invitation_accepted");
+    expect(JSON.parse(accepted.details)).toMatchObject({ selectedPlan: plan, activation: "active" });
+    await expectBusinessDataUnchanged();
+  }, 30_000);
+
+  it("rejects wrong-email, changed-tier and unknown-version tokens without side effects", async () => {
+    const email = `tamper-${marker}@example.invalid`;
+    const issued = await store.issueFirmOwnerInvitation({ email, firmName: "Synthetic tamper firm", actorUserId, origin: "https://local.example.test", complimentaryPlan: "professional" });
+    const token = new URL(issued.invitationUrl).searchParams.get("firmInvite")!;
+    const [, version, selectedPlan, entropy] = /^(c1)\.(professional)\.([A-Za-z0-9_-]{43})$/.exec(token)!;
+    const changedTier = `${version}.enterprise.${entropy}`;
+    const unknownVersion = `c2.${selectedPlan}.${entropy}`;
+    const readCounts = async () => Promise.all(["organizations", "users", "organization_access_controls", "platform_access_audit"].map(count));
+    const before = await readCounts();
+    await expect(store.acceptFirmOwnerInvitation({ token, email: `wrong-${marker}@example.invalid`, passwordHash: "synthetic-wrong-email", name: "Wrong email", openId: `wrong-email-${marker}` })).rejects.toBeTruthy();
+    expect(await readCounts()).toEqual(before);
+    expect(await store.previewFirmOwnerInvitation(token)).toMatchObject({ complimentaryPlan: "professional" });
+    for (const invalidToken of [changedTier, unknownVersion]) {
+      expect(await store.previewFirmOwnerInvitation(invalidToken)).toBeNull();
+      await expect(store.acceptFirmOwnerInvitation({ token: invalidToken, email, passwordHash: "synthetic-tampered", name: "Tampered", openId: `tampered-${marker}` })).rejects.toBeTruthy();
+      expect(await readCounts()).toEqual(before);
+    }
+    await expectBusinessDataUnchanged();
+  }, 30_000);
+
+  it("serializes concurrent accepts so exactly one firm and owner are created", async () => {
+    const email = `race-${marker}@example.invalid`;
+    const issued = await store.issueFirmOwnerInvitation({ email, firmName: "Synthetic concurrent firm", actorUserId, origin: "https://local.example.test", complimentaryPlan: "enterprise" });
+    const token = new URL(issued.invitationUrl).searchParams.get("firmInvite")!;
+    const before = await Promise.all(["organizations", "users", "organization_access_controls"].map(count));
+    const attempts = await Promise.allSettled([1, 2].map(n => store.acceptFirmOwnerInvitation({ token, email, passwordHash: `synthetic-race-${n}`, name: `Race ${n}`, openId: `synthetic-race-${marker}-${n}` })));
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(attempts.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect(await Promise.all(["organizations", "users", "organization_access_controls"].map(count))).toEqual(before.map(value => value + 1));
+    const [invitation] = await rows("SELECT acceptedOrganizationId FROM firm_owner_invitations WHERE id = ?", [issued.invitationId]);
+    const orgId = Number(invitation.acceptedOrganizationId);
+    expect(await rows("SELECT id FROM users WHERE organizationId = ? AND orgRole = 'owner'", [orgId])).toHaveLength(1);
+    expect(await rows("SELECT state, complimentaryPlan FROM organization_access_controls WHERE organizationId = ?", [orgId])).toEqual([{ state: "active", complimentaryPlan: "enterprise" }]);
+    expect(await rows("SELECT id FROM subscriptions WHERE organizationId = ?", [orgId])).toEqual([]);
+    await expectBusinessDataUnchanged();
+  }, 30_000);
+
+  it("accepts a seeded 43-character legacy invite into pending manual grant flow", async () => {
+    const email = `legacy-${marker}@example.invalid`;
+    const token = randomBytes(32).toString("base64url");
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const invitationId = await insert("firm_owner_invitations", { tokenHash: createHash("sha256").update(token).digest("hex"), email, firmName: "Synthetic legacy firm", createdById: actorUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
+    expect(await store.previewFirmOwnerInvitation(token)).toMatchObject({ email, complimentaryPlan: null });
+    const user = await store.acceptFirmOwnerInvitation({ token, email, passwordHash: "synthetic-legacy-hash", name: "Legacy owner", openId: `synthetic-legacy-${marker}` });
+    const organizationId = Number(user.organizationId);
+    expect(await rows("SELECT state, complimentaryPlan FROM organization_access_controls WHERE organizationId = ?", [organizationId])).toEqual([{ state: "pending", complimentaryPlan: null }]);
+    expect(await rows("SELECT id FROM subscriptions WHERE organizationId = ?", [organizationId])).toEqual([]);
+    const accessPolicy = await import("./workspaceAccess");
+    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: false, reason: "awaiting_approval" });
+    await store.setComplimentaryPlan({ organizationId, plan: "starter", actorUserId, reason: "synthetic legacy manual grant" });
+    await store.setWorkspaceAccess({ organizationId, state: "active", actorUserId, reason: "synthetic legacy manual activation" });
+    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(organizationId)).toMatchObject({ allowed: true, plan: "starter" });
+    const [invitation] = await rows("SELECT acceptedAt, acceptedOrganizationId FROM firm_owner_invitations WHERE id = ?", [invitationId]);
+    expect(invitation.acceptedAt).toBeTruthy();
+    expect(Number(invitation.acceptedOrganizationId)).toBe(organizationId);
+    const audit = await store.listPlatformAccessAudit({ organizationId, limit: 20 });
+    expect(audit.some((event: any) => event.action === "invitation_accepted" && JSON.parse(event.details).activation === "pending")).toBe(true);
+    expect(audit.some((event: any) => event.action === "complimentary_plan_granted" && event.reason === "synthetic legacy manual grant")).toBe(true);
     await expectBusinessDataUnchanged();
   }, 30_000);
 

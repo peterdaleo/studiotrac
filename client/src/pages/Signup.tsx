@@ -1,11 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Loader2 } from "lucide-react";
 
-type FirmInvitationPreview = { email: string; firmName: string; expiresAt: string | Date };
+type ComplimentaryPlan = "starter" | "professional" | "enterprise";
+type FirmInvitationPreview = { email: string; firmName: string; expiresAt: string | Date; complimentaryPlan?: ComplimentaryPlan | null };
+
+export function FirmInviteAccessNotice({ firmName, complimentaryPlan }: { firmName: string; complimentaryPlan?: ComplimentaryPlan | null }) {
+  const planName = complimentaryPlan ? complimentaryPlan[0].toUpperCase() + complimentaryPlan.slice(1) : null;
+  return (
+    <div className="p-3 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg">
+      {planName ? (
+        <>Invitation for <strong>{firmName}</strong>. Complimentary {planName} access activates when you accept this invitation. There is no trial and no automatic charge.</>
+      ) : (
+        <>Invitation for <strong>{firmName}</strong>. Workspace access is pending approval; no complimentary plan is confirmed yet.</>
+      )}
+    </div>
+  );
+}
 
 export default function Signup() {
   const [, navigate] = useLocation();
@@ -128,9 +142,7 @@ export default function Signup() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg" role="alert">{error}</div>}
               {isFirmInvite && preview && (
-                <div className="p-3 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg">
-                  Invitation for <strong>{preview.firmName}</strong>. Use the invited email address; this account will receive pending workspace access.
-                </div>
+                <FirmInviteAccessNotice firmName={preview.firmName} complimentaryPlan={preview.complimentaryPlan} />
               )}
               {inviteToken && !isFirmInvite && (
                 <div className="p-3 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg">

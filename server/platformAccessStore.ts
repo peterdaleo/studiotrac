@@ -1,7 +1,8 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { organizations, users, firmOwnerInvitations, organizationAccessControls, platformAccessAudit } from "../drizzle/schema";
 import { assertSignupEmailAvailable, getDb } from "./db";
+import { createFirmInvitationToken, decodeFirmInvitationGrant, hashFirmInvitationToken, isSupportedFirmInvitationToken } from "./firmInvitationGrant";
 
 export type ComplimentaryPlan = "starter" | "professional" | "enterprise";
 export type AccessState = "pending" | "active" | "suspended";
@@ -22,8 +23,8 @@ function cleanReason(reason?: string | null) {
   return value;
 }
 function tokenDigest(token: string) {
-  if (typeof token !== "string" || token.length < 32 || token.length > 256) return null;
-  return createHash("sha256").update(token, "utf8").digest("hex");
+  if (!isSupportedFirmInvitationToken(token)) return null;
+  return hashFirmInvitationToken(token);
 }
 async function database() {
   const db = await getDb();
@@ -101,8 +102,10 @@ export async function listPlatformAccessAudit(options: { organizationId?: number
   return rows;
 }
 
-export async function issueFirmOwnerInvitation(input: { email: string; firmName: string; actorUserId: number; origin: string }) {
+export async function issueFirmOwnerInvitation(input: { email: string; firmName: string; actorUserId: number; origin: string; complimentaryPlan?: ComplimentaryPlan }) {
   requirePositiveId(input.actorUserId, "actor");
+  const complimentaryPlan = input.complimentaryPlan === undefined ? "starter" : input.complimentaryPlan;
+  if (!["starter", "professional", "enterprise"].includes(complimentaryPlan)) throw new Error("INVALID_COMPLIMENTARY_PLAN");
   const email = normalizedEmail(input.email);
   const firmName = input.firmName.trim();
   if (!firmName || firmName.length > 255) throw new Error("INVALID_FIRM_NAME");
@@ -111,32 +114,33 @@ export async function issueFirmOwnerInvitation(input: { email: string; firmName:
   if (!["https:", "http:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) {
     throw new Error("INVALID_INVITATION_ORIGIN");
   }
-  const token = randomBytes(32).toString("base64url");
+  const token = createFirmInvitationToken(complimentaryPlan);
   const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
   const db = await database();
   const invitationId = await db.transaction(async (tx: any) => {
     await assertSignupEmailAvailable(tx, email);
     const result = await tx.insert(firmOwnerInvitations).values({
-      tokenHash: createHash("sha256").update(token).digest("hex"), email, firmName,
+      tokenHash: hashFirmInvitationToken(token), email, firmName,
       createdById: input.actorUserId, expiresAt,
     });
     const id = Number(result[0].insertId);
-    await appendAudit(tx, { action: "invitation_issued", actorUserId: input.actorUserId, invitationId: id });
+    await appendAudit(tx, { action: "invitation_issued", actorUserId: input.actorUserId, invitationId: id, details: { selectedPlan: complimentaryPlan, activation: "active" } });
     return id;
   });
   const inviteUrl = new URL("/signup", origin.origin);
   inviteUrl.searchParams.set("firmInvite", token);
-  return { invitationId, invitationUrl: inviteUrl.toString(), expiresAt };
+  return { invitationId, invitationUrl: inviteUrl.toString(), expiresAt, complimentaryPlan };
 }
 
-export async function previewFirmOwnerInvitation(token: string): Promise<{ email: string; firmName: string; expiresAt: Date } | null> {
+export async function previewFirmOwnerInvitation(token: string): Promise<{ email: string; firmName: string; expiresAt: Date; complimentaryPlan: ComplimentaryPlan | null } | null> {
   const hash = tokenDigest(token);
   if (!hash) return null;
   const db = await database();
   const [row] = await db.select({ email: firmOwnerInvitations.email, firmName: firmOwnerInvitations.firmName, expiresAt: firmOwnerInvitations.expiresAt, acceptedAt: firmOwnerInvitations.acceptedAt, revokedAt: firmOwnerInvitations.revokedAt })
     .from(firmOwnerInvitations).where(eq(firmOwnerInvitations.tokenHash, hash)).limit(1);
   if (!row || row.acceptedAt || row.revokedAt || row.expiresAt.getTime() <= Date.now()) return null;
-  return { email: row.email, firmName: row.firmName, expiresAt: row.expiresAt };
+  const grant = decodeFirmInvitationGrant(token);
+  return { email: row.email, firmName: row.firmName, expiresAt: row.expiresAt, complimentaryPlan: grant?.complimentaryPlan ?? null };
 }
 
 export async function acceptFirmOwnerInvitation(input: { token: string; email: string; passwordHash: string; name: string; openId: string }) {
@@ -152,6 +156,8 @@ export async function acceptFirmOwnerInvitation(input: { token: string; email: s
     if (!invitation || invitation.acceptedAt || invitation.revokedAt || invitation.expiresAt.getTime() <= Date.now() || invitation.email !== email) {
       throw new Error("INVITATION_NO_LONGER_VALID");
     }
+    const grant = decodeFirmInvitationGrant(input.token);
+    if (!grant) throw new Error("INVITATION_NO_LONGER_VALID");
     const orgInsert = await tx.insert(organizations).values({ name: invitation.firmName, slug: slugForFirm(invitation.firmName), trialStartedAt: null });
     const organizationId = Number(orgInsert[0].insertId);
     await tx.insert(users).values({
@@ -160,9 +166,9 @@ export async function acceptFirmOwnerInvitation(input: { token: string; email: s
     });
     const [created] = await tx.select().from(users).where(eq(users.openId, input.openId)).limit(1);
     if (!created) throw new Error("INVITED_ACCOUNT_COULD_NOT_BE_LOADED");
-    await tx.insert(organizationAccessControls).values({ organizationId, state: "pending", complimentaryPlan: null });
+    await tx.insert(organizationAccessControls).values({ organizationId, state: grant.activation, complimentaryPlan: grant.complimentaryPlan });
     await tx.update(firmOwnerInvitations).set({ acceptedAt: new Date(), acceptedOrganizationId: organizationId }).where(eq(firmOwnerInvitations.id, invitation.id));
-    await appendAudit(tx, { action: "invitation_accepted", actorUserId: created.id, organizationId, invitationId: invitation.id });
+    await appendAudit(tx, { action: "invitation_accepted", actorUserId: created.id, organizationId, invitationId: invitation.id, details: { selectedPlan: grant.complimentaryPlan, activation: grant.activation } });
     return created;
   });
 }

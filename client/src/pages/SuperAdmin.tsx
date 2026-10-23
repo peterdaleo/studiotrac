@@ -1,5 +1,5 @@
 import { formatAccessAuditDetails } from "@shared/workspaceAudit";
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { AlertCircle } from "lucide-react";
@@ -378,6 +378,7 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
   const [email, setEmail] = useState("");
   const [firmName, setFirmName] = useState("");
   const [issuedLink, setIssuedLink] = useState<string | null>(null);
+  const [inviteComplimentaryPlan, setInviteComplimentaryPlan] = useState<"starter" | "professional" | "enterprise">("starter");
   const [complimentaryPlan, setComplimentaryPlan] = useState<Record<number, "starter" | "professional" | "enterprise">>({});
   const [action, setAction] = useState<{ kind: PlatformAction; organizationId?: number; invitationId?: number; label: string } | null>(null);
   const [reason, setReason] = useState("");
@@ -393,6 +394,7 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
       setIssuedLink(result.invitationUrl);
       setEmail("");
       setFirmName("");
+      setInviteComplimentaryPlan("starter");
       refresh();
       if (result.emailSent) toast.success("Owner invitation emailed. Copy the one-time link now if you also want a backup copy.");
       else toast.warning("Invitation created, but email was not sent. Copy and send the link to the owner.");
@@ -432,8 +434,14 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
             <label className="space-y-1 text-sm">Firm name<input className="w-full rounded-md border bg-background px-3 py-2" value={firmName} onChange={(event) => setFirmName(event.target.value)} maxLength={255} /></label>
             <label className="space-y-1 text-sm">Owner email<input type="email" className="w-full rounded-md border bg-background px-3 py-2" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={320} /></label>
           </div>
-          <Button onClick={() => issueInvite.mutate({ email: email.trim(), firmName: firmName.trim() })} disabled={!email.trim() || !firmName.trim() || issueInvite.isPending}>
-            {issueInvite.isPending ? "Creating invitation…" : "Create owner invitation"}
+          <label className="block space-y-1 text-sm" htmlFor="invite-complimentary-plan">Complimentary plan
+            <select id="invite-complimentary-plan" className="block w-full rounded-md border bg-background px-3 py-2" value={inviteComplimentaryPlan} onChange={(event) => setInviteComplimentaryPlan(event.target.value as "starter" | "professional" | "enterprise")}>
+              <option value="starter">Starter</option><option value="professional">Professional</option><option value="enterprise">Enterprise</option>
+            </select>
+          </label>
+          <p className="text-xs text-muted-foreground">Create an invitation for complimentary access on the selected plan. The plan activates when the owner accepts; no second access grant is needed. This is not a trial and will not trigger an automatic charge.</p>
+          <Button onClick={() => issueInvite.mutate({ email: email.trim(), firmName: firmName.trim(), complimentaryPlan: inviteComplimentaryPlan })} disabled={!email.trim() || !firmName.trim() || issueInvite.isPending}>
+            {issueInvite.isPending ? "Creating invitation…" : `Invite with complimentary ${inviteComplimentaryPlan[0].toUpperCase()}${inviteComplimentaryPlan.slice(1)} access`}
           </Button>
           {issuedLink && <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
             <p className="font-medium">One-time invitation link</p>

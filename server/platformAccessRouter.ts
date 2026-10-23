@@ -33,10 +33,14 @@ export const platformAccessRouter = router({
   })),
   audit: platformOwnerProcedure.input(z.object({ organizationId: positiveId.optional(), limit: z.number().int().min(1).max(200).optional() }).optional())
     .query(({ input }) => store.listPlatformAccessAudit({ organizationId: input?.organizationId, limit: input?.limit })),
-  inviteFirmOwner: platformOwnerProcedure.input(z.object({ email: z.string().email().max(320), firmName: z.string().trim().min(1).max(255) }))
+  inviteFirmOwner: platformOwnerProcedure.input(z.object({
+    email: z.string().email().max(320),
+    firmName: z.string().trim().min(1).max(255),
+    complimentaryPlan: z.enum(["starter", "professional", "enterprise"]).default("starter"),
+  }))
     .mutation(async ({ input, ctx }) => {
       const issued = await store.issueFirmOwnerInvitation({ ...input, actorUserId: ctx.user.id, origin: invitationOrigin() });
-      const delivery = await sendFirmOwnerInviteEmail({ to: input.email, firmName: input.firmName, invitationUrl: issued.invitationUrl });
+      const delivery = await sendFirmOwnerInviteEmail({ to: input.email, firmName: input.firmName, invitationUrl: issued.invitationUrl, complimentaryPlan: issued.complimentaryPlan });
       return {
         ...issued,
         emailSent: delivery.sent,
