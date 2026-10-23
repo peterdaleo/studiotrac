@@ -55,6 +55,10 @@ export const platformAccessRouter = router({
     .mutation(({ input, ctx }) => store.setComplimentaryPlan({ ...input, plan: null, actorUserId: ctx.user.id })),
   grantWorkspaceAccess: platformOwnerProcedure.input(z.object({ organizationId: positiveId, reason: reasonSchema }))
     .mutation(({ input, ctx }) => store.setWorkspaceAccess({ ...input, state: "active", actorUserId: ctx.user.id })),
+  archiveWorkspace: platformOwnerProcedure.input(z.object({ organizationId: positiveId, reason: reasonSchema }))
+    .mutation(({ input, ctx }) => store.archiveWorkspace({ ...input, actorUserId: ctx.user.id })),
+  unarchiveWorkspace: platformOwnerProcedure.input(z.object({ organizationId: positiveId, reason: reasonSchema }))
+    .mutation(({ input, ctx }) => store.unarchiveWorkspace({ ...input, actorUserId: ctx.user.id })),
   suspendWorkspace: platformOwnerProcedure.input(z.object({ organizationId: positiveId, reason: reasonSchema }))
     .mutation(({ input, ctx }) => store.setWorkspaceAccess({ ...input, state: "suspended", actorUserId: ctx.user.id })),
   reactivateWorkspace: platformOwnerProcedure.input(z.object({ organizationId: positiveId, reason: reasonSchema }))

@@ -1,4 +1,5 @@
 import { formatAccessAuditDetails } from "@shared/workspaceAudit";
+import { getFirmInvitationStatus, partitionFirmInvitations } from "@shared/platformAccessPresentation";
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -371,7 +372,7 @@ function MetricCard({
 }
 
 type FirmRow = { id: number; name: string; planTier: string; subscriptionStatus: string };
-type PlatformAction = "suspend" | "revokeComplimentary" | "revokeInvitation";
+type PlatformAction = "suspend" | "revokeComplimentary" | "revokeInvitation" | "archiveWorkspace" | "restoreWorkspace";
 
 function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: FirmRow[]; protectedOrganizationId: number }) {
   const utils = trpc.useUtils();
@@ -410,21 +411,37 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
 
   const controls = overview.data?.controls ?? [];
   const invitations = overview.data?.invitations ?? [];
+  const archivedOrganizationIds = new Set(controls.filter((row) => row.archived).map((row) => row.organizationId));
+  const currentWorkspaceFirms = firms.filter((firm) => !archivedOrganizationIds.has(firm.id));
+  const archivedFirms = firms.filter((firm) => archivedOrganizationIds.has(firm.id));
+  const { current: currentInvitations, history: invitationHistory } = partitionFirmInvitations(invitations);
   const audits = audit.data ?? [];
-  const isActionPending = suspendWorkspace.isPending || revokeComplimentary.isPending || revokeInvitation.isPending;
+  const archiveWorkspace = trpc.platformAccess.archiveWorkspace.useMutation({ onSuccess: () => { refresh(); setAction(null); setReason(""); }, onError: (error) => toast.error(error.message) });
+  const unarchiveWorkspace = trpc.platformAccess.unarchiveWorkspace.useMutation({ onSuccess: () => { refresh(); setAction(null); setReason(""); }, onError: (error) => toast.error(error.message) });
+  const isActionPending = suspendWorkspace.isPending || revokeComplimentary.isPending || revokeInvitation.isPending || archiveWorkspace.isPending || unarchiveWorkspace.isPending;
 
   function submitReasonedAction() {
     if (!action || !reason.trim()) return;
     if (action.kind === "suspend" && action.organizationId) suspendWorkspace.mutate({ organizationId: action.organizationId, reason: reason.trim() });
     if (action.kind === "revokeComplimentary" && action.organizationId) revokeComplimentary.mutate({ organizationId: action.organizationId, reason: reason.trim() });
     if (action.kind === "revokeInvitation" && action.invitationId) revokeInvitation.mutate({ invitationId: action.invitationId, reason: reason.trim() });
+    if (action.kind === "archiveWorkspace" && action.organizationId) archiveWorkspace.mutate({ organizationId: action.organizationId, reason: reason.trim() });
+    if (action.kind === "restoreWorkspace" && action.organizationId) unarchiveWorkspace.mutate({ organizationId: action.organizationId, reason: reason.trim() });
+  }
+
+  function renderInvitation(invite: typeof invitations[number]) {
+    const status = getFirmInvitationStatus(invite);
+    return <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm last:border-0">
+      <div><span className="font-medium">{invite.firmName}</span><span className="ml-2 text-muted-foreground">{invite.email}</span><div className="text-xs text-muted-foreground">{status} · expires {formatDate(invite.expiresAt)}</div></div>
+      {status === "Pending" && <Button size="sm" variant="outline" onClick={() => { setReason(""); setAction({ kind: "revokeInvitation", invitationId: invite.id, label: `Revoke invitation for ${invite.email}` }); }}>Revoke invitation</Button>}
+    </div>;
   }
 
   return (
     <section className="space-y-5" aria-labelledby="platform-access-heading">
       <div>
         <h2 id="platform-access-heading" className="text-xl font-semibold flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Workspace access management</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Manual workspace access and complimentary plans are separate from Stripe. Suspending workspace access does not stop billing.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Manual workspace access and complimentary plans are separate from Stripe. Suspending access does not stop billing. Archive is available only for suspended workspaces and can be reversed.</p>
       </div>
 
       <Card>
@@ -459,7 +476,7 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b text-left text-muted-foreground"><th className="pb-2 pr-3">Firm</th><th className="pb-2 pr-3">Workspace access</th><th className="pb-2 pr-3">Complimentary plan</th><th className="pb-2">Platform actions</th></tr></thead>
-                <tbody>{firms.map((firm) => {
+                <tbody>{currentWorkspaceFirms.map((firm) => {
                   const control = controls.find((row) => row.organizationId === firm.id);
                   const state = control?.state ?? "legacy";
                   const manualPlan = control?.complimentaryPlan ?? null;
@@ -470,6 +487,7 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
                     <td className="py-3">{firm.id === protectedOrganizationId ? <span className="text-muted-foreground">Protected platform-owner firm</span> : <div className="flex min-w-[330px] flex-wrap items-center gap-2">
                       {(state === "pending" || state === "suspended") && <Button size="sm" variant="outline" disabled={grantWorkspace.isPending || reactivateWorkspace.isPending} onClick={() => state === "suspended" ? reactivateWorkspace.mutate({ organizationId: firm.id }) : grantWorkspace.mutate({ organizationId: firm.id })}>Grant / reactivate access</Button>}
                       {(state === "active" || state === "legacy") && <Button size="sm" variant="destructive" onClick={() => { setReason(""); setAction({ kind: "suspend", organizationId: firm.id, label: `Suspend access for ${firm.name}` }); }}>Suspend</Button>}
+                      {state === "suspended" && <Button size="sm" variant="outline" disabled={archiveWorkspace.isPending} onClick={() => { setReason(""); setAction({ kind: "archiveWorkspace", organizationId: firm.id, label: `Archive ${firm.name}` }); }}>Archive</Button>}
                       <select aria-label={`Complimentary plan for ${firm.name}`} className="rounded-md border bg-background px-2 py-1.5" value={complimentaryPlan[firm.id] ?? "starter"} onChange={(event) => setComplimentaryPlan((previous) => ({ ...previous, [firm.id]: event.target.value as "starter" | "professional" | "enterprise" }))}>
                         <option value="starter">Starter</option><option value="professional">Professional</option><option value="enterprise">Enterprise</option>
                       </select>
@@ -479,23 +497,41 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
                   </tr>;
                 })}</tbody>
               </table>
-              {firms.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No firms are available.</p>}
+              {currentWorkspaceFirms.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No current workspaces are available.</p>}
               <p className="mt-3 text-xs text-muted-foreground">Workspace state, complimentary plan, and Stripe subscription status are independent. Suspending access does not cancel a Stripe subscription.</p>
             </div>
           )}
         </CardContent>
       </Card>
 
+      {archivedFirms.length > 0 && <Card>
+        <CardHeader><CardTitle className="text-base">Archived workspaces</CardTitle></CardHeader>
+        <CardContent>
+          <details>
+            <summary className="cursor-pointer text-sm font-medium">Archived workspaces ({archivedFirms.length})</summary>
+            <div className="mt-3 space-y-2">
+              {archivedFirms.map((firm) => {
+                const control = controls.find((row) => row.organizationId === firm.id);
+                return <div key={firm.id} className="flex flex-wrap items-center justify-between gap-3 border-b pb-2 text-sm last:border-0">
+                  <div><span className="font-medium">{firm.name}</span><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><Badge variant="outline">Archived</Badge><span>Access remains suspended</span>{control?.complimentaryPlan && <Badge variant="outline">{control.complimentaryPlan}</Badge>}</div></div>
+                  <Button size="sm" variant="outline" disabled={unarchiveWorkspace.isPending} onClick={() => { setReason(""); setAction({ kind: "restoreWorkspace", organizationId: firm.id, label: `Restore ${firm.name} to suspended workspaces` }); }}>Restore</Button>
+                </div>;
+              })}
+            </div>
+          </details>
+        </CardContent>
+      </Card>}
+
       <Card>
         <CardHeader><CardTitle className="text-base">Owner invitations</CardTitle></CardHeader>
         <CardContent>
-          {invitations.length === 0 ? <p className="text-sm text-muted-foreground">No invitations.</p> : <div className="space-y-2">{invitations.map((invite) => {
-            const status = invite.acceptedAt ? "Accepted" : invite.revokedAt ? "Revoked" : new Date(invite.expiresAt).getTime() <= Date.now() ? "Expired" : "Pending";
-            return <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm last:border-0">
-              <div><span className="font-medium">{invite.firmName}</span><span className="ml-2 text-muted-foreground">{invite.email}</span><div className="text-xs text-muted-foreground">{status} · expires {formatDate(invite.expiresAt)}</div></div>
-              {status === "Pending" && <Button size="sm" variant="outline" onClick={() => { setReason(""); setAction({ kind: "revokeInvitation", invitationId: invite.id, label: `Revoke invitation for ${invite.email}` }); }}>Revoke invitation</Button>}
-            </div>;
-          })}</div>}
+          {currentInvitations.length === 0 && invitationHistory.length === 0 ? <p className="text-sm text-muted-foreground">No invitations.</p> : <div className="space-y-3">
+            <div className="space-y-2">{currentInvitations.length === 0 ? <p className="text-sm text-muted-foreground">No current invitations.</p> : currentInvitations.map(renderInvitation)}</div>
+            {invitationHistory.length > 0 && <details className="rounded-md border p-3">
+              <summary className="cursor-pointer text-sm font-medium">History ({invitationHistory.length})</summary>
+              <div className="mt-3 space-y-2">{invitationHistory.map(renderInvitation)}</div>
+            </details>}
+          </div>}
         </CardContent>
       </Card>
 
@@ -515,7 +551,7 @@ function PlatformAccessManager({ firms, protectedOrganizationId }: { firms: Firm
           <textarea aria-label="Reason for platform access change" className="min-h-24 w-full rounded-md border bg-background p-2 text-sm" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} />
           <AlertDialogFooter>
             <AlertDialogCancel>Keep unchanged</AlertDialogCancel>
-            <AlertDialogAction disabled={!reason.trim() || isActionPending} onClick={(event) => { event.preventDefault(); submitReasonedAction(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm and record</AlertDialogAction>
+            <AlertDialogAction disabled={!reason.trim() || isActionPending} onClick={(event) => { event.preventDefault(); submitReasonedAction(); }} className={action?.kind === "restoreWorkspace" ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}>{action?.kind === "restoreWorkspace" ? "Restore and record" : "Confirm and record"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

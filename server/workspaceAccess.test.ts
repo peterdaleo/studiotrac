@@ -40,6 +40,12 @@ describe("managed workspace access and legacy compatibility", () => {
     read.mockResolvedValue(control("active", "professional") as any);
     expect(await resolveOrganizationWorkspaceAccess(42)).toMatchObject({ allowed: true, plan: "professional" });
   });
+  it("keeps archived workspaces fail-closed and restores only to suspended access", async () => {
+    read.mockResolvedValue({ ...control("active", "enterprise"), archived: true } as any);
+    expect(await resolveOrganizationWorkspaceAccess(42)).toMatchObject({ managed: true, state: "suspended", allowed: false, reason: "suspended" });
+    await expect(assertOrganizationWorkspaceAccess(42)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(assertOrganizationBillingApproval(42)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
   it("allows approved owners to buy a real plan without a complimentary entitlement, but never bypass approval or suspension", async () => {
     read.mockResolvedValue(control("active") as any);
     await expect(assertOrganizationBillingApproval(42)).resolves.toBeUndefined();

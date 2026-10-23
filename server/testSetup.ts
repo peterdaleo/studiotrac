@@ -13,6 +13,8 @@ vi.mock("./platformAccessStore", () => ({
   previewFirmOwnerInvitation: vi.fn(async () => null),
   acceptFirmOwnerInvitation: vi.fn(async () => { throw new Error("Unexpected platform access mock acceptance"); }),
   revokeFirmOwnerInvitation: vi.fn(async () => ({ success: true })),
+  archiveWorkspace: vi.fn(async () => ({ success: true, archived: true })),
+  unarchiveWorkspace: vi.fn(async () => ({ success: true, archived: false })),
   setWorkspaceAccess: vi.fn(async () => ({ organizationId: 1, state: "active", complimentaryPlan: null })),
   setComplimentaryPlan: vi.fn(async () => ({ organizationId: 1, state: "active", complimentaryPlan: null })),
 }));

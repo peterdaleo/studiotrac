@@ -12,14 +12,15 @@ export type WorkspaceAccess = {
   plan: StripePlanTier | null;
   complimentaryPlan: StripePlanTier | null;
 };
-type Control = { state: "pending" | "active" | "suspended"; complimentaryPlan: StripePlanTier | null };
+type Control = { state: "pending" | "active" | "suspended"; complimentaryPlan: StripePlanTier | null; archived?: boolean };
 const tiers: StripePlanTier[] = ["starter", "professional", "enterprise"];
 export function computeManagedWorkspaceAccess(control: Control, paid: Pick<Subscription, "plan" | "status"> | null): WorkspaceAccess {
   const paidPlan = paid && (paid.status === "active" || paid.status === "trialing") ? paid.plan : null;
   const plan = [control.complimentaryPlan, paidPlan].reduce<StripePlanTier | null>((best, candidate) =>
     candidate && (best == null || tiers.indexOf(candidate) > tiers.indexOf(best)) ? candidate : best, null);
-  const reason = control.state === "suspended" ? "suspended" : control.state === "pending" ? "awaiting_approval" : plan == null ? "no_entitlement" : null;
-  return { managed: true, state: control.state, allowed: reason == null, reason, plan, complimentaryPlan: control.complimentaryPlan };
+  const state = control.archived ? "suspended" : control.state;
+  const reason = state === "suspended" ? "suspended" : state === "pending" ? "awaiting_approval" : plan == null ? "no_entitlement" : null;
+  return { managed: true, state, allowed: reason == null, reason, plan, complimentaryPlan: control.complimentaryPlan };
 }
 export function platformOwnerWorkspaceAccess(): WorkspaceAccess {
   return { managed: false, state: "legacy", allowed: true, reason: null, plan: "enterprise", complimentaryPlan: null };

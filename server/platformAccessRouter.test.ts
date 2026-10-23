@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const storeMocks = vi.hoisted(() => ({
   listAccessControls: vi.fn(), listFirmInvitations: vi.fn(), listPlatformAccessAudit: vi.fn(),
   issueFirmOwnerInvitation: vi.fn(), revokeFirmOwnerInvitation: vi.fn(),
+  archiveWorkspace: vi.fn(), unarchiveWorkspace: vi.fn(),
   setComplimentaryPlan: vi.fn(), setWorkspaceAccess: vi.fn(),
 }));
 const emailMocks = vi.hoisted(() => ({ sendFirmOwnerInviteEmail: vi.fn() }));
@@ -30,6 +31,8 @@ const calls: Array<() => Promise<unknown>> = [
   () => caller({ id: 1, isSuperAdmin: false, role: "admin", orgRole: "admin", organizationId: 41 }).grantComplimentaryPlan({ organizationId: 2, plan: "starter" }),
   () => caller({ id: 1, isSuperAdmin: false, role: "admin", orgRole: "owner", organizationId: 41 }).revokeComplimentaryPlan({ organizationId: 2 }),
   () => caller({ id: 1, isSuperAdmin: true, role: "admin", orgRole: "admin", organizationId: 41 }).grantWorkspaceAccess({ organizationId: 2 }),
+  () => caller({ id: 1, isSuperAdmin: true, orgRole: "member", organizationId: 41 }).archiveWorkspace({ organizationId: 2, reason: "synthetic archive" }),
+  () => caller({ id: 1, isSuperAdmin: true, orgRole: "owner", organizationId: 41 }, null).unarchiveWorkspace({ organizationId: 2, reason: "synthetic restore" }),
   () => caller({ id: 1, isSuperAdmin: true, role: "admin", orgRole: "member", organizationId: 41 }).suspendWorkspace({ organizationId: 2 }),
   () => caller({ id: 1, isSuperAdmin: true, role: "admin", orgRole: "admin", organizationId: 41 }).reactivateWorkspace({ organizationId: 2 }),
 ];
@@ -110,6 +113,18 @@ describe("platformAccessRouter owner guard", () => {
       invitationUrl: issued.invitationUrl,
       complimentaryPlan: "enterprise",
     });
+  });
+
+  it("passes authenticated actors and audit reasons to archive and restore storage operations", async () => {
+    storeMocks.archiveWorkspace.mockResolvedValue({ success: true, archived: true });
+    storeMocks.unarchiveWorkspace.mockResolvedValue({ success: true, archived: false });
+    const owner = caller({ id: 9, isSuperAdmin: true, orgRole: "owner", organizationId: 9 });
+
+    await expect(owner.archiveWorkspace({ organizationId: 12, reason: "Inactive firm" })).resolves.toEqual({ success: true, archived: true });
+    await expect(owner.unarchiveWorkspace({ organizationId: 12, reason: "Restore for review" })).resolves.toEqual({ success: true, archived: false });
+
+    expect(storeMocks.archiveWorkspace).toHaveBeenCalledWith({ organizationId: 12, reason: "Inactive firm", actorUserId: 9 });
+    expect(storeMocks.unarchiveWorkspace).toHaveBeenCalledWith({ organizationId: 12, reason: "Restore for review", actorUserId: 9 });
   });
 
   it("rejects unsupported complimentary plans before invitation side effects", async () => {

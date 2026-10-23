@@ -370,6 +370,57 @@ suite("platform access store — isolated synthetic MariaDB integration", () => 
     });
     await expectBusinessDataUnchanged();
   }, 30_000);
+
+  it("archives only suspended workspaces, preserves firm and business records, and restores without reactivating access", async () => {
+    await expect(store.archiveWorkspace({ organizationId: protectedOrganizationId, actorUserId, reason: "synthetic protected-firm probe" }))
+      .rejects.toThrow(/PROTECTED_PLATFORM_OWNER_ORGANIZATION/);
+
+    await store.setWorkspaceAccess({ organizationId: paidOrganizationId, state: "active", actorUserId, reason: "synthetic active archive rejection setup" });
+    await expect(store.archiveWorkspace({ organizationId: paidOrganizationId, actorUserId, reason: "synthetic active archive rejection" }))
+      .rejects.toThrow("WORKSPACE_NOT_INACTIVE");
+    await store.setWorkspaceAccess({ organizationId: paidOrganizationId, state: "suspended", actorUserId, reason: "synthetic archive setup" });
+
+    const organizationBefore = stableJson(await rows("SELECT * FROM organizations WHERE id = ?", [paidOrganizationId]));
+    const usersBefore = stableJson(await rows("SELECT * FROM users WHERE organizationId = ? ORDER BY id", [paidOrganizationId]));
+    const controlBefore = stableJson(await rows("SELECT * FROM organization_access_controls WHERE organizationId = ?", [paidOrganizationId]));
+    const invitationsBefore = stableJson(await rows("SELECT * FROM firm_owner_invitations ORDER BY id"));
+    const auditBefore = await rows("SELECT id, action FROM platform_access_audit WHERE organizationId = ? ORDER BY id", [paidOrganizationId]);
+
+    await expect(store.archiveWorkspace({ organizationId: paidOrganizationId, actorUserId, reason: "synthetic reversible archive test" }))
+      .resolves.toEqual({ success: true, archived: true });
+    await expect(store.archiveWorkspace({ organizationId: paidOrganizationId, actorUserId, reason: "synthetic duplicate archive" }))
+      .rejects.toThrow("WORKSPACE_ALREADY_ARCHIVED");
+
+    expect(await store.readOrganizationAccessControl(paidOrganizationId)).toMatchObject({ state: "suspended", archived: true });
+    const accessPolicy = await import("./workspaceAccess");
+    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(paidOrganizationId)).toMatchObject({ state: "suspended", allowed: false, reason: "suspended" });
+    await expect(store.setWorkspaceAccess({ organizationId: paidOrganizationId, state: "active", actorUserId, reason: "synthetic blocked activation" }))
+      .rejects.toThrow("WORKSPACE_ARCHIVED");
+    await expect(store.setComplimentaryPlan({ organizationId: paidOrganizationId, plan: "starter", actorUserId, reason: "synthetic blocked plan change" }))
+      .rejects.toThrow("WORKSPACE_ARCHIVED");
+
+    const listed = await store.listAccessControls();
+    expect(listed.find((control: any) => control.organizationId === paidOrganizationId)).toMatchObject({ state: "suspended", archived: true });
+    expect(stableJson(await rows("SELECT * FROM organizations WHERE id = ?", [paidOrganizationId]))).toBe(organizationBefore);
+    expect(stableJson(await rows("SELECT * FROM users WHERE organizationId = ? ORDER BY id", [paidOrganizationId]))).toBe(usersBefore);
+    expect(stableJson(await rows("SELECT * FROM organization_access_controls WHERE organizationId = ?", [paidOrganizationId]))).toBe(controlBefore);
+    expect(stableJson(await rows("SELECT * FROM firm_owner_invitations ORDER BY id"))).toBe(invitationsBefore);
+    expect(await snapshotProtectedBusinessData()).toEqual(baselinePaidRows);
+
+    await expect(store.unarchiveWorkspace({ organizationId: paidOrganizationId, actorUserId, reason: "synthetic reversible restore test" }))
+      .resolves.toEqual({ success: true, archived: false });
+    await expect(store.unarchiveWorkspace({ organizationId: paidOrganizationId, actorUserId, reason: "synthetic duplicate restore" }))
+      .rejects.toThrow("WORKSPACE_NOT_ARCHIVED");
+    expect(await store.readOrganizationAccessControl(paidOrganizationId)).toMatchObject({ state: "suspended", archived: false });
+    expect(await accessPolicy.resolveOrganizationWorkspaceAccess(paidOrganizationId)).toMatchObject({ state: "suspended", allowed: false, reason: "suspended" });
+
+    const auditAfter = await rows("SELECT id, action FROM platform_access_audit WHERE organizationId = ? ORDER BY id", [paidOrganizationId]);
+    expect(auditAfter.map((event: any) => event.id)).toEqual(expect.arrayContaining(auditBefore.map((event: any) => event.id)));
+    expect(auditAfter.map((event: any) => event.action)).toEqual(expect.arrayContaining(["workspace_archived", "workspace_unarchived"]));
+    expect(stableJson(await rows("SELECT * FROM organization_access_controls WHERE organizationId = ?", [paidOrganizationId]))).toBe(controlBefore);
+    await expectBusinessDataUnchanged();
+  }, 30_000);
+
   it("enforces stored suspension through direct APIs and valid public links, restores them without rewriting business or paid records", async () => {
     const [user] = await rows("SELECT * FROM users WHERE openId = ?", [`synthetic-paid-owner-${marker}`]);
     const token = `synthetic-portal-${marker}`;

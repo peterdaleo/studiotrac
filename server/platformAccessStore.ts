@@ -1,8 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { organizations, users, firmOwnerInvitations, organizationAccessControls, platformAccessAudit } from "../drizzle/schema";
 import { assertSignupEmailAvailable, getDb } from "./db";
 import { createFirmInvitationToken, decodeFirmInvitationGrant, hashFirmInvitationToken, isSupportedFirmInvitationToken } from "./firmInvitationGrant";
+import { getArchivedOrganizationIds } from "../shared/platformAccessPresentation";
 
 export type ComplimentaryPlan = "starter" | "professional" | "enterprise";
 export type AccessState = "pending" | "active" | "suspended";
@@ -30,6 +31,24 @@ async function database() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db;
+}
+const WORKSPACE_ARCHIVE_ACTIONS = ["workspace_archived", "workspace_unarchived"] as const;
+async function archivedOrganizationIds(query: any, organizationIds: number[]) {
+  if (organizationIds.length === 0) return new Set<number>();
+  const events = await query.select({
+    organizationId: platformAccessAudit.organizationId,
+    id: platformAccessAudit.id,
+    action: platformAccessAudit.action,
+  }).from(platformAccessAudit)
+    .where(and(
+      inArray(platformAccessAudit.organizationId, organizationIds),
+      inArray(platformAccessAudit.action, [...WORKSPACE_ARCHIVE_ACTIONS]),
+    ))
+    .orderBy(desc(platformAccessAudit.id));
+  return getArchivedOrganizationIds(events);
+}
+async function isOrganizationArchived(query: any, organizationId: number) {
+  return (await archivedOrganizationIds(query, [organizationId])).has(organizationId);
 }
 function appendAudit(tx: any, event: { action: string; actorUserId: number; organizationId?: number | null; invitationId?: number | null; reason?: string | null; details?: Record<string, string | null> }) {
   return tx.insert(platformAccessAudit).values({
@@ -59,7 +78,8 @@ export async function readOrganizationAccessControl(orgId: number) {
   requirePositiveId(orgId, "organization");
   const db = await database();
   const [row] = await db.select().from(organizationAccessControls).where(eq(organizationAccessControls.organizationId, orgId)).limit(1);
-  return row ?? null;
+  if (!row) return null;
+  return { ...row, archived: await isOrganizationArchived(db, orgId) };
 }
 
 export async function hasAcceptedFirmInvitation(orgId: number): Promise<boolean> {
@@ -72,7 +92,9 @@ export async function hasAcceptedFirmInvitation(orgId: number): Promise<boolean>
 
 export async function listAccessControls() {
   const db = await database();
-  return db.select().from(organizationAccessControls).orderBy(asc(organizationAccessControls.organizationId));
+  const controls = await db.select().from(organizationAccessControls).orderBy(asc(organizationAccessControls.organizationId));
+  const archivedIds = await archivedOrganizationIds(db, controls.map((control) => control.organizationId));
+  return controls.map((control) => ({ ...control, archived: archivedIds.has(control.organizationId) }));
 }
 
 export async function listFirmInvitations() {
@@ -194,6 +216,7 @@ async function writeControl(input: { organizationId: number; actorUserId: number
   const db = await database();
   return db.transaction(async (tx: any) => {
     await assertNotProtectedOrganization(tx, input.organizationId);
+    if (await isOrganizationArchived(tx, input.organizationId)) throw new Error("WORKSPACE_ARCHIVED");
     const [existing] = await tx.select().from(organizationAccessControls)
       .where(eq(organizationAccessControls.organizationId, input.organizationId)).limit(1).for("update");
     if (Object.prototype.hasOwnProperty.call(input, "plan") && input.plan == null && !existing?.complimentaryPlan) throw new Error("COMPLIMENTARY_GRANT_NOT_FOUND");
@@ -207,6 +230,51 @@ async function writeControl(input: { organizationId: number; actorUserId: number
     await appendAudit(tx, { action, actorUserId: input.actorUserId, organizationId: input.organizationId, reason, details: { previousState: existing?.state ?? "legacy", nextState: state, previousPlan: existing?.complimentaryPlan ?? null, nextPlan: complimentaryPlan } });
     const [updated] = await tx.select().from(organizationAccessControls).where(eq(organizationAccessControls.organizationId, input.organizationId)).limit(1);
     return updated;
+  });
+}
+
+export async function archiveWorkspace(input: { organizationId: number; actorUserId: number; reason?: string }) {
+  requirePositiveId(input.organizationId, "organization");
+  requirePositiveId(input.actorUserId, "actor");
+  const reason = cleanReason(input.reason);
+  const db = await database();
+  return db.transaction(async (tx: any) => {
+    await assertNotProtectedOrganization(tx, input.organizationId);
+    const [existing] = await tx.select().from(organizationAccessControls)
+      .where(eq(organizationAccessControls.organizationId, input.organizationId)).limit(1).for("update");
+    if (!existing || existing.state !== "suspended") throw new Error("WORKSPACE_NOT_INACTIVE");
+    if (await isOrganizationArchived(tx, input.organizationId)) throw new Error("WORKSPACE_ALREADY_ARCHIVED");
+    await appendAudit(tx, {
+      action: "workspace_archived",
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      reason,
+      details: { previousState: "suspended", nextState: "archived", previousPlan: existing.complimentaryPlan, nextPlan: existing.complimentaryPlan },
+    });
+    return { success: true as const, archived: true as const };
+  });
+}
+
+export async function unarchiveWorkspace(input: { organizationId: number; actorUserId: number; reason?: string }) {
+  requirePositiveId(input.organizationId, "organization");
+  requirePositiveId(input.actorUserId, "actor");
+  const reason = cleanReason(input.reason);
+  const db = await database();
+  return db.transaction(async (tx: any) => {
+    await assertNotProtectedOrganization(tx, input.organizationId);
+    const [existing] = await tx.select().from(organizationAccessControls)
+      .where(eq(organizationAccessControls.organizationId, input.organizationId)).limit(1).for("update");
+    if (!existing || existing.state !== "suspended" || !(await isOrganizationArchived(tx, input.organizationId))) {
+      throw new Error("WORKSPACE_NOT_ARCHIVED");
+    }
+    await appendAudit(tx, {
+      action: "workspace_unarchived",
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      reason,
+      details: { previousState: "archived", nextState: "suspended", previousPlan: existing.complimentaryPlan, nextPlan: existing.complimentaryPlan },
+    });
+    return { success: true as const, archived: false as const };
   });
 }
 

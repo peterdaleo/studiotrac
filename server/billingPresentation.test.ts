@@ -61,6 +61,8 @@ vi.mock("@/lib/trpc", () => {
         audit: query("platformAccess.audit"),
         inviteFirmOwner: mutation("platformAccess.inviteFirmOwner"),
         grantWorkspaceAccess: mutation("platformAccess.grantWorkspaceAccess"),
+        archiveWorkspace: mutation("platformAccess.archiveWorkspace"),
+        unarchiveWorkspace: mutation("platformAccess.unarchiveWorkspace"),
         suspendWorkspace: mutation("platformAccess.suspendWorkspace"),
         reactivateWorkspace: mutation("platformAccess.reactivateWorkspace"),
         grantComplimentaryPlan: mutation("platformAccess.grantComplimentaryPlan"),
@@ -282,6 +284,36 @@ describe("complimentary firm invitation presentation", () => {
     expect(html).toContain("no second access grant is needed");
     expect(html).toContain("not a trial");
     expect(html).toContain("will not trigger an automatic charge");
+  });
+
+  it("keeps current invitations visible and collapses retained invitation and workspace history by default", () => {
+    state.user = { ...makeOwner(), isSuperAdmin: true };
+    state.queryResults["superAdmin.firms"] = {
+      data: [{ id: 77, name: "Synthetic archived firm", slug: "synthetic-archived", userCount: 1, planTier: "none", subscriptionStatus: "none", createdAt: new Date("2025-01-01"), lastActive: new Date("2025-01-02") }],
+      isLoading: false,
+    };
+    state.queryResults["platformAccess.overview"] = {
+      data: {
+        controls: [{ organizationId: 77, state: "suspended", complimentaryPlan: null, archived: true }],
+        invitations: [
+          { id: 1, firmName: "Current firm", email: "current@example.test", acceptedAt: null, revokedAt: null, expiresAt: "2099-01-01T00:00:00.000Z" },
+          { id: 2, firmName: "Historical firm", email: "history@example.test", acceptedAt: new Date("2026-10-20"), revokedAt: null, expiresAt: "2026-10-21T00:00:00.000Z" },
+        ],
+      },
+      isLoading: false,
+    };
+    state.queryResults["platformAccess.audit"] = { data: [], isLoading: false };
+
+    const html = renderToStaticMarkup(React.createElement(SuperAdmin));
+    const detailsTags = [...html.matchAll(/<details[^>]*>/g)].map(([tag]) => tag);
+
+    expect(html).toContain("Current firm");
+    expect(html).toContain("History (1)");
+    expect(html).toContain("Historical firm");
+    expect(html).toContain("Archived workspaces (1)");
+    expect(html).toContain("Restore");
+    expect(detailsTags.length).toBe(2);
+    expect(detailsTags.every((tag) => !/\bopen(?:="")?/.test(tag))).toBe(true);
   });
 
   it("renders complimentary activation and no-charge copy for a selected signup tier", () => {
