@@ -23,6 +23,7 @@ import { getPlanLimits, type PlanTier } from "@shared/subscription";
 import { PROJECT_PHASES, toSubBudgetStatusItem } from "@shared/subBudgets";
 import { assertTenantEntity, assertTenantReference, filterTenantRows, listOrganizationEmailLog } from "./tenantAuthorization";
 import { getLocalUploadUrl } from "./_core/protectedUploadRoute";
+import { validateCoordinationAttachmentUpload } from "./coordinationAttachmentValidation";
 // Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
 // The 20MB Twilio package loaded statically was causing the container to crash within ~14s.
 let _resend: import("resend").Resend | null = null;
@@ -1586,7 +1587,8 @@ export const appRouter = router({
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
       await assertOrganizationWorkspaceAccess(sheet.organizationId);
       await requireCoordinationItem(sheet, input.itemId, input.token);
-      const mime = input.mimeType || "image/png";
+      const validation = await validateCoordinationAttachmentUpload(input.fileName, input.mimeType, input.fileData);
+      if (!validation.valid) throw new TRPCError({ code: "BAD_REQUEST", message: validation.message });
       // Store base64 in DB (fileData column) for persistence across deploys
       return db.createCoordinationAttachment({
         itemId: input.itemId,
@@ -1595,7 +1597,7 @@ export const appRouter = router({
         fileName: input.fileName,
         fileKey: null,
         fileData: input.fileData,
-        mimeType: mime,
+        mimeType: validation.mimeType,
       });
     }),
 

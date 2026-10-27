@@ -1,6 +1,11 @@
 import { useState, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { readCoordinationAttachmentFile } from "@/lib/coordinationAttachmentUpload";
 import { useParams } from "wouter";
+import {
+  COORDINATION_ATTACHMENT_ALLOWED_MIME_TYPES,
+  COORDINATION_ATTACHMENT_NOTICE,
+} from "@shared/coordinationAttachments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -748,26 +753,15 @@ function ItemRow({
     );
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File must be under 10MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      onUploadAttachment.mutate({
-        token,
-        itemId: item.id,
-        fileName: file.name,
-        fileData: base64,
-        mimeType: file.type,
-      });
-    };
-    reader.readAsDataURL(file);
     e.target.value = "";
+    if (!file) return;
+    readCoordinationAttachmentFile(
+      file,
+      attachment => onUploadAttachment.mutate({ token, itemId: item.id, ...attachment }),
+      message => toast.error(message),
+    );
   };
 
   const handleAddLink = () => {
@@ -1035,7 +1029,8 @@ function ItemRow({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={COORDINATION_ATTACHMENT_ALLOWED_MIME_TYPES.join(",")}
+              aria-label="Attach an image or screenshot up to 10 MB"
               className="hidden"
               onChange={handleFileUpload}
             />
@@ -1084,6 +1079,9 @@ function ItemRow({
               <Reply className="h-3 w-3" /> Reply {replies.length > 0 && `(${replies.length})`}
             </Button>
           </div>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {COORDINATION_ATTACHMENT_NOTICE}
+          </p>
 
           {/* Replies */}
           {replies.length > 0 && (
