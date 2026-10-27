@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,9 +49,10 @@ import {
   ChevronRight,
   Archive,
 } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { TASK_STATUSES, TASK_STATUS_FILTERS, isTaskOverdue } from "@shared/constants";
 import { toast } from "sonner";
+import { parseFocusedTaskId } from "@shared/taskNotificationPresentation";
 
 const taskStatusColors: Record<string, string> = {
   todo: "bg-slate-100 text-slate-700 border-slate-200",
@@ -69,6 +70,7 @@ const priorityColor = (p: number) => {
 
 export default function Tasks() {
   const [, setLocation] = useLocation();
+  const focusedTaskId = parseFocusedTaskId(useSearch());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -83,6 +85,37 @@ export default function Tasks() {
   const { data: projects } = trpc.projects.list.useQuery({});
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
   const utils = trpc.useUtils();
+  const focusedTask = allTasks?.find((task) => task.id === focusedTaskId);
+  const lastFocused = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (focusedTaskId == null) {
+      lastFocused.current = null;
+      return;
+    }
+    setSearch("");
+    setStatusFilter("all");
+    setProjectFilter("all");
+    setAssigneeFilter("all");
+  }, [focusedTaskId]);
+
+  useEffect(() => {
+    if (focusedTask?.status === "done") setArchivedOpen(true);
+  }, [focusedTaskId, focusedTask?.status]);
+
+  useEffect(() => {
+    if (!focusedTask || (focusedTask.status === "done" && !archivedOpen)) return;
+    const key = `${focusedTask.id}:${focusedTask.status}`;
+    if (lastFocused.current === key) return;
+    const frame = requestAnimationFrame(() => {
+      const row = document.getElementById(`task-${focusedTask.id}`);
+      if (!row) return;
+      row.scrollIntoView({ block: "center" });
+      row.focus({ preventScroll: true });
+      lastFocused.current = key;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusedTask, archivedOpen, search, statusFilter, projectFilter, assigneeFilter]);
 
   const createTask = trpc.tasks.create.useMutation({
     onSuccess: () => {
@@ -221,13 +254,16 @@ export default function Tasks() {
     return (
       <div
         key={task.id}
+        id={`task-${task.id}`}
+        tabIndex={task.id === focusedTaskId ? -1 : undefined}
+        aria-current={task.id === focusedTaskId ? "true" : undefined}
         draggable={isDraggable}
         onDragStart={isDraggable ? (e) => handleDragStart(e, task.id) : undefined}
         onDragOver={isDraggable ? handleDragOver : undefined}
         onDrop={isDraggable ? (e) => handleDrop(e, task.id) : undefined}
         className={`flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-all ${
           draggedId === task.id ? "opacity-50" : ""
-        }`}
+        } ${task.id === focusedTaskId ? "bg-primary/5 ring-2 ring-inset ring-primary/40 outline-none" : ""}`}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground/30 cursor-grab shrink-0" />
         <button
@@ -393,6 +429,20 @@ export default function Tasks() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {focusedTaskId != null && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3" role="status">
+          <div className="min-w-0 text-sm">
+            {focusedTask ? (
+              <>
+                <p className="font-medium truncate">Task from notification: {focusedTask.title}</p>
+                {focusedTask.status === "done" && <p className="text-xs text-muted-foreground mt-1">Completed task — shown in Archived below.</p>}
+              </>
+            ) : <p>This task is no longer available in your workspace.</p>}
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/tasks")}>Clear task link</Button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

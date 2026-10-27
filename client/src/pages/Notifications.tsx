@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { notificationDestination } from "@shared/taskNotificationPresentation";
 
 const typeIcons: Record<string, React.ReactNode> = {
   deadline_approaching: <Clock className="h-4 w-4 text-amber-500" />,
@@ -95,12 +96,22 @@ export default function Notifications() {
           {notifications.map((notif) => (
             <Card
               key={notif.id}
+              role="button"
+              tabIndex={0}
+              aria-label={notif.title}
               className={`border shadow-sm transition-all cursor-pointer hover:shadow-md ${
                 !notif.isRead ? typeBg[notif.type] ?? "" : "opacity-70"
               }`}
               onClick={() => {
                 if (!notif.isRead) markRead.mutate({ id: notif.id });
-                if (notif.relatedProjectId) setLocation(`/projects/${notif.relatedProjectId}`);
+                const destination = notificationDestination(notif);
+                if (destination) setLocation(destination);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.currentTarget.click();
+                }
               }}
             >
               <CardContent className="p-4 flex items-start gap-3">
@@ -123,7 +134,7 @@ export default function Notifications() {
                     {new Date(notif.createdAt).toLocaleString()}
                   </p>
                 </div>
-                {notif.relatedProjectId && (
+                {notificationDestination(notif) && (
                   <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
                 )}
               </CardContent>

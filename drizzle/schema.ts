@@ -464,6 +464,7 @@ export const prospects = mysqlTable("prospects", {
   contact: varchar("contact", { length: 500 }),
   referralSource: varchar("referralSource", { length: 255 }),
   stage: mysqlEnum("stage", ["New", "Contacted", "Proposal", "Negotiation", "Won", "Lost"]).default("New").notNull(),
+  closedAt: timestamp("closedAt"),
   ownerId: int("ownerId"),
   nextFollowUpDate: date("nextFollowUpDate", { mode: "string" }),
   lastInteractionAt: date("lastInteractionAt", { mode: "string" }),

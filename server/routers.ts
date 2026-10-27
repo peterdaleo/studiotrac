@@ -733,7 +733,7 @@ export const appRouter = router({
         if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) throw new TRPCError({ code: "FORBIDDEN", message: "You cannot reassign this task" });
       }
       const { id, ...data } = input;
-      return db.updateTask(id, data);
+      return db.updateTask(id, data, ctx.organizationId);
     }),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const task = await assertTenantEntity("task", input.id, ctx.organizationId);
@@ -742,7 +742,7 @@ export const appRouter = router({
         const assignee = await assertTenantEntity("teamMember", task.assigneeId, ctx.organizationId);
         if (assignee.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete tasks assigned to you" });
       }
-      return db.deleteTask(input.id);
+      return db.deleteTask(input.id, ctx.organizationId);
     }),
     reorder: protectedProcedure.input(z.object({
       taskOrders: z.array(z.object({ id: z.number(), sortOrder: z.number() })),

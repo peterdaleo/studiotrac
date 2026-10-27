@@ -18,6 +18,15 @@ function fakeDatabase(result: unknown) {
 }
 
 describe("assertDatabaseSchemaReady", () => {
+  it("requires prospects.closedAt for prospect decision metrics", async () => {
+    expect(REQUIRED_DATABASE_SCHEMA.prospects).toContain("closedAt");
+    const rows = completeMetadata().filter(row => !(row.tableName === "prospects" && row.columnName === "closedAt"));
+    await expect(assertDatabaseSchemaReady(fakeDatabase(rows) as never)).rejects.toMatchObject({
+      name: "DatabaseSchemaValidationError",
+      missingColumns: { prospects: ["closedAt"] },
+    });
+  });
+
   it("requires the verified legacy file and preference columns, not API aliases or invented storage", () => {
     expect([...REQUIRED_DATABASE_SCHEMA.project_files].sort()).toEqual([
       "id", "organizationId", "projectId", "uploadedById", "fileName", "fileUrl",

@@ -1,6 +1,6 @@
 import { requireOrganizationId } from "./organizationScope";
 import { assertDatabaseSchemaReady } from "./databaseSchema";
-import { eq, desc, asc, and, sql, lte, gte, ne, isNull, or, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, sql, lte, gte, ne, isNull, isNotNull, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
@@ -30,6 +30,7 @@ import {
 } from "../drizzle/schema";
 import { getSubBudgetCapContribution, type ProjectSubBudgetSummary, type SubBudgetItem, type SubBudgetOption } from "../shared/subBudgets";
 import { getLocalUploadKey, getLocalUploadUrl } from "./_core/protectedUploadRoute";
+import { TASK_ASSIGNMENT_NOTIFICATION_TITLE } from "../shared/taskNotifications";
 import {
   applyProjectBillingUpdate,
   buildUserBillingRateMap,
@@ -841,6 +842,22 @@ export async function updateProject(id: number, data: ProjectUpdateInput) {
 export async function deleteProject(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await db.transaction(async (tx) => {
+    const [project] = await tx.select({ id: projects.id, organizationId: projects.organizationId }).from(projects)
+      .where(eq(projects.id, id))
+      .limit(1).for("update");
+    if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+    const taskScope = project.organizationId == null
+      ? and(eq(tasks.projectId, id), isNull(tasks.organizationId))
+      : and(eq(tasks.projectId, id), eq(tasks.organizationId, project.organizationId));
+    const projectTasks = await tx.select({ id: tasks.id }).from(tasks)
+      .where(taskScope)
+      .for("update");
+    if (project.organizationId != null && project.organizationId > 0) {
+      await deleteTaskAssignmentNotifications(tx, projectTasks.map((task) => task.id), project.organizationId);
+    }
+    await tx.delete(tasks).where(eq(tasks.projectId, id));
+  });
   console.log(`[deleteProject] Deleting project ${id}`);
   // Disable FK checks to handle any implicit constraints from drizzle-kit migrations
   await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
@@ -911,27 +928,113 @@ export async function getTask(id: number) {
   return result[0];
 }
 
+async function deleteTaskAssignmentNotifications(tx: any, taskIds: number[], orgId: number) {
+  if (taskIds.length === 0) return;
+  await tx.delete(notifications).where(and(
+    eq(notifications.organizationId, orgId),
+    eq(notifications.type, "general"),
+    eq(notifications.title, TASK_ASSIGNMENT_NOTIFICATION_TITLE),
+    isNotNull(notifications.userId),
+    inArray(notifications.relatedTaskId, taskIds),
+  ));
+}
+
+async function requireTaskProject(tx: any, projectId: number, orgId: number) {
+  const [project] = await tx.select({ id: projects.id }).from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.organizationId, orgId)))
+    .limit(1).for("update");
+  if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+}
+
+async function requireTaskAssigneeMember(tx: any, assigneeId: number, orgId: number) {
+  const [member] = await tx.select({ id: teamMembers.id, userId: teamMembers.userId })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.id, assigneeId), eq(teamMembers.organizationId, orgId)))
+    .limit(1).for("update");
+  if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "Team member not found" });
+  return member;
+}
+
+async function createTaskAssignmentNotification(
+  tx: any,
+  task: { id: number; title: string; projectId: number },
+  assigneeId: number | null | undefined,
+  orgId: number,
+) {
+  if (assigneeId == null) return;
+  const member = await requireTaskAssigneeMember(tx, assigneeId, orgId);
+  if (member.userId == null) return;
+  const [assignee] = await tx.select({ id: users.id }).from(users)
+    .where(and(eq(users.id, member.userId), eq(users.organizationId, orgId)))
+    .limit(1).for("update");
+  const [activeMember] = await tx.select({ id: teamMembers.id }).from(teamMembers)
+    .where(and(eq(teamMembers.id, assigneeId), eq(teamMembers.organizationId, orgId), eq(teamMembers.isActive, true)))
+    .limit(1).for("update");
+  if (!assignee || !activeMember) return;
+  await tx.insert(notifications).values({
+    organizationId: orgId,
+    userId: assignee.id,
+    type: "general",
+    title: TASK_ASSIGNMENT_NOTIFICATION_TITLE,
+    message: `You have been assigned to "${task.title}".`,
+    relatedTaskId: task.id,
+    relatedProjectId: task.projectId,
+  });
+}
+
 export async function createTask(data: InsertTask, orgId?: number | null) {
   requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   // The form defaults to today; retain a server-side fallback for every create path.
   const taskData = { ...data, startDate: data.startDate ?? new Date() };
-  const values = orgId ? { ...taskData, organizationId: orgId } : taskData;
-  const result = await db.insert(tasks).values(values);
-  return { id: result[0].insertId };
+  return db.transaction(async (tx) => {
+    await requireTaskProject(tx, taskData.projectId, orgId);
+    if (taskData.assigneeId != null) await requireTaskAssigneeMember(tx, taskData.assigneeId, orgId);
+    const result = await tx.insert(tasks).values({ ...taskData, organizationId: orgId });
+    const id = result[0].insertId;
+    await createTaskAssignmentNotification(tx, { id, title: taskData.title, projectId: taskData.projectId }, taskData.assigneeId, orgId);
+    return { id };
+  });
 }
-
-export async function updateTask(id: number, data: Partial<InsertTask>) {
+export async function updateTask(id: number, data: Partial<InsertTask>, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(tasks).set(data).where(eq(tasks.id, id));
+  return db.transaction(async (tx) => {
+    const [target] = await tx.select({ projectId: tasks.projectId }).from(tasks)
+      .where(and(eq(tasks.id, id), eq(tasks.organizationId, orgId)))
+      .limit(1);
+    if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+    // Match create/delete lock order; re-read the task after locking its project.
+    await requireTaskProject(tx, target.projectId, orgId);
+    const [current] = await tx.select().from(tasks)
+      .where(and(eq(tasks.id, id), eq(tasks.organizationId, orgId)))
+      .limit(1).for("update");
+    if (!current || current.projectId !== target.projectId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+    }
+    const { id: _ignoredId, organizationId: _ignoredOrg, projectId: _ignoredProject, ...patch } = data;
+    const assignmentChanged = patch.assigneeId !== undefined && patch.assigneeId !== current.assigneeId;
+    if (patch.assigneeId != null) await requireTaskAssigneeMember(tx, patch.assigneeId, orgId);
+    await tx.update(tasks).set(patch).where(and(eq(tasks.id, id), eq(tasks.organizationId, orgId)));
+    if (assignmentChanged && patch.assigneeId != null) {
+      await createTaskAssignmentNotification(tx, { id, title: data.title ?? current.title, projectId: current.projectId }, patch.assigneeId, orgId);
+    }
+  });
 }
-
-export async function deleteTask(id: number) {
+export async function deleteTask(id: number, orgId: number | null | undefined) {
+  requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(tasks).where(eq(tasks.id, id));
+  return db.transaction(async (tx) => {
+    const [task] = await tx.select({ id: tasks.id }).from(tasks)
+      .where(and(eq(tasks.id, id), eq(tasks.organizationId, orgId)))
+      .limit(1).for("update");
+    if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+    await deleteTaskAssignmentNotifications(tx, [id], orgId);
+    await tx.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.organizationId, orgId)));
+  });
 }
 
 export async function reorderTasks(taskOrders: { id: number; sortOrder: number }[]) {
@@ -946,7 +1049,13 @@ export async function purgeArchivedTasks(orgId: number) {
   requireOrganizationId(orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(tasks).where(and(eq(tasks.status, "done"), eq(tasks.organizationId, orgId)));
+  await db.transaction(async (tx) => {
+    const archivedTasks = await tx.select({ id: tasks.id }).from(tasks)
+      .where(and(eq(tasks.status, "done"), eq(tasks.organizationId, orgId)))
+      .for("update");
+    await deleteTaskAssignmentNotifications(tx, archivedTasks.map((task) => task.id), orgId);
+    await tx.delete(tasks).where(and(eq(tasks.status, "done"), eq(tasks.organizationId, orgId)));
+  });
 }
 
 export async function purgeArchivedProjects(orgId: number) {
@@ -963,7 +1072,13 @@ export async function purgeArchivedProjects(orgId: number) {
     for (const p of completedProjects) {
       const id = p.id;
       const safeDel = async (fn: () => Promise<any>) => { try { await fn(); } catch {} };
-      await safeDel(() => db.delete(tasks).where(eq(tasks.projectId, id)));
+      await db.transaction(async (tx) => {
+        const projectTasks = await tx.select({ id: tasks.id }).from(tasks)
+          .where(and(eq(tasks.projectId, id), eq(tasks.organizationId, orgId)))
+          .for("update");
+        await deleteTaskAssignmentNotifications(tx, projectTasks.map((task) => task.id), orgId);
+        await tx.delete(tasks).where(and(eq(tasks.projectId, id), eq(tasks.organizationId, orgId)));
+      });
       await safeDel(() => db.delete(projectNotes).where(eq(projectNotes.projectId, id)));
       await safeDel(() => db.delete(projectFiles).where(eq(projectFiles.projectId, id)));
       await safeDel(() => db.execute(sql`DELETE FROM invoices WHERE projectId = ${id}`));

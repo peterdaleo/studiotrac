@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { prospectInteractions, prospects, projectNotes, projectTeamMembers, projects, teamMembers, users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { normalizeBillingTerms, seedInitialBillingPhase } from "./projectBilling";
-import { defaultLastInteractionDate, type ProspectStage } from "../shared/prospects";
+import { defaultLastInteractionDate, initialProspectClosedAt, prospectClosedAtAfterStageChange, type ProspectStage } from "../shared/prospects";
 
 export type ProspectDraft = {
   firm?: string | null;
@@ -88,6 +88,7 @@ export async function createProspect(data: ProspectDraft, orgId: number | null, 
   await validateOwner(data.ownerId, orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const now = new Date();
   const result = await db.insert(prospects).values({
     organizationId: orgId,
     firm: data.firm?.trim() || "",
@@ -95,6 +96,7 @@ export async function createProspect(data: ProspectDraft, orgId: number | null, 
     contact: data.contact?.trim() || null,
     referralSource: data.referralSource?.trim() || null,
     stage: data.stage ?? "New",
+    closedAt: initialProspectClosedAt(data.stage ?? "New", now),
     ownerId: data.ownerId ?? null,
     nextFollowUpDate: data.nextFollowUpDate || null,
     lastInteractionAt: defaultLastInteractionDate(data.lastInteractionAt, new Date()),
@@ -112,26 +114,35 @@ export async function updateProspect(
   if (data.ownerId !== undefined) await validateOwner(data.ownerId, orgId);
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [existing] = await db.select({ id: prospects.id, convertedProjectId: prospects.convertedProjectId }).from(prospects)
-    .where(scopedConditions(prospects, id, orgId)).limit(1);
-  if (!existing) throw new Error("Prospect not found");
-  if (existing.convertedProjectId != null && data.stage !== undefined) {
-    throw new Error("A converted prospect must remain Won");
-  }
-
   const patch: Record<string, unknown> = {};
   if (data.firm !== undefined) patch.firm = data.firm?.trim() || "";
   if (data.opportunityName !== undefined) patch.opportunityName = data.opportunityName.trim();
   if (data.contact !== undefined) patch.contact = data.contact?.trim() || null;
   if (data.referralSource !== undefined) patch.referralSource = data.referralSource?.trim() || null;
-  if (data.stage !== undefined) patch.stage = data.stage;
   if (data.ownerId !== undefined) patch.ownerId = data.ownerId;
   if (data.nextFollowUpDate !== undefined) patch.nextFollowUpDate = data.nextFollowUpDate || null;
   if (data.lastInteractionAt !== undefined) patch.lastInteractionAt = data.lastInteractionAt || null;
-  if (Object.keys(patch).length) {
-    await db.update(prospects).set(patch as any).where(scopedConditions(prospects, id, orgId));
-  }
-  return { success: true };
+  return db.transaction(async (tx) => {
+    const condition = scopedConditions(prospects, id, orgId);
+    const [existing] = await tx.select({
+      id: prospects.id,
+      stage: prospects.stage,
+      closedAt: prospects.closedAt,
+      convertedProjectId: prospects.convertedProjectId,
+    }).from(prospects).where(condition).limit(1).for("update");
+    if (!existing) throw new Error("Prospect not found");
+    if (existing.convertedProjectId != null && data.stage !== undefined && data.stage !== existing.stage) {
+      throw new Error("A converted prospect must remain Won");
+    }
+    if (data.stage !== undefined) {
+      patch.stage = data.stage;
+      patch.closedAt = prospectClosedAtAfterStageChange(existing.stage, existing.closedAt, data.stage, new Date());
+    }
+    if (Object.keys(patch).length) {
+      await tx.update(prospects).set(patch as any).where(condition);
+    }
+    return { success: true };
+  });
 }
 
 export async function addProspectInteraction(

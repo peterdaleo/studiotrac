@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowDownWideNarrow, Download, Plus, Printer, Search, UserRound, X } from "lucide-react";
-import { groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, prospectDateInRange, PROSPECT_STAGES, type ProspectStage } from "@shared/prospects";
+import { computeProspectInsights, groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, matchesProspectOutcomeList, prospectDateInRange, prospectReferralSourceKey, PROSPECT_STAGES, validProspectDate, type ProspectOutcomeListMode, type ProspectStage } from "@shared/prospects";
 
 type ProspectInteraction = {
   id: number;
@@ -33,6 +33,7 @@ type ProspectRecord = {
   contact: string | null;
   referralSource: string | null;
   stage: ProspectStage;
+  closedAt: Date | string | null;
   ownerId: number | null;
   nextFollowUpDate: string | null;
   convertedProjectId: number | null;
@@ -82,6 +83,13 @@ function dateInputValue(value: Date | string | null | undefined): string {
   return date ? localDateKey(date) : "";
 }
 
+function decisionLabel(prospect: Pick<ProspectRecord, "stage" | "closedAt">): string | null {
+  if (prospect.stage !== "Won" && prospect.stage !== "Lost") return null;
+  return validProspectDate(prospect.closedAt)
+    ? `Decision: ${displayDate(prospect.closedAt)}`
+    : "Decision: Undated — excluded from dated metrics";
+}
+
 function localDateTimeValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -114,12 +122,16 @@ export default function Prospects() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState<{ active: boolean; source: string | null }>({ active: false, source: null });
+  const [outcomeMode, setOutcomeMode] = useState<ProspectOutcomeListMode>("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [followUpFilter, setFollowUpFilter] = useState<FollowUpFilter>("all");
   const [followUpFrom, setFollowUpFrom] = useState("");
   const [followUpTo, setFollowUpTo] = useState("");
   const [interactionFrom, setInteractionFrom] = useState("");
   const [interactionTo, setInteractionTo] = useState("");
+  const [outcomeFrom, setOutcomeFrom] = useState("");
+  const [outcomeTo, setOutcomeTo] = useState("");
   const [sortBy, setSortBy] = useState<ProspectSort>("followup");
   const [sortDescending, setSortDescending] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
@@ -150,6 +162,12 @@ export default function Prospects() {
   const utils = trpc.useUtils();
   const recordList = (prospects ?? []) as ProspectRecord[];
   const memberList = teamMembers ?? [];
+  const insightOwnerId = ownerFilter === "all" ? undefined : ownerFilter === "unassigned" ? null : Number(ownerFilter);
+  const insights = useMemo(() => computeProspectInsights(recordList, {
+    ownerId: insightOwnerId,
+    from: outcomeFrom || undefined,
+    to: outcomeTo || undefined,
+  }), [recordList, insightOwnerId, outcomeFrom, outcomeTo]);
   const activeProspect = recordList.find((prospect) => prospect.id === detailId) ?? null;
   const editingProspect = editId == null ? null : recordList.find((prospect) => prospect.id === editId) ?? null;
 
@@ -198,7 +216,9 @@ export default function Prospects() {
   const visibleProspects = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     const filtered = recordList.filter((prospect) => {
+      if (!matchesProspectOutcomeList(prospect, { mode: outcomeMode, from: outcomeFrom || undefined, to: outcomeTo || undefined })) return false;
       if (stageFilter !== "all" && prospect.stage !== stageFilter) return false;
+      if (sourceFilter.active && prospectReferralSourceKey(prospect.referralSource) !== sourceFilter.source) return false;
       if (ownerFilter !== "all" && String(prospect.ownerId ?? "unassigned") !== ownerFilter) return false;
       const status = getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now);
       if (followUpFilter !== "all" && status !== followUpFilter && !(followUpFilter === "none" && status === "closed")) return false;
@@ -224,20 +244,45 @@ export default function Prospects() {
       return sortDescending ? -comparison : comparison;
     });
     return sorted;
-  }, [recordList, search, stageFilter, ownerFilter, followUpFilter, followUpFrom, followUpTo, interactionFrom, interactionTo, sortBy, sortDescending, now, memberList]);
+  }, [recordList, search, stageFilter, sourceFilter, outcomeMode, outcomeFrom, outcomeTo, ownerFilter, followUpFilter, followUpFrom, followUpTo, interactionFrom, interactionTo, sortBy, sortDescending, now, memberList]);
 
   const { working: workingProspects, converted: convertedProspects } = groupProspectsByConversion(visibleProspects);
-  const hasActiveFilters = Boolean(search.trim() || stageFilter !== "all" || ownerFilter !== "all" || followUpFilter !== "all" || followUpFrom || followUpTo || interactionFrom || interactionTo);
+  const hasActiveFilters = Boolean(search.trim() || stageFilter !== "all" || sourceFilter.active || outcomeMode !== "all" || outcomeFrom || outcomeTo || ownerFilter !== "all" || followUpFilter !== "all" || followUpFrom || followUpTo || interactionFrom || interactionTo);
+
+  const clearOutcomeListSelection = () => {
+    setStageFilter("all");
+    setSourceFilter({ active: false, source: null });
+  };
+  const selectDatedOutcomes = () => {
+    const alreadySelected = outcomeMode === "dated" && stageFilter === "all" && !sourceFilter.active;
+    clearOutcomeListSelection();
+    setOutcomeMode(alreadySelected ? "all" : "dated");
+  };
+  const selectOutcomeStage = (stage: "Won" | "Lost") => {
+    const alreadySelected = outcomeMode === "dated" && stageFilter === stage && !sourceFilter.active;
+    setStageFilter(alreadySelected ? "all" : stage);
+    setSourceFilter({ active: false, source: null });
+    setOutcomeMode(alreadySelected ? "all" : "dated");
+  };
+  const selectUndatedOutcomes = () => {
+    const alreadySelected = outcomeMode === "undated";
+    clearOutcomeListSelection();
+    setOutcomeMode(alreadySelected ? "all" : "undated");
+  };
 
   const resetFilters = () => {
     setSearch("");
     setStageFilter("all");
+    setSourceFilter({ active: false, source: null });
+    setOutcomeMode("all");
     setOwnerFilter("all");
     setFollowUpFilter("all");
     setFollowUpFrom("");
     setFollowUpTo("");
     setInteractionFrom("");
     setInteractionTo("");
+    setOutcomeFrom("");
+    setOutcomeTo("");
   };
 
   const submitProspect = (event: React.FormEvent<HTMLFormElement>) => {
@@ -327,6 +372,7 @@ export default function Prospects() {
                   <button type="button" onClick={() => setDetailId(prospect.id)} className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
                     <span className="block font-semibold text-foreground hover:text-primary">{prospect.opportunityName}</span>
                     {prospect.firm && <span className="block text-xs text-muted-foreground">{prospect.firm}</span>}
+                    {decisionLabel(prospect) && <span className="mt-1 block text-xs text-muted-foreground">{decisionLabel(prospect)}</span>}
                   </button>
                   {prospect.convertedProjectId && <Badge variant="outline" className="mt-1">Converted</Badge>}
                 </td>
@@ -414,6 +460,54 @@ export default function Prospects() {
 
         <Card className="border-0 shadow-sm">
           <CardContent className="space-y-4 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Prospect insights</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Current open snapshot by exact stage; owner scope follows current owner. Date range below applies only to dated Won/Lost outcomes.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:min-w-[340px]">
+                <div><Label htmlFor="outcome-from" className="text-xs text-muted-foreground">Closed outcomes from</Label><Input id="outcome-from" type="date" value={outcomeFrom} onChange={(event) => setOutcomeFrom(event.target.value)} /></div>
+                <div><Label htmlFor="outcome-to" className="text-xs text-muted-foreground">Closed outcomes through</Label><Input id="outcome-to" type="date" value={outcomeTo} onChange={(event) => setOutcomeTo(event.target.value)} /></div>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {(["New", "Contacted", "Proposal", "Negotiation"] as const).map((stage) => (
+                <button key={stage} type="button" onClick={() => { setStageFilter(stageFilter === stage ? "all" : stage); setSourceFilter({ active: false, source: null }); setOutcomeMode("all"); }} aria-pressed={stageFilter === stage && !sourceFilter.active && outcomeMode === "all"} className={`rounded-lg border p-3 text-left transition-colors ${stageFilter === stage && !sourceFilter.active && outcomeMode === "all" ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
+                  <span className="block text-xs text-muted-foreground">Open · {stage}</span><span className="mt-1 block text-2xl font-semibold">{insights.openByStage[stage]}</span>
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <button type="button" onClick={() => selectOutcomeStage("Won")} aria-pressed={stageFilter === "Won" && !sourceFilter.active && outcomeMode === "dated"} className={`rounded-lg border p-3 text-left hover:bg-muted/50 ${stageFilter === "Won" && !sourceFilter.active && outcomeMode === "dated" ? "border-primary bg-primary/5" : ""}`}>
+                <span className="block text-xs text-muted-foreground">Won · dated outcomes</span><span className="mt-1 block text-2xl font-semibold">{insights.wonCount}</span>
+              </button>
+              <button type="button" onClick={() => selectOutcomeStage("Lost")} aria-pressed={stageFilter === "Lost" && !sourceFilter.active && outcomeMode === "dated"} className={`rounded-lg border p-3 text-left hover:bg-muted/50 ${stageFilter === "Lost" && !sourceFilter.active && outcomeMode === "dated" ? "border-primary bg-primary/5" : ""}`}>
+                <span className="block text-xs text-muted-foreground">Lost · dated outcomes</span><span className="mt-1 block text-2xl font-semibold">{insights.lostCount}</span>
+              </button>
+              <button type="button" onClick={selectDatedOutcomes} aria-pressed={outcomeMode === "dated" && stageFilter === "all" && !sourceFilter.active} className={`rounded-lg border p-3 text-left hover:bg-muted/50 ${outcomeMode === "dated" && stageFilter === "all" && !sourceFilter.active ? "border-primary bg-primary/5" : ""}`}><span className="block text-xs text-muted-foreground">Win rate · Won / (Won + Lost)</span><span className="mt-1 block text-2xl font-semibold">{insights.winRate == null ? "—" : `${(insights.winRate * 100).toFixed(1)}%`}</span><span className="text-xs text-muted-foreground">Denominator: {insights.closedOutcomeCount} dated closed outcomes · select to filter</span></button>
+              <button type="button" onClick={selectDatedOutcomes} aria-pressed={outcomeMode === "dated" && stageFilter === "all" && !sourceFilter.active} className={`rounded-lg border p-3 text-left hover:bg-muted/50 ${outcomeMode === "dated" && stageFilter === "all" && !sourceFilter.active ? "border-primary bg-primary/5" : ""}`}><span className="block text-xs text-muted-foreground">Median days · created to decision</span><span className="mt-1 block text-2xl font-semibold">{insights.medianElapsedDays == null ? "—" : insights.medianElapsedDays.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span><span className="text-xs text-muted-foreground">Elapsed time for valid dated outcomes · select to filter</span></button>
+            </div>
+            <div className="rounded-lg border">
+              <div className="border-b px-3 py-2"><h3 className="font-medium">Won by exact referral source</h3><p className="text-xs text-muted-foreground">Win rate denominator is that source’s dated closed outcomes (Won + Lost). Source text is kept exact; missing source is its own bucket.</p></div>
+              {insights.byReferralSource.length ? (
+                <div className="divide-y">
+                  {insights.byReferralSource.map((source) => {
+                    const selected = outcomeMode === "dated" && stageFilter === "all" && sourceFilter.active && sourceFilter.source === source.source;
+                    return <button key={source.source === null ? "missing-source" : `source:${source.source}`} type="button" onClick={() => { setStageFilter("all"); setSourceFilter(selected ? { active: false, source: null } : { active: true, source: source.source }); setOutcomeMode(selected ? "all" : "dated"); }} aria-pressed={selected} className={`grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50 ${selected ? "bg-primary/5" : ""}`}>
+                      <span className="truncate font-medium">{source.label}</span><span>{source.wonCount} / {source.closedOutcomeCount} won</span><span className="min-w-14 text-right font-semibold">{(source.winRate * 100).toFixed(1)}%</span>
+                    </button>;
+                  })}
+                </div>
+              ) : <p className="p-4 text-sm text-muted-foreground">No dated closed outcomes in this owner and date scope.</p>}
+            </div>
+            <button type="button" onClick={selectUndatedOutcomes} aria-pressed={outcomeMode === "undated"} className={`w-full rounded-lg border p-3 text-left text-xs text-muted-foreground hover:bg-muted/50 ${outcomeMode === "undated" ? "border-primary bg-primary/5" : ""}`}>
+              {insights.undatedOutcomeCount} undated terminal prospect{insights.undatedOutcomeCount === 1 ? " is" : "s are"} in the current owner scope, excluded from dated outcome metrics. Select to view them regardless of outcome-date bounds; no historical decision dates are inferred.
+            </button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardContent className="space-y-4 p-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(200px,1.5fr)_repeat(4,minmax(130px,1fr))]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -459,7 +553,8 @@ export default function Prospects() {
                   Include private notes in CSV
                 </label>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <span className="text-xs text-muted-foreground">{outcomeMode === "undated" ? "Undated terminal records · date bounds do not apply" : outcomeMode === "dated" ? "Dated terminal outcomes only" : outcomeFrom || outcomeTo ? "Open snapshot unaffected · dated outcomes constrained by decision date" : "Open snapshot + all terminal outcomes"}</span>
                 <span className="text-sm text-muted-foreground">{visibleProspects.length} of {recordList.length} prospects</span>
                 <Button variant="ghost" size="sm" onClick={() => setSortDescending(!sortDescending)} aria-label={`Sort ${sortDescending ? "ascending" : "descending"}`} title="Reverse sort direction"><ArrowDownWideNarrow className="h-4 w-4" /> {sortDescending ? "Descending" : "Ascending"}</Button>
               </div>
@@ -531,6 +626,7 @@ export default function Prospects() {
                 <div><span className="text-xs text-muted-foreground">Next follow-up</span><div className="mt-1 flex items-center gap-2">{followUpBadge(getFollowUpStatus(activeProspect.nextFollowUpDate, activeProspect.stage, now))}<span className="text-sm">{displayDate(activeProspect.nextFollowUpDate)}</span></div></div>
                 <div><span className="text-xs text-muted-foreground">Contact</span><p className="mt-1 text-sm">{activeProspect.contact || "—"}</p></div>
                 <div><span className="text-xs text-muted-foreground">Referral source</span><p className="mt-1 text-sm">{activeProspect.referralSource || "—"}</p></div>
+                {decisionLabel(activeProspect) && <div><span className="text-xs text-muted-foreground">Decision date</span><p className="mt-1 text-sm">{decisionLabel(activeProspect)}</p></div>}
                 {activeProspect.convertedAt && <div><span className="text-xs text-muted-foreground">Converted</span><p className="mt-1 text-sm">{displayDate(activeProspect.convertedAt)}</p></div>}
               </div>
 

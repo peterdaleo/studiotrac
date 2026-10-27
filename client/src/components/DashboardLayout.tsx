@@ -54,6 +54,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import TrialBanner from "@/components/TrialBanner";
 import TrialExpiredScreen from "@/components/TrialExpiredScreen";
 import { canManageBilling, type BillingPrincipal } from "@shared/billingAccess";
+import { useTaskAssignmentNotifications } from "@/hooks/useTaskAssignmentNotifications";
 
 export function shouldShowBillingNavigation(
   user: BillingPrincipal | null | undefined,
@@ -185,8 +186,9 @@ function DashboardLayoutContent({
   const { isStaffPreview, toggleStaffPreview } = useStaffPreview();
 
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
+  useTaskAssignmentNotifications(user, setLocation);
 
   // Fetch team members to find the current user's own profile page
   const { data: teamMembers } = trpc.teamMembers.list.useQuery();
