@@ -571,9 +571,11 @@ export default function Prospects() {
                 </div>
               ) : <p className="p-4 text-sm text-muted-foreground">No dated closed outcomes in this owner and date scope.</p>}
             </div>
-            <button type="button" onClick={selectUndatedOutcomes} aria-pressed={outcomeMode === "undated"} className={`w-full rounded-lg border p-3 text-left text-xs text-muted-foreground hover:bg-muted/50 ${outcomeMode === "undated" ? "border-primary bg-primary/5" : ""}`}>
-              {insights.undatedOutcomeCount} undated terminal prospect{insights.undatedOutcomeCount === 1 ? " is" : "s are"} in the current owner scope, excluded from dated outcome metrics. Select to view them regardless of outcome-date bounds; no historical decision dates are inferred.
-            </button>
+            {insights.undatedOutcomeCount > 0 && (
+              <button type="button" onClick={selectUndatedOutcomes} aria-pressed={outcomeMode === "undated"} className={`w-full rounded-lg border p-3 text-left text-xs text-muted-foreground hover:bg-muted/50 ${outcomeMode === "undated" ? "border-primary bg-primary/5" : ""}`}>
+                {insights.undatedOutcomeCount} undated terminal prospect{insights.undatedOutcomeCount === 1 ? " is" : "s are"} in the current owner scope, excluded from dated outcome metrics. Select to view them regardless of outcome-date bounds; no historical decision dates are inferred.
+              </button>
+            )}
           </CardContent>
         </Card>
 

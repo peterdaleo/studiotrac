@@ -152,4 +152,10 @@ describe("Prospects insight KPI click contract", () => {
     expect(page).toContain('onClick={selectUndatedOutcomes}');
     expect(page).toContain('setOutcomeMode(alreadySelected ? "all" : "undated")');
   });
+
+  it("shows the undated-outcome notice only when records exist and keeps it selectable", () => {
+    expect(page).toContain("{insights.undatedOutcomeCount > 0 && (");
+    expect(page).toContain("onClick={selectUndatedOutcomes}");
+    expect(page).toContain("{insights.undatedOutcomeCount} undated terminal prospect");
+  });
 });
