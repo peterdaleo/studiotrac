@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowDownWideNarrow, Download, Plus, Printer, Search, UserRound, X } from "lucide-react";
 import { computeProspectInsights, groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, matchesProspectOutcomeList, prospectDateInRange, prospectReferralSourceKey, PROSPECT_STAGES, validProspectDate, type ProspectOutcomeListMode, type ProspectStage } from "@shared/prospects";
+import { buildProspectSubmissionPayload } from "@shared/prospectSubmission";
 
 type ProspectInteraction = {
   id: number;
@@ -288,17 +289,7 @@ export default function Prospects() {
   const submitProspect = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const ownerValue = String(form.get("ownerId") ?? "");
-    const payload = {
-      firm: String(form.get("firm") ?? "").trim() || null,
-      opportunityName: String(form.get("opportunityName") ?? "").trim(),
-      contact: String(form.get("contact") ?? "").trim() || null,
-      referralSource: String(form.get("referralSource") ?? "").trim() || null,
-      stage: String(form.get("stage") ?? "New") as ProspectStage,
-      ownerId: ownerValue ? Number(ownerValue) : null,
-      nextFollowUpDate: String(form.get("nextFollowUpDate") ?? "") || null,
-      lastInteractionAt: String(form.get("lastInteractionAt") ?? "") || localDateKey(now),
-    };
+    const payload = buildProspectSubmissionPayload(form, editId == null ? "create" : "edit", localDateKey(now));
     if (editId != null) updateMutation.mutate({ ...payload, id: editId });
     else createMutation.mutate(payload);
   };
