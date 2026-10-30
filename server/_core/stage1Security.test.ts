@@ -40,8 +40,9 @@ describe("coordination image access policy", () => {
     sheetOrganizationId: 17,
     projectOrganizationId: 17,
     authenticatedOrganizationId: null,
-    tokenKind: null as "main" | "client" | null,
+    tokenKind: null as "main" | "client" | "collaborator" | null,
     itemVisibility: "internal" as "internal" | "client",
+    isCollaboratorVisible: false,
   };
 
   it("denies anonymous image-ID guessing without a valid sheet token", () => {
@@ -55,6 +56,11 @@ describe("coordination image access policy", () => {
   it("allows client links to client-visible images only", () => {
     expect(canAccessCoordinationImage({ ...sheet, tokenKind: "client", itemVisibility: "client" })).toBe(true);
     expect(canAccessCoordinationImage({ ...sheet, tokenKind: "client", itemVisibility: "internal" })).toBe(false);
+  });
+
+  it("allows collaborator links to collaborator-visible images only", () => {
+    expect(canAccessCoordinationImage({ ...sheet, tokenKind: "collaborator", isCollaboratorVisible: true })).toBe(true);
+    expect(canAccessCoordinationImage({ ...sheet, tokenKind: "collaborator", isCollaboratorVisible: false })).toBe(false);
   });
 
   it("allows authenticated same-org access but rejects cross-org and org-less accounts", () => {
@@ -87,11 +93,13 @@ describe("coordination image HTTP handler (synthetic DB/session mocks)", () => {
     fileName: "synthetic.png",
     attachmentType: "image",
     itemVisibility: "internal",
+    isCollaboratorVisible: false,
     sheetIsActive: true,
     sheetOrganizationId: 17,
     projectOrganizationId: 17,
     mainToken: "main-secret",
     clientToken: "client-secret",
+    collaboratorToken: "collaborator-secret",
   };
 
   async function requestImage(options: { workspaceAllowed?: boolean; image?: Partial<CoordinationImageRecord>; cookie?: string; referer?: string; token?: string }) {
@@ -144,6 +152,22 @@ describe("coordination image HTTP handler (synthetic DB/session mocks)", () => {
     expect(clientVisible.status).toBe(200);
     const clientPrivate = await requestImage({ referer: "https://app.studiotrac.app/coordination/client/client-secret" });
     expect(clientPrivate.status).toBe(404);
+  });
+
+  it("serves collaborator-visible images via collaborator referrers but denies every other item", async () => {
+    const url = "https://app.studiotrac.app/coordination/collaborator/collaborator-secret";
+    const visible = await requestImage({ image: { isCollaboratorVisible: true }, referer: url });
+    const privateImage = await requestImage({ referer: url });
+    expect(visible.status).toBe(200);
+    expect(privateImage.status).toBe(404);
+  });
+
+  it("fails closed when public capability strings collide", async () => {
+    const response = await requestImage({
+      image: { collaboratorToken: "client-secret", itemVisibility: "client", isCollaboratorVisible: true },
+      referer: "https://app.studiotrac.app/coordination/client/client-secret",
+    });
+    expect(response.status).toBe(404);
   });
 
   it("allows same-org authenticated access but rejects other-org users and inconsistent tenant data", async () => {

@@ -8,11 +8,13 @@ export type CoordinationImageRecord = {
   fileName: string | null;
   attachmentType: string;
   itemVisibility: "internal" | "client";
+  isCollaboratorVisible: boolean;
   sheetIsActive: boolean;
   sheetOrganizationId: number | null;
   projectOrganizationId: number | null;
   mainToken: string;
   clientToken: string | null;
+  collaboratorToken: string | null;
 };
 
 type Dependencies = {
@@ -37,10 +39,13 @@ export function createCoordinationImageHandler(dependencies: Dependencies): Requ
         // Missing/invalid sessions are not identity; a valid explicit share capability may still authorize access.
       }
       const suppliedToken = getCoordinationTokenFromRequest(req.query.token, req.get("referer"));
-      // If a token matches both columns, treat it as client-scoped to avoid privilege escalation.
-      const tokenKind = suppliedToken && att.clientToken && suppliedToken === att.clientToken
-        ? "client"
-        : suppliedToken && suppliedToken === att.mainToken ? "main" : null;
+      const tokenMatches = [
+        suppliedToken && suppliedToken === att.clientToken ? "client" as const : null,
+        suppliedToken && suppliedToken === att.collaboratorToken ? "collaborator" as const : null,
+        suppliedToken && suppliedToken === att.mainToken ? "main" as const : null,
+      ].filter((kind): kind is "main" | "client" | "collaborator" => kind !== null);
+      // Do not accidentally widen image access when capability strings collide.
+      const tokenKind = tokenMatches.length === 1 ? tokenMatches[0] : null;
       if (!canAccessCoordinationImage({
         sheetIsActive: att.sheetIsActive,
         sheetOrganizationId: att.sheetOrganizationId,
@@ -48,6 +53,7 @@ export function createCoordinationImageHandler(dependencies: Dependencies): Requ
         authenticatedOrganizationId,
         tokenKind,
         itemVisibility: att.itemVisibility,
+        isCollaboratorVisible: att.isCollaboratorVisible,
       })) return res.status(404).send("Image not found");
 
       const buffer = Buffer.from(att.fileData, "base64");

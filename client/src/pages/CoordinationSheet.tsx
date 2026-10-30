@@ -51,6 +51,7 @@ import {
   BellOff,
   Eye,
   EyeOff,
+  Users,
   Phone,
   Monitor,
   Pin,
@@ -103,13 +104,16 @@ function formatDateShort(date: string | Date) {
 }
 
 export default function CoordinationSheet() {
-  const params = useParams<{ token?: string; clientToken?: string }>();
+  const params = useParams<{ token?: string; clientToken?: string; collaboratorToken?: string }>();
   const token = params.token;
   const clientToken = params.clientToken;
+  const collaboratorToken = params.collaboratorToken;
   const isClientView = !!clientToken;
-  // Use whichever token is available — clientToken on /coordination/client/:clientToken route,
-  // main token on /coordination/:token route. Server accepts both via getCoordinationSheetByAnyToken.
-  const effectiveToken = token ?? clientToken ?? "";
+  const isCollaboratorView = !!collaboratorToken;
+  const isReadOnly = isCollaboratorView;
+  // Each audience uses a separate query. Collaborator capabilities are read-only;
+  // only main/client capabilities are accepted by the server's public mutation lookup.
+  const effectiveToken = token ?? clientToken ?? collaboratorToken ?? "";
   const [showAddressed, setShowAddressed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
@@ -130,7 +134,13 @@ export default function CoordinationSheet() {
     { clientToken: clientToken! },
     { enabled: !!clientToken && isClientView }
   );
-  const { data, isLoading, refetch } = isClientView
+  const collaboratorQuery = trpc.coordination.getByCollaboratorToken.useQuery(
+    { collaboratorToken: collaboratorToken! },
+    { enabled: !!collaboratorToken && isCollaboratorView }
+  );
+  const { data, isLoading, refetch } = isCollaboratorView
+    ? { data: collaboratorQuery.data, isLoading: collaboratorQuery.isLoading, refetch: collaboratorQuery.refetch }
+    : isClientView
     ? { data: clientQuery.data, isLoading: clientQuery.isLoading, refetch: clientQuery.refetch }
     : { data: fullQuery.data, isLoading: fullQuery.isLoading, refetch: fullQuery.refetch };
 
@@ -294,7 +304,7 @@ export default function CoordinationSheet() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{sheet.projectName}</h1>
-              <p className="text-xs text-muted-foreground">{isClientView ? "Client View" : "Coordination Sheet"}</p>
+              <p className="text-xs text-muted-foreground">{isCollaboratorView ? "External Collaborator View" : isClientView ? "Client View" : "Coordination Sheet"}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {/* Shared Folder link */}
@@ -344,7 +354,7 @@ export default function CoordinationSheet() {
                 <Monitor className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Create Desktop Shortcut</span>
               </Button>
-              <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
+              {!isCollaboratorView && <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
                     <Bell className="h-3.5 w-3.5" />
@@ -360,14 +370,15 @@ export default function CoordinationSheet() {
                     subscribers={data.subscribers}
                     onSubscribe={(email, phone, name) => subscribe.mutate({ token: effectiveToken, email: email || undefined, phone: phone || undefined, name })}
                     onUnsubscribe={(emailOrPhone) => unsubscribe.mutate({ token: effectiveToken, emailOrPhone })}
+                    isClientView={isClientView}
                     isPending={subscribe.isPending || unsubscribe.isPending}
                   />
                 </DialogContent>
-              </Dialog>
-              <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
+              </Dialog>}
+              {!isCollaboratorView && <Button size="sm" className="gap-1.5" onClick={() => setNewItemOpen(true)}>
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">New Item</span>
-              </Button>
+              </Button>}
             </div>
           </div>
         </div>
@@ -376,7 +387,7 @@ export default function CoordinationSheet() {
       {/* Main content */}
       <main className="max-w-3xl mx-auto px-4 py-4 sm:py-6 space-y-2">
         {/* Identity banner */}
-        {!savedName && (
+        {!isCollaboratorView && !savedName && (
           <Card className="border-blue-200 bg-blue-50/50 mb-4">
             <CardContent className="p-4">
               <p className="text-sm font-medium text-blue-900 mb-3">Set your identity to start posting:</p>
@@ -392,7 +403,7 @@ export default function CoordinationSheet() {
           </Card>
         )}
 
-        {savedName && (
+        {!isCollaboratorView && savedName && (
           <div className="flex items-center gap-2 text-sm mb-4">
             <span className="text-muted-foreground">Posting as:</span>
             <Badge className={AUTHOR_TYPE_COLORS[savedType]}>{savedName}</Badge>
@@ -466,6 +477,7 @@ export default function CoordinationSheet() {
                         onAddLink={addLink}
             onDeleteAttachment={deleteAttachment}
             isClientView={isClientView}
+            isReadOnly={isReadOnly}
             onPinItem={pinItem}
             onUnpinItem={unpinItem}
           />
@@ -503,6 +515,7 @@ export default function CoordinationSheet() {
                     onAddLink={addLink}
                     onDeleteAttachment={deleteAttachment}
                     isClientView={isClientView}
+                    isReadOnly={isReadOnly}
                     onPinItem={pinItem}
                     onUnpinItem={unpinItem}
                   />
@@ -514,7 +527,7 @@ export default function CoordinationSheet() {
       </main>
 
       {/* New Item Dialog */}
-      <Dialog open={newItemOpen} onOpenChange={setNewItemOpen}>
+      {!isCollaboratorView && <Dialog open={newItemOpen} onOpenChange={setNewItemOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>New Coordination Item</DialogTitle>
@@ -533,7 +546,7 @@ export default function CoordinationSheet() {
             }}
           />
         </DialogContent>
-      </Dialog>
+      </Dialog>}
 
       {/* Powered-by badge — rendered once at the very bottom of the page */}
       <footer className="mt-10 pb-8 flex justify-center">
@@ -703,6 +716,7 @@ function ItemRow({
   onAddLink,
   onDeleteAttachment,
   isClientView = false,
+  isReadOnly = false,
   onPinItem,
   onUnpinItem,
 }: {
@@ -723,6 +737,7 @@ function ItemRow({
   onAddLink: any;
   onDeleteAttachment: any;
   isClientView?: boolean;
+  isReadOnly?: boolean;
   onPinItem?: any;
   onUnpinItem?: any;
 }) {
@@ -829,8 +844,8 @@ function ItemRow({
           {formatDateShort(item.createdAt)}
         </span>
 
-        {/* Inline action buttons (always visible, stop propagation) */}
-        <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+        {/* Inline action buttons (hidden for read-only collaborator views) */}
+        {!isReadOnly && <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
           {/* Pin/Unpin button (admin/PM only - shown when not client view) */}
           {!isClientView && !item.parentId && onPinItem && (
             <Button
@@ -878,6 +893,17 @@ function ItemRow({
               {item.visibility === "client" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
             </Button>
           )}
+          {!isClientView && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-6 w-6 ${item.isCollaboratorVisible ? "text-emerald-600 bg-emerald-50" : "text-muted-foreground"} hover:text-emerald-700 hover:bg-emerald-50`}
+              title={item.isCollaboratorVisible ? "Visible to external collaborators (click to hide)" : "Not visible to external collaborators (click to share)"}
+              onClick={() => onUpdateItem.mutate({ token, itemId: item.id, isCollaboratorVisible: !item.isCollaboratorVisible })}
+            >
+              <Users className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {!item.isAddressed ? (
             <Button
               variant="ghost"
@@ -912,7 +938,7 @@ function ItemRow({
           >
             <Trash2 className="h-3 w-3" />
           </Button>
-        </div>
+        </div>}
       </div>
 
       {/* ── Expanded content ── */}
@@ -941,7 +967,7 @@ function ItemRow({
           </div>
 
           {/* Content */}
-          {editing ? (
+          {editing && !isReadOnly ? (
             <div className="space-y-2">
               <Textarea
                 value={editContent}
@@ -995,7 +1021,7 @@ function ItemRow({
                         className="h-20 w-20 object-cover"
                       />
                     </button>
-                    <button
+                    {!isReadOnly && <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1006,7 +1032,7 @@ function ItemRow({
                       className="text-[10px] text-red-500 hover:text-red-700 hover:underline leading-none"
                     >
                       Delete
-                    </button>
+                    </button>}
                   </div>
                 ) : (
                   <a
@@ -1025,7 +1051,7 @@ function ItemRow({
           )}
 
           {/* Attachment actions */}
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
+          {!isReadOnly && <div className="mt-3 flex items-center gap-2 flex-wrap">
             <input
               ref={fileInputRef}
               type="file"
@@ -1078,7 +1104,7 @@ function ItemRow({
             >
               <Reply className="h-3 w-3" /> Reply {replies.length > 0 && `(${replies.length})`}
             </Button>
-          </div>
+          </div>}
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {COORDINATION_ATTACHMENT_NOTICE}
           </p>
@@ -1097,7 +1123,7 @@ function ItemRow({
                       </Badge>
                       <span className="text-[10px] text-muted-foreground">{formatDate(reply.createdAt)}</span>
                       {reply.editedAt && <span className="text-[10px] text-muted-foreground">(edited)</span>}
-                      <div className="ml-auto flex items-center gap-0.5">
+                      {!isReadOnly && <div className="ml-auto flex items-center gap-0.5">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1123,9 +1149,9 @@ function ItemRow({
                         >
                           <Trash2 className="h-2.5 w-2.5" />
                         </Button>
-                      </div>
+                      </div>}
                     </div>
-                    {editingReplyId === reply.id ? (
+                    {editingReplyId === reply.id && !isReadOnly ? (
                       <div className="mt-1 space-y-1.5">
                         <Textarea
                           value={editReplyContent}
@@ -1172,7 +1198,7 @@ function ItemRow({
                               >
                                 <img src={getImageUrl(att, token)} alt="" className="h-14 w-14 object-cover" />
                               </button>
-                              <button
+                              {!isReadOnly && <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1183,7 +1209,7 @@ function ItemRow({
                                 className="text-[10px] text-red-500 hover:text-red-700 hover:underline leading-none"
                               >
                                 Delete
-                              </button>
+                              </button>}
                             </div>
                           ) : (
                             <a key={att.id} href={att.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 underline">
@@ -1200,7 +1226,7 @@ function ItemRow({
           )}
 
           {/* Reply form */}
-          {replyingTo === item.id && savedName && (
+          {!isReadOnly && replyingTo === item.id && savedName && (
             <div className="mt-3 ml-4 pl-3 border-l-2 border-blue-200">
               <NewItemForm
                 token={token}
@@ -1213,7 +1239,7 @@ function ItemRow({
               />
             </div>
           )}
-          {replyingTo === item.id && !savedName && (
+          {!isReadOnly && replyingTo === item.id && !savedName && (
             <p className="mt-3 text-xs text-muted-foreground ml-4">Set your identity above to reply.</p>
           )}
         </div>
@@ -1245,17 +1271,20 @@ function SubscribeForm({
   subscribers,
   onSubscribe,
   onUnsubscribe,
+  isClientView,
   isPending,
 }: {
   token: string;
   subscribers: any[];
   onSubscribe: (email: string, phone: string, name?: string) => void;
   onUnsubscribe: (emailOrPhone: string) => void;
+  isClientView: boolean;
   isPending: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
+  const [unsubscribeValue, setUnsubscribeValue] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
   const hasPhone = phone.trim().length > 0;
   const canSubmit = (email.trim() || phone.trim()) && !isPending && (!hasPhone || smsConsent);
@@ -1321,6 +1350,30 @@ function SubscribeForm({
       >
         <Bell className="h-3.5 w-3.5" /> Subscribe
       </Button>
+      {isClientView && (
+        <div className="space-y-2">
+          <Separator />
+          <p className="text-xs text-muted-foreground">Already subscribed? Enter your email or phone to stop client updates.</p>
+          <div className="flex gap-2">
+            <Input
+              value={unsubscribeValue}
+              onChange={(e) => setUnsubscribeValue(e.target.value)}
+              placeholder="Email or phone"
+              aria-label="Email or phone to unsubscribe"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isPending || !unsubscribeValue.trim()}
+              onClick={() => {
+                onUnsubscribe(unsubscribeValue.trim());
+                setUnsubscribeValue("");
+              }}
+            >Unsubscribe</Button>
+          </div>
+        </div>
+      )}
       {subscribers.length > 0 && (
         <>
           <Separator />

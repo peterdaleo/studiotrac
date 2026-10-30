@@ -1,5 +1,5 @@
 import { isOrganizationWorkspaceAccessible } from "./workspaceAccess";
-import { createSafeCoordinationNotice } from "./coordinationNotifications";
+import { createCoordinationNotice } from "./coordinationNotifications";
 /**
  * Coordination Sheet Notification Cron Job
  *
@@ -60,6 +60,10 @@ async function runCoordinationDigest() {
       if (!await isOrganizationWorkspaceAccessible(sheet.organizationId)) continue;
       const subscribers = await db.listCoordinationSubscribers(sheet.id);
       if (subscribers.length === 0) continue;
+      let notificationSheet = sheet;
+      if (!notificationSheet.collaboratorToken && subscribers.some(sub => sub.audience === "collaborator")) {
+        notificationSheet = await db.ensureCoordinationCollaboratorToken(sheet.id) ?? sheet;
+      }
       const now = new Date();
       const eligibleSubscribers = subscribers.filter(sub => {
         if (!sub.lastNotifiedAt) return true;
@@ -68,18 +72,20 @@ async function runCoordinationDigest() {
       if (eligibleSubscribers.length === 0) continue;
       const unnotifiedItems = await db.listUnnotifiedCoordinationItems(sheet.id);
       if (unnotifiedItems.length === 0) continue;
-      const { subject, html, smsBody } = createSafeCoordinationNotice(sheet, baseUrl);
       let anySent = false;
       for (const sub of eligibleSubscribers) {
         let subSent = false;
+        const audience = await db.resolveCoordinationSubscriberAudience(sub, sheet.organizationId);
+        const notice = createCoordinationNotice(notificationSheet, audience, baseUrl);
+        if (!notice) continue;
         // Email
         if (sub.email && resend) {
           try {
             const result = await resend.emails.send({
               from: "studioTrac <notifications@studiotrac.app>",
               to: sub.email,
-              subject,
-              html,
+              subject: notice.subject,
+              html: notice.html,
             });
             if (result.error) {
               console.error(`[CoordinationCron] Resend error for ${sub.email}:`, JSON.stringify(result.error));
@@ -98,7 +104,7 @@ async function runCoordinationDigest() {
               setTimeout(() => reject(new Error("Twilio SMS timeout after 10s")), 10_000)
             );
             const msg = await Promise.race([
-              twilioClient.messages.create({ body: smsBody, from: twilioFrom, to: sub.phone }),
+              twilioClient.messages.create({ body: notice.smsBody, from: twilioFrom, to: sub.phone }),
               smsTimeout,
             ]);
             console.log(`[CoordinationCron] SMS sent to ${sub.phone} for sheet "${sheet.projectName}", sid: ${msg.sid}`);
