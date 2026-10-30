@@ -1,7 +1,6 @@
 import { assertOrganizationWorkspaceAccess, isOrganizationWorkspaceAccessible, resolveOrganizationWorkspaceAccess } from "./workspaceAccess";
 import { platformAccessRouter } from "./platformAccessRouter";
-import { createCoordinationNotice } from "./coordinationNotifications";
-import { selectCollaboratorVisibleItems } from "./coordinationSharing";
+import { createSafeCoordinationNotice } from "./coordinationNotifications";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 import { COOKIE_NAME } from "@shared/const";
@@ -1418,11 +1417,8 @@ export const appRouter = router({
     // Admin: get sheet for a project
     getForProject: protectedProcedure.input(z.object({ projectId: z.number() })).query(async ({ input, ctx }) => {
       await assertTenantEntity("project", input.projectId, ctx.organizationId);
-      let sheet = await db.getCoordinationSheetByProject(input.projectId);
-      if (sheet) {
-        await assertTenantEntity("coordinationSheet", sheet.id, ctx.organizationId);
-        if (!sheet.collaboratorToken) sheet = await db.ensureCoordinationCollaboratorToken(sheet.id);
-      }
+      const sheet = await db.getCoordinationSheetByProject(input.projectId);
+      if (sheet) await assertTenantEntity("coordinationSheet", sheet.id, ctx.organizationId);
       return sheet;
     }),
 
@@ -1450,14 +1446,12 @@ export const appRouter = router({
       await assertTenantEntity("project", input.projectId, ctx.organizationId);
       const token = nanoid(24);
       const clientToken = nanoid(24);
-      const collaboratorToken = nanoid(24);
       return db.createCoordinationSheet({
         organizationId: ctx.organizationId,
         projectId: input.projectId,
         projectName: input.projectName,
         token,
         clientToken,
-        collaboratorToken,
         createdById: ctx.user.id,
       });
     }),
@@ -1490,7 +1484,7 @@ export const appRouter = router({
       const items = await db.listCoordinationItems(sheet.id);
       const itemIds = items.map(i => i.id);
       const attachments = await db.listCoordinationAttachments(itemIds);
-      const subscribers = (await db.listCoordinationSubscribers(sheet.id)).filter(sub => sub.audience !== "client");
+      const subscribers = await db.listCoordinationSubscribers(sheet.id);
       // Strip fileData from response to keep payload small — images served via /api/coordination-image/:id
       const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
       return { error: null, sheet, items, attachments: lightAttachments, subscribers };
@@ -1510,29 +1504,8 @@ export const appRouter = router({
       const itemIds = items.map(i => i.id);
       const attachments = await db.listCoordinationAttachments(itemIds);
       const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
-      const { token: _internalToken, clientToken: _clientToken, collaboratorToken: _collaboratorToken, ...clientSheet } = sheet;
+      const { token: _internalToken, clientToken: _clientToken, ...clientSheet } = sheet;
       return { error: null, sheet: clientSheet, items, attachments: lightAttachments, subscribers: [], isClientView: true };
-    }),
-
-    // Public, read-only: external collaborators see only items explicitly marked for them.
-    getByCollaboratorToken: publicProcedure.input(z.object({ collaboratorToken: z.string() })).query(async ({ input }) => {
-      let sheet = await db.getCoordinationSheetByCollaboratorToken(input.collaboratorToken);
-      if (!sheet || !sheet.isActive) return { error: "Sheet not found or inactive", sheet: null, items: [], attachments: [], subscribers: [] };
-      await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
-      await assertOrganizationWorkspaceAccess(sheet.organizationId);
-      const allItems = await db.listCoordinationItems(sheet.id);
-      const items = selectCollaboratorVisibleItems(allItems);
-      const itemIds = items.map(item => item.id);
-      const attachments = await db.listCoordinationAttachments(itemIds);
-      const lightAttachments = attachments.map(({ fileData, ...rest }) => rest);
-      return {
-        error: null,
-        sheet: { projectName: sheet.projectName, sharedFolderUrl: null },
-        items,
-        attachments: lightAttachments,
-        subscribers: [],
-        isCollaboratorView: true,
-      };
     }),
 
     // Public: add item
@@ -1564,7 +1537,6 @@ export const appRouter = router({
       // Send email notifications (fire-and-forget)
       if (item) {
         sendCoordinationNotification(sheet, item, input.parentId ? "reply" : "new").catch(() => {});
-        notifyProjectTeamOfCoordinationUpdate(sheet).catch(() => {});
       }
       return item;
     }),
@@ -1577,7 +1549,6 @@ export const appRouter = router({
       isUrgent: z.boolean().optional(),
       isAddressed: z.boolean().optional(),
       visibility: z.enum(["internal", "client"]).optional(),
-      isCollaboratorVisible: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
       if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
@@ -1585,10 +1556,7 @@ export const appRouter = router({
       await assertOrganizationWorkspaceAccess(sheet.organizationId);
       const item = await requireCoordinationItem(sheet, input.itemId, input.token);
       const { token, itemId, ...data } = input;
-      if (sheet.clientToken === token) {
-        data.visibility = "client";
-        delete data.isCollaboratorVisible;
-      }
+      if (sheet.clientToken === token) data.visibility = "client";
       return db.updateCoordinationItem(item.id, data);
     }),
 
@@ -1674,25 +1642,19 @@ export const appRouter = router({
       email: z.string().email().optional(),
       phone: z.string().optional(),
       name: z.string().optional(),
-    })).mutation(async ({ input, ctx }) => {
+    })).mutation(async ({ input }) => {
       if (!input.email && !input.phone) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Email or phone number is required" });
       }
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
-      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      if (!sheet || !sheet.isActive || sheet.clientToken === input.token) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
       await assertOrganizationWorkspaceAccess(sheet.organizationId);
-      const email = input.email ? input.email.trim().toLowerCase() : null;
-      const initialAudience = sheet.clientToken === input.token
-        ? "client"
-        : !email && ctx.user && ctx.organizationId === sheet.organizationId ? "team" : "collaborator";
-      const audience = await db.resolveCoordinationSubscriberAudience({ audience: initialAudience, email }, sheet.organizationId);
       return db.addCoordinationSubscriber({
         sheetId: sheet.id,
-        email,
+        email: input.email ? input.email.trim().toLowerCase() : null,
         phone: input.phone ? input.phone.trim() : null,
         name: input.name?.trim() || null,
-        audience,
       });
     }),
     // Public: unsubscribe
@@ -1701,11 +1663,10 @@ export const appRouter = router({
       emailOrPhone: z.string(),
     })).mutation(async ({ input }) => {
       const sheet = await db.getCoordinationSheetByAnyToken(input.token);
-      if (!sheet || !sheet.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
+      if (!sheet || !sheet.isActive || sheet.clientToken === input.token) throw new TRPCError({ code: "NOT_FOUND", message: "Sheet not found" });
       await assertTenantEntity("coordinationSheet", sheet.id, sheet.organizationId);
       await assertOrganizationWorkspaceAccess(sheet.organizationId);
-      const audience = sheet.clientToken === input.token ? "client" : "collaborator";
-      await db.removeCoordinationSubscriber(sheet.id, input.emailOrPhone.trim(), audience);
+      await db.removeCoordinationSubscriber(sheet.id, input.emailOrPhone.trim());
       return { success: true };
 
     }),
@@ -1735,20 +1696,8 @@ export const appRouter = router({
 });
 
 // ── Coordination Sheet Email Notifications ──────────────────────
-async function notifyProjectTeamOfCoordinationUpdate(sheet: { projectId: number; organizationId: number | null; projectName: string }) {
-  if (!sheet.organizationId || !await isOrganizationWorkspaceAccessible(sheet.organizationId)) return;
-  const userIds = await db.listProjectCoordinationNotificationUserIds(sheet.projectId, sheet.organizationId);
-  await Promise.all(userIds.map(userId => db.createNotification({
-    type: "general",
-    title: `Coordination update: ${sheet.projectName.replace(/[\r\n]/g, " ")}`,
-    message: "New coordination activity is available. Sign in to the project to review the team sheet.",
-    relatedProjectId: sheet.projectId,
-    userId,
-  }, sheet.organizationId)));
-}
-
 async function sendCoordinationNotification(
-  sheet: { id: number; projectId: number; organizationId: number | null; clientToken: string | null; collaboratorToken: string | null; projectName: string },
+  sheet: { id: number; projectId: number; organizationId: number | null; clientToken: string | null; projectName: string },
   _item: any,
   _type: "new" | "reply"
 ) {
@@ -1758,11 +1707,6 @@ async function sendCoordinationNotification(
 
   const subscribers = await db.listCoordinationSubscribers(sheet.id);
   if (subscribers.length === 0) return;
-
-  let notificationSheet = sheet;
-  if (!notificationSheet.collaboratorToken && subscribers.some(sub => sub.audience === "collaborator")) {
-    notificationSheet = await db.ensureCoordinationCollaboratorToken(sheet.id) ?? sheet;
-  }
 
   const now = new Date();
   const THIRTY_MINUTES = 30 * 60 * 1000;
@@ -1781,6 +1725,7 @@ async function sendCoordinationNotification(
 
   const resend = getResend();
   const baseUrl = process.env.APP_URL || "https://app.studiotrac.app";
+  const { subject, html, smsBody } = createSafeCoordinationNotice(sheet, baseUrl);
   // Twilio SMS client (lazy-cached to avoid OOM on startup)
   const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
   const twilioClient = getTwilioClient();
@@ -1790,9 +1735,6 @@ async function sendCoordinationNotification(
   let anySent = false;
   for (const sub of eligibleSubscribers) {
     let subSent = false;
-    const audience = await db.resolveCoordinationSubscriberAudience(sub, sheet.organizationId);
-    const notice = createCoordinationNotice(notificationSheet, audience, baseUrl);
-    if (!notice) continue;
 
     // Email
     if (sub.email) {
@@ -1800,8 +1742,8 @@ async function sendCoordinationNotification(
         const result = await resend.emails.send({
           from: "studioTrac <notifications@studiotrac.app>",
           to: sub.email,
-          subject: notice.subject,
-          html: notice.html,
+          subject,
+          html,
         });
         if (result.error) {
           console.error(`[Coordination] Resend API error for ${sub.email}:`, JSON.stringify(result.error));
@@ -1821,7 +1763,7 @@ async function sendCoordinationNotification(
           setTimeout(() => reject(new Error("Twilio SMS timeout after 10s")), 10_000)
         );
         const msg = await Promise.race([
-          twilioClient.messages.create({ body: notice.smsBody, from: twilioFrom, to: sub.phone }),
+          twilioClient.messages.create({ body: smsBody, from: twilioFrom, to: sub.phone }),
           smsTimeout,
         ]);
         console.log(`[Coordination] SMS sent to ${sub.phone}, sid: ${msg.sid}`);

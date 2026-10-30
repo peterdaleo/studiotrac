@@ -5,7 +5,6 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { createPool } from "mysql2";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import { TRPCError } from "@trpc/server";
-import { nanoid } from "nanoid";
 import {
   InsertUser, users,
   organizations, InsertOrganization, Organization,
@@ -2894,7 +2893,7 @@ export async function createCoordinationSheet(data: InsertCoordinationSheet): Pr
   }
 }
 
-export async function updateCoordinationSheet(id: number, data: Partial<Pick<InsertCoordinationSheet, "sharedFolderUrl" | "projectName" | "isActive" | "collaboratorToken">>): Promise<void> {
+export async function updateCoordinationSheet(id: number, data: Partial<Pick<InsertCoordinationSheet, "sharedFolderUrl" | "projectName" | "isActive">>): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(coordinationSheets).set(data).where(eq(coordinationSheets.id, id));
@@ -2920,27 +2919,6 @@ export async function getCoordinationSheetByClientToken(clientToken: string): Pr
     if (isMissingTableError(error)) return null;
     throw error;
   }
-}
-
-export async function getCoordinationSheetByCollaboratorToken(collaboratorToken: string): Promise<CoordinationSheet | null> {
-  try {
-    const db = await getDbOrThrow();
-    const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.collaboratorToken, collaboratorToken));
-    return sheet ?? null;
-  } catch (error) {
-    if (isMissingTableError(error)) return null;
-    throw error;
-  }
-}
-
-/** Lazily creates the additive collaborator capability for sheets created before this feature. */
-export async function ensureCoordinationCollaboratorToken(sheetId: number): Promise<CoordinationSheet | null> {
-  const db = await getDbOrThrow();
-  await db.update(coordinationSheets)
-    .set({ collaboratorToken: nanoid(24) })
-    .where(and(eq(coordinationSheets.id, sheetId), isNull(coordinationSheets.collaboratorToken)));
-  const [sheet] = await db.select().from(coordinationSheets).where(eq(coordinationSheets.id, sheetId));
-  return sheet ?? null;
 }
 
 // Look up a sheet by either the main token or the client token (for public mutations)
@@ -3034,7 +3012,7 @@ export async function createCoordinationItem(data: InsertCoordinationItem): Prom
   }
 }
 
-export async function updateCoordinationItem(id: number, data: Partial<Pick<CoordinationItem, "content" | "isUrgent" | "isAddressed" | "visibility" | "isCollaboratorVisible">>): Promise<CoordinationItem | null> {
+export async function updateCoordinationItem(id: number, data: Partial<Pick<CoordinationItem, "content" | "isUrgent" | "isAddressed" | "visibility">>): Promise<CoordinationItem | null> {
   try {
     const db = await getDbOrThrow();
     await db.update(coordinationItems).set({ ...data, editedAt: new Date() }).where(eq(coordinationItems.id, id));
@@ -3110,55 +3088,27 @@ export async function listCoordinationSubscribers(sheetId: number): Promise<Coor
   }
 }
 
-export async function resolveCoordinationSubscriberAudience(
-  subscriber: Pick<CoordinationSubscriber, "audience" | "email">,
-  organizationId: number | null,
-): Promise<CoordinationSubscriber["audience"]> {
-  if (subscriber.audience !== "collaborator" || !organizationId || !subscriber.email) return subscriber.audience;
-  const db = await getDb();
-  if (!db) return subscriber.audience;
-  const [member] = await db.select({ id: users.id }).from(users)
-    .where(and(eq(users.organizationId, organizationId), eq(users.email, subscriber.email)))
-    .limit(1);
-  return member ? "team" : "collaborator";
-}
-
 export async function addCoordinationSubscriber(data: InsertCoordinationSubscriber): Promise<CoordinationSubscriber | null> {
   try {
     const db = await getDbOrThrow();
-    const audience = data.audience ?? "collaborator";
-    // Keep client subscriptions separate; a known firm contact must not be downgraded to collaborator.
+    // Upsert: if already subscribed by email or phone, just return existing
     if (data.email) {
       const [existing] = await db.select().from(coordinationSubscribers)
         .where(and(
           eq(coordinationSubscribers.sheetId, data.sheetId),
           eq(coordinationSubscribers.email, data.email),
-          audience === "client" ? eq(coordinationSubscribers.audience, "client") : ne(coordinationSubscribers.audience, "client"),
         ));
-      if (existing) {
-        if (audience === "team" && existing.audience !== "team") {
-          await db.update(coordinationSubscribers).set({ audience: "team" }).where(eq(coordinationSubscribers.id, existing.id));
-          return { ...existing, audience: "team" };
-        }
-        return existing;
-      }
+      if (existing) return existing;
     }
     if (data.phone) {
       const [existing] = await db.select().from(coordinationSubscribers)
         .where(and(
           eq(coordinationSubscribers.sheetId, data.sheetId),
           eq(coordinationSubscribers.phone, data.phone),
-          audience === "client" ? eq(coordinationSubscribers.audience, "client") : ne(coordinationSubscribers.audience, "client"),
         ));
-      if (existing) {
-        if (audience === "team" && existing.audience !== "team") {
-          await db.update(coordinationSubscribers).set({ audience: "team" }).where(eq(coordinationSubscribers.id, existing.id));
-          return { ...existing, audience: "team" };
-        }
-        return existing;
-      }
+      if (existing) return existing;
     }
-    const [result] = await db.insert(coordinationSubscribers).values({ ...data, audience }).$returningId();
+    const [result] = await db.insert(coordinationSubscribers).values(data).$returningId();
     const [sub] = await db.select().from(coordinationSubscribers).where(eq(coordinationSubscribers.id, result.id));
     return sub ?? null;
   } catch (error) {
@@ -3167,7 +3117,7 @@ export async function addCoordinationSubscriber(data: InsertCoordinationSubscrib
   }
 }
 
-export async function removeCoordinationSubscriber(sheetId: number, emailOrPhone: string, audience: "client" | "collaborator"): Promise<void> {
+export async function removeCoordinationSubscriber(sheetId: number, emailOrPhone: string): Promise<void> {
   try {
     const db = await getDbOrThrow();
     // Try to delete by email first, then by phone
@@ -3177,14 +3127,12 @@ export async function removeCoordinationSubscriber(sheetId: number, emailOrPhone
         .where(and(
           eq(coordinationSubscribers.sheetId, sheetId),
           eq(coordinationSubscribers.phone, emailOrPhone),
-          audience === "client" ? eq(coordinationSubscribers.audience, "client") : ne(coordinationSubscribers.audience, "client"),
         ));
     } else {
       await db.delete(coordinationSubscribers)
         .where(and(
           eq(coordinationSubscribers.sheetId, sheetId),
           eq(coordinationSubscribers.email, emailOrPhone),
-          audience === "client" ? eq(coordinationSubscribers.audience, "client") : ne(coordinationSubscribers.audience, "client"),
         ));
     }
   } catch (error) {
@@ -3305,23 +3253,6 @@ export async function listProjectTeamMembers(projectId: number) {
     .leftJoin(teamMembers, eq(projectTeamMembers.teamMemberId, teamMembers.id))
     .where(eq(projectTeamMembers.projectId, projectId))
     .orderBy(asc(projectTeamMembers.createdAt));
-}
-
-export async function listProjectCoordinationNotificationUserIds(projectId: number, organizationId: number): Promise<number[]> {
-  const db = await getDb();
-  if (!db) return [];
-  const rows = await db.select({ userId: users.id })
-    .from(projectTeamMembers)
-    .innerJoin(teamMembers, eq(projectTeamMembers.teamMemberId, teamMembers.id))
-    .innerJoin(users, eq(teamMembers.userId, users.id))
-    .where(and(
-      eq(projectTeamMembers.projectId, projectId),
-      eq(teamMembers.organizationId, organizationId),
-      eq(teamMembers.isActive, true),
-      eq(users.organizationId, organizationId),
-    ));
-  const userIds = rows.map(row => row.userId);
-  return userIds.filter((userId, index) => userIds.indexOf(userId) === index);
 }
 
 export async function listProjectsForTeamMember(teamMemberId: number) {

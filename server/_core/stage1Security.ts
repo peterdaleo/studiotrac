@@ -24,9 +24,8 @@ export type CoordinationImageAccessInput = {
   sheetOrganizationId: number | null;
   projectOrganizationId: number | null;
   authenticatedOrganizationId: number | null;
-  tokenKind: "main" | "client" | "collaborator" | null;
+  tokenKind: "main" | "client" | null;
   itemVisibility: "internal" | "client";
-  isCollaboratorVisible: boolean;
 };
 
 /**
@@ -48,7 +47,6 @@ export function canAccessCoordinationImage(input: CoordinationImageAccessInput):
   }
   if (input.tokenKind === "main") return true;
   if (input.tokenKind === "client") return input.itemVisibility === "client";
-  if (input.tokenKind === "collaborator") return input.isCollaboratorVisible === true;
   return false;
 }
 
@@ -58,7 +56,7 @@ export function getCoordinationTokenFromRequest(queryToken: unknown, referer: st
   if (!referer) return null;
   try {
     const path = new URL(referer).pathname;
-    const match = path.match(/^\/coordination\/(?:(?:client|collaborator)\/)?([^/]+)\/?$/);
+    const match = path.match(/^\/coordination\/(?:client\/)?([^/]+)\/?$/);
     return match ? decodeURIComponent(match[1]) : null;
   } catch {
     return null;

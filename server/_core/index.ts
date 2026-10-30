@@ -101,13 +101,11 @@ async function startServer() {
         fileName: coordinationAttachments.fileName,
         attachmentType: coordinationAttachments.type,
         itemVisibility: coordinationItems.visibility,
-        isCollaboratorVisible: coordinationItems.isCollaboratorVisible,
         sheetIsActive: coordinationSheets.isActive,
         sheetOrganizationId: coordinationSheets.organizationId,
         projectOrganizationId: projects.organizationId,
         mainToken: coordinationSheets.token,
         clientToken: coordinationSheets.clientToken,
-        collaboratorToken: coordinationSheets.collaboratorToken,
       }).from(coordinationAttachments)
         .innerJoin(coordinationItems, eq(coordinationAttachments.itemId, coordinationItems.id))
         .innerJoin(coordinationSheets, eq(coordinationItems.sheetId, coordinationSheets.id))

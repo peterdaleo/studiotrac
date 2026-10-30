@@ -382,7 +382,6 @@ export const coordinationSheets = mysqlTable("coordination_sheets", {
   projectId: int("projectId").notNull(),
   token: varchar("token", { length: 128 }).notNull().unique(),
   clientToken: varchar("clientToken", { length: 128 }),
-  collaboratorToken: varchar("collaboratorToken", { length: 128 }),
   projectName: varchar("projectName", { length: 500 }).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   sharedFolderUrl: varchar("sharedFolderUrl", { length: 2048 }),
@@ -404,7 +403,6 @@ export const coordinationItems = mysqlTable("coordination_items", {
   isAddressed: boolean("isAddressed").default(false).notNull(),
   isNotified: boolean("isNotified").default(false).notNull(),
   visibility: mysqlEnum("visibility", ["internal", "client"]).default("internal").notNull(),
-  isCollaboratorVisible: boolean("isCollaboratorVisible").default(false).notNull(),
   pinnedAt: timestamp("pinnedAt"), // nullable — null means not pinned
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   editedAt: timestamp("editedAt"),
@@ -432,7 +430,6 @@ export const coordinationSubscribers = mysqlTable("coordination_subscribers", {
   email: varchar("email", { length: 255 }),
   phone: varchar("phone", { length: 32 }),
   name: varchar("name", { length: 255 }),
-  audience: mysqlEnum("audience", ["client", "collaborator", "team"]).default("collaborator").notNull(),
   lastNotifiedAt: timestamp("lastNotifiedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
