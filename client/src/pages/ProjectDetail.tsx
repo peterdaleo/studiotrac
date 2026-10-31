@@ -62,6 +62,7 @@ import {
   X,
   Share2,
   Link2,
+  Users,
   Copy,
   ExternalLink,
   Pencil,
@@ -535,6 +536,13 @@ export default function ProjectDetail() {
     toast.success("Client coordination link copied");
   };
 
+  const copyCollaboratorCoordinationLink = () => {
+    if (!coordinationSheet?.collaboratorToken) return;
+    const url = `${window.location.origin}/coordination/collaborator/${coordinationSheet.collaboratorToken}`;
+    navigator.clipboard.writeText(url);
+    toast.success("External collaborator link copied");
+  };
+
   const [folderUrlInput, setFolderUrlInput] = React.useState("");
   const [showFolderInput, setShowFolderInput] = React.useState(false);
   const updateCoordinationSheet = trpc.coordination.update.useMutation({
@@ -979,6 +987,17 @@ export default function ProjectDetail() {
                   title="Copy client link (filtered view)"
                 >
                   <Eye className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {coordinationSheet.collaboratorToken && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  onClick={copyCollaboratorCoordinationLink}
+                  title="Copy external collaborator link (filtered, no login)"
+                >
+                  <Users className="h-3.5 w-3.5" />
                 </Button>
               )}
               {/* Shared Folder link button — visible to all if set */}

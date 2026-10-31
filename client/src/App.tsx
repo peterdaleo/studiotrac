@@ -91,6 +91,7 @@ function App() {
             {/* Public coordination sheet — no auth, no dashboard layout */}
             <Route path="/coordination/:token" component={CoordinationSheet} />
             <Route path="/coordination/client/:clientToken" component={CoordinationSheet} />
+            <Route path="/coordination/collaborator/:collaboratorToken" component={CoordinationSheet} />
             {/* All other routes go through the dashboard */}
             <Route component={AccessControlledDashboard} />
           </Switch>

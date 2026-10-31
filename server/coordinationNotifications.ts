@@ -1,27 +1,59 @@
-type NotificationSheet = { projectId: number; projectName: string; clientToken: string | null };
+export type CoordinationAudience = "client" | "collaborator" | "team";
+
+export type CoordinationNoticeSheet = {
+  projectId: number;
+  projectName: string;
+  clientToken: string | null;
+  collaboratorToken: string | null;
+};
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]!));
 }
 
-/** Legacy subscription rows do not identify main-link versus client-link authority.
- * They may receive a generic notice, never private item text or an internal bearer token.
- * Client links remain useful; viewing internal updates requires the user's tenant login.
- */
-export function createSafeCoordinationNotice(sheet: NotificationSheet, baseUrl: string) {
-  const origin = new URL(baseUrl).origin;
-  const teamUrl = `${origin}/projects/${sheet.projectId}`;
-  const clientUrl = sheet.clientToken ? `${origin}/coordination/client/${encodeURIComponent(sheet.clientToken)}` : null;
+/** Builds a notification for exactly one audience; never mixes capability links. */
+export function createCoordinationNotice(
+  sheet: CoordinationNoticeSheet,
+  audience: CoordinationAudience,
+  baseUrl: string,
+) {
+  let viewPath: string;
+  if (audience === "team") {
+    viewPath = `/projects/${sheet.projectId}`;
+  } else {
+    const token = audience === "client" ? sheet.clientToken : sheet.collaboratorToken;
+    if (!token) return null;
+    viewPath = `/coordination/${audience === "client" ? "client" : "collaborator"}/${encodeURIComponent(token)}`;
+  }
+
+  const viewUrl = `${new URL(baseUrl).origin}${viewPath}`;
   const projectName = sheet.projectName.replace(/[\r\n]/g, " ");
-  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px">
-    <h2>${escapeHtml(projectName)}</h2>
-    <p>Your coordination sheet has been updated. Private item details are not included in notification messages.</p>
-    ${clientUrl ? `<p><a href="${escapeHtml(clientUrl)}">View client-visible coordination items</a></p>` : ""}
-    <p><a href="${escapeHtml(teamUrl)}">Team members: sign in to view all project updates</a></p>
-    <p>Notifications are batched and sent at most once every 30 minutes.</p>
-  </div>`;
+  const label = { client: "Client", collaborator: "External collaborator", team: "Firm team" }[audience];
+  const viewLabel = {
+    client: "View client-visible coordination items",
+    collaborator: "View collaborator-visible coordination items",
+    team: "Sign in to view the team project",
+  }[audience];
+  const detail = {
+    client: "The client-visible coordination sheet has been updated.",
+    collaborator: "The coordination sheet has been updated. This no-login shared view includes only items marked visible to collaborators.",
+    team: "The team coordination sheet has been updated. Sign in to the project to review it.",
+  }[audience];
+  const smsViewLabel = {
+    client: "Client-visible view",
+    collaborator: "Collaborator-visible view (no login)",
+    team: "Team project (sign-in required)",
+  }[audience];
+
   return {
-    subject: `[${projectName}] Coordination sheet updated`,
-    html,
-    smsBody: `[StudioTrac] Coordination sheet updated. ${clientUrl ? `Client view: ${clientUrl}` : `Team sign-in: ${teamUrl}`}`,
+    subject: `[${projectName}] ${label} coordination update`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px">
+      <h2>${escapeHtml(projectName)}</h2>
+      <p><strong>${escapeHtml(label)} coordination update</strong></p>
+      <p>${escapeHtml(detail)}</p>
+      <p><a href="${escapeHtml(viewUrl)}">${escapeHtml(viewLabel)}</a></p>
+      <p>This notification was sent automatically by StudioTrac.</p>
+    </div>`,
+    smsBody: `[StudioTrac] ${label} coordination update for ${projectName}. ${smsViewLabel}: ${viewUrl}`,
   };
 }
