@@ -618,6 +618,7 @@ export const appRouter = router({
       billingChangeDate: z.date().optional().nullable(),
       billingChangeNotes: z.string().optional().nullable(),
       driveFolderUrl: z.string().optional().nullable(),
+      clientPortalFolderVisible: z.boolean().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       await assertTenantEntity("project", id, ctx.organizationId);

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { buildCoordinationShortcut, downloadCoordinationShortcut } from "@/lib/coordinationShortcut";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -320,36 +321,15 @@ export default function CoordinationSheet() {
                 </Button>
               )}
               {/* Create Desktop Shortcut */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-800 font-medium shadow-sm"
-                onClick={() => {
-                  const url = window.location.href;
-                  const name = sheet.projectName.replace(/[^\w\s-]/g, "").trim() || "Coordination Sheet";
-                  const ua = navigator.userAgent.toLowerCase();
-                  const isMac = ua.includes("mac") && !ua.includes("iphone") && !ua.includes("ipad");
-                  if (isMac) {
-                    // .webloc is a macOS Internet Location file (XML plist)
-                    const content = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>URL</key>\n\t<string>${url}</string>\n</dict>\n</plist>`;
-                    const blob = new Blob([content], { type: "application/octet-stream" });
-                    const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `${name}.webloc`;
-                    a.click();
-                    URL.revokeObjectURL(a.href);
-                  } else {
-                    // .url is a Windows Internet Shortcut (also opens on Linux)
-                    const content = `[InternetShortcut]\nURL=${url}\n`;
-                    const blob = new Blob([content], { type: "application/octet-stream" });
-                    const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `${name}.url`;
-                    a.click();
-                    URL.revokeObjectURL(a.href);
-                  }
-                  toast.success("Shortcut downloaded — drag it to your desktop!");
-                }}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-800 font-medium shadow-sm"
+                  onClick={() => {
+                    const shortcut = buildCoordinationShortcut(sheet.projectName, window.location.href, navigator.userAgent);
+                    downloadCoordinationShortcut(shortcut);
+                    toast.success("Shortcut downloaded — drag it to your desktop!");
+                  }}
               >
                 <Monitor className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Create Desktop Shortcut</span>

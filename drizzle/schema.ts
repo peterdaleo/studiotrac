@@ -103,6 +103,7 @@ export const projects = mysqlTable("projects", {
   notToExceedCents: int("notToExceedCents").default(0).notNull(),
   revenueTargetCents: int("revenueTargetCents").default(0).notNull(),
   driveFolderUrl: varchar("driveFolderUrl", { length: 2048 }),
+  clientPortalFolderVisible: boolean("clientPortalFolderVisible").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

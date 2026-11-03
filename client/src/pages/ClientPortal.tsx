@@ -149,7 +149,7 @@ function ProjectCard({ project, notes, files }: { project: any; notes: any[]; fi
                 <div className="space-y-3">
                   {notes.map((note: any) => (
                     <div key={note.id} className="bg-slate-50 rounded-lg p-4">
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed" style={{ overflowWrap: "anywhere" }}>{note.content}</p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
                         <Clock className="h-3 w-3" />
                         <span>{new Date(note.createdAt).toLocaleDateString()}</span>
@@ -245,7 +245,7 @@ function ProjectCard({ project, notes, files }: { project: any; notes: any[]; fi
                 <CardTitle className="text-base font-semibold">About This Project</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-slate-500 leading-relaxed">{project.description}</p>
+                <p className="text-sm text-slate-500 leading-relaxed" style={{ overflowWrap: "anywhere" }}>{project.description}</p>
               </CardContent>
             </Card>
           )}

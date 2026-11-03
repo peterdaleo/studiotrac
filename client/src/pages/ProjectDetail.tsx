@@ -7,6 +7,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -1579,6 +1580,22 @@ export default function ProjectDetail() {
                           Set Google Drive Folder Link
                         </Button>
                       )}
+                    </div>
+                  )}
+                  {project?.driveFolderUrl && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="client-portal-folder-visible"
+                        checked={Boolean(project.clientPortalFolderVisible)}
+                        disabled={updateProject.isPending}
+                        onCheckedChange={(checked) => updateProject.mutate({
+                          id: projectId,
+                          clientPortalFolderVisible: checked === true,
+                        })}
+                      />
+                      <Label htmlFor="client-portal-folder-visible" className="text-sm cursor-pointer">
+                        Show folder in Client Portal
+                      </Label>
                     </div>
                   )}
                 </div>
