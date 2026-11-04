@@ -145,6 +145,49 @@ export async function updateProspect(
   });
 }
 
+async function setProspectArchiveState(id: number, archived: boolean, orgId?: number | null) {
+  requireOrganizationId(orgId);
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const condition = scopedConditions(prospects, id, orgId);
+    const [prospect] = await tx.select({ id: prospects.id, archivedAt: prospects.archivedAt })
+      .from(prospects).where(condition).limit(1).for("update");
+    if (!prospect) throw new Error("Prospect not found");
+    if ((prospect.archivedAt != null) === archived) return { success: true, archived };
+    await tx.update(prospects).set({ archivedAt: archived ? new Date() : null }).where(condition);
+    return { success: true, archived };
+  });
+}
+
+export function archiveProspect(id: number, orgId?: number | null) {
+  return setProspectArchiveState(id, true, orgId);
+}
+
+export function restoreProspect(id: number, orgId?: number | null) {
+  return setProspectArchiveState(id, false, orgId);
+}
+
+/** Permanently removes only the prospect and its own interaction history. */
+export async function permanentlyDeleteProspect(id: number, orgId?: number | null) {
+  requireOrganizationId(orgId);
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const condition = scopedConditions(prospects, id, orgId);
+    const [prospect] = await tx.select({ id: prospects.id, convertedProjectId: prospects.convertedProjectId })
+      .from(prospects).where(condition).limit(1).for("update");
+    if (!prospect) throw new Error("Prospect not found");
+
+    await tx.delete(prospectInteractions).where(and(
+      eq(prospectInteractions.prospectId, id),
+      organizationCondition(prospectInteractions, orgId),
+    ));
+    await tx.delete(prospects).where(condition);
+    return { success: true, convertedProjectId: prospect.convertedProjectId };
+  });
+}
+
 export async function addProspectInteraction(
   input: {
     prospectId: number;
@@ -162,7 +205,7 @@ export async function addProspectInteraction(
   if (!db) throw new Error("Database not available");
   return db.transaction(async (tx) => {
     const [prospect] = await tx.select({ id: prospects.id }).from(prospects)
-      .where(scopedConditions(prospects, input.prospectId, orgId)).limit(1);
+      .where(scopedConditions(prospects, input.prospectId, orgId)).limit(1).for("update");
     if (!prospect) throw new Error("Prospect not found");
     const result = await tx.insert(prospectInteractions).values({
       organizationId: orgId,

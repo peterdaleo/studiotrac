@@ -27,6 +27,15 @@ describe("assertDatabaseSchemaReady", () => {
     });
   });
 
+  it("requires prospects.archivedAt before enabling archive and restore", async () => {
+    expect(REQUIRED_DATABASE_SCHEMA.prospects).toContain("archivedAt");
+    const rows = completeMetadata().filter(row => !(row.tableName === "prospects" && row.columnName === "archivedAt"));
+    await expect(assertDatabaseSchemaReady(fakeDatabase(rows) as never)).rejects.toMatchObject({
+      name: "DatabaseSchemaValidationError",
+      missingColumns: { prospects: ["archivedAt"] },
+    });
+  });
+
   it("requires the verified legacy file and preference columns, not API aliases or invented storage", () => {
     expect([...REQUIRED_DATABASE_SCHEMA.project_files].sort()).toEqual([
       "id", "organizationId", "projectId", "uploadedById", "fileName", "fileUrl",

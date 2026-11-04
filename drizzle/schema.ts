@@ -474,6 +474,7 @@ export const prospects = mysqlTable("prospects", {
   lastInteractionAt: date("lastInteractionAt", { mode: "string" }),
   convertedProjectId: int("convertedProjectId"),
   convertedAt: timestamp("convertedAt"),
+  archivedAt: timestamp("archivedAt"),
   createdById: int("createdById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

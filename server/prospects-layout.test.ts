@@ -33,6 +33,9 @@ vi.mock("@/lib/trpc", () => {
         list: { useQuery: mocks.prospectsQuery },
         create: mutation(),
         update: mutation(),
+        archive: mutation(),
+        restore: mutation(),
+        permanentlyDelete: mutation(),
         addInteraction: mutation(),
         convertToProject: mutation(),
       },
@@ -60,6 +63,7 @@ type Prospect = {
   nextFollowUpDate: string | null;
   convertedProjectId: number | null;
   convertedAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   lastInteractionAt: string | null;
@@ -78,6 +82,7 @@ const workingProspect: Prospect = {
   nextFollowUpDate: null,
   convertedProjectId: null,
   convertedAt: null,
+  archivedAt: null,
   createdAt: "2026-01-01T12:00:00.000Z",
   updatedAt: "2026-01-01T12:00:00.000Z",
   lastInteractionAt: null,
@@ -92,6 +97,13 @@ const convertedProspect: Prospect = {
   closedAt: "2026-02-01T12:00:00.000Z",
   convertedProjectId: 22,
   convertedAt: "2026-02-02T12:00:00.000Z",
+};
+
+const archivedProspect: Prospect = {
+  ...workingProspect,
+  id: 3,
+  opportunityName: "Archived opportunity marker",
+  archivedAt: "2026-03-01T12:00:00.000Z",
 };
 
 function renderPage() {
@@ -140,6 +152,17 @@ describe("Prospects page layout", () => {
       "Converted to projects",
       "Prospect insights",
     ]);
+  });
+
+  it("separates archived records, offers restore and permanent delete, and retains archived history in insights", () => {
+    mocks.prospectsQuery.mockReturnValue({ data: [workingProspect, convertedProspect, archivedProspect], isLoading: false });
+    const html = renderPage();
+
+    expectInOrder(html, ["Working opportunity marker", "Converted to projects", "Archived prospects", "Archived opportunity marker", "Prospect insights"]);
+    expect(html).toContain("Restore");
+    expect(html).toContain("Archive");
+    expect(html).toContain("Permanently delete");
+    expect(html).toContain("Archived records remain included in these insight totals");
   });
 
   it.each([

@@ -8,12 +8,16 @@ import { useEffectiveRole } from "@/contexts/StaffPreviewContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowDownWideNarrow, Download, Plus, Printer, Search, UserRound, X } from "lucide-react";
+import { Archive, ArrowDownWideNarrow, Download, Plus, Printer, RotateCcw, Search, Trash2, UserRound, X } from "lucide-react";
 import { computeProspectInsights, groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, matchesProspectOutcomeList, prospectDateInRange, prospectReferralSourceKey, PROSPECT_STAGES, validProspectDate, type ProspectOutcomeListMode, type ProspectStage } from "@shared/prospects";
 import { buildProspectSubmissionPayload } from "@shared/prospectSubmission";
 
@@ -39,6 +43,7 @@ type ProspectRecord = {
   nextFollowUpDate: string | null;
   convertedProjectId: number | null;
   convertedAt: Date | string | null;
+  archivedAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   lastInteractionAt: Date | string | null;
@@ -138,6 +143,7 @@ export default function Prospects() {
   const [draftOpen, setDraftOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [includePrivateExport, setIncludePrivateExport] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const printAfterDialogClose = useRef(false);
@@ -162,6 +168,8 @@ export default function Prospects() {
   const { data: teamMembers } = trpc.teamMembers.list.useQuery(undefined, { enabled: canManage });
   const utils = trpc.useUtils();
   const recordList = (prospects ?? []) as ProspectRecord[];
+  const activeRecords = recordList.filter((prospect) => !prospect.archivedAt);
+  const archivedRecords = recordList.filter((prospect) => Boolean(prospect.archivedAt));
   const memberList = teamMembers ?? [];
   const insightOwnerId = ownerFilter === "all" ? undefined : ownerFilter === "unassigned" ? null : Number(ownerFilter);
   const insights = useMemo(() => computeProspectInsights(recordList, {
@@ -171,6 +179,7 @@ export default function Prospects() {
   }), [recordList, insightOwnerId, outcomeFrom, outcomeTo]);
   const activeProspect = recordList.find((prospect) => prospect.id === detailId) ?? null;
   const editingProspect = editId == null ? null : recordList.find((prospect) => prospect.id === editId) ?? null;
+  const deleteTarget = deleteTargetId == null ? null : recordList.find((prospect) => prospect.id === deleteTargetId) ?? null;
 
   const refreshProspects = () => utils.prospects.list.invalidate();
   const createMutation = trpc.prospects.create.useMutation({
@@ -190,6 +199,30 @@ export default function Prospects() {
       toast.success("Prospect updated");
     },
     onError: (err) => toast.error(err.message || "Could not update prospect"),
+  });
+  const archiveMutation = trpc.prospects.archive.useMutation({
+    onSuccess: () => {
+      refreshProspects();
+      toast.success("Prospect archived. Restore it from Archived prospects any time.");
+    },
+    onError: (err) => toast.error(err.message || "Could not archive prospect"),
+  });
+  const restoreMutation = trpc.prospects.restore.useMutation({
+    onSuccess: () => {
+      refreshProspects();
+      toast.success("Prospect restored to the active list");
+    },
+    onError: (err) => toast.error(err.message || "Could not restore prospect"),
+  });
+  const permanentlyDeleteMutation = trpc.prospects.permanentlyDelete.useMutation({
+    onSuccess: ({ convertedProjectId }) => {
+      refreshProspects();
+      setDeleteTargetId(null);
+      toast.success(convertedProjectId
+        ? "Prospect and interaction history deleted; the converted project and copied notes remain."
+        : "Prospect and interaction history permanently deleted");
+    },
+    onError: (err) => toast.error(err.message || "Could not delete prospect"),
   });
   const interactionMutation = trpc.prospects.addInteraction.useMutation({
     onSuccess: () => {
@@ -211,12 +244,12 @@ export default function Prospects() {
   });
 
   const getOwnerName = (ownerId: number | null) => memberList.find((member) => member.id === ownerId)?.name ?? "Unassigned";
-  const overdueCount = recordList.filter((prospect) => getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now) === "overdue").length;
-  const dueTodayCount = recordList.filter((prospect) => getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now) === "today").length;
+  const overdueCount = activeRecords.filter((prospect) => getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now) === "overdue").length;
+  const dueTodayCount = activeRecords.filter((prospect) => getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now) === "today").length;
 
   const visibleProspects = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    const filtered = recordList.filter((prospect) => {
+    const filtered = activeRecords.filter((prospect) => {
       if (!matchesProspectOutcomeList(prospect, { mode: outcomeMode, from: outcomeFrom || undefined, to: outcomeTo || undefined })) return false;
       if (stageFilter !== "all" && prospect.stage !== stageFilter) return false;
       if (sourceFilter.active && prospectReferralSourceKey(prospect.referralSource) !== sourceFilter.source) return false;
@@ -245,7 +278,7 @@ export default function Prospects() {
       return sortDescending ? -comparison : comparison;
     });
     return sorted;
-  }, [recordList, search, stageFilter, sourceFilter, outcomeMode, outcomeFrom, outcomeTo, ownerFilter, followUpFilter, followUpFrom, followUpTo, interactionFrom, interactionTo, sortBy, sortDescending, now, memberList]);
+  }, [activeRecords, search, stageFilter, sourceFilter, outcomeMode, outcomeFrom, outcomeTo, ownerFilter, followUpFilter, followUpFrom, followUpTo, interactionFrom, interactionTo, sortBy, sortDescending, now, memberList]);
 
   const { working: workingProspects, converted: convertedProspects } = groupProspectsByConversion(visibleProspects);
   const hasActiveFilters = Boolean(search.trim() || stageFilter !== "all" || sourceFilter.active || outcomeMode !== "all" || outcomeFrom || outcomeTo || ownerFilter !== "all" || followUpFilter !== "all" || followUpFrom || followUpTo || interactionFrom || interactionTo);
@@ -349,14 +382,14 @@ export default function Prospects() {
 
   const renderProspectTable = (rows: ProspectRecord[]) => (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] text-left text-sm">
+      <table className="w-full min-w-[1120px] text-left text-sm">
         <thead className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
           <tr><th className="px-4 py-3">Opportunity / client organization</th><th className="px-4 py-3">Stage</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Next follow-up</th><th className="px-4 py-3">Last interaction</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Actions</th></tr>
         </thead>
         <tbody>
           {rows.map((prospect) => {
             const status = getFollowUpStatus(prospect.nextFollowUpDate, prospect.stage, now);
-            const rowTone = status === "overdue" ? "border-l-4 border-l-red-800 bg-red-50/80" : status === "today" ? "border-l-4 border-l-amber-600 bg-amber-50/80" : "border-l-4 border-l-transparent";
+            const rowTone = prospect.archivedAt ? "border-l-4 border-l-slate-300 bg-muted/20" : status === "overdue" ? "border-l-4 border-l-red-800 bg-red-50/80" : status === "today" ? "border-l-4 border-l-amber-600 bg-amber-50/80" : "border-l-4 border-l-transparent";
             return (
               <tr key={prospect.id} className={`border-b last:border-0 ${rowTone}`}>
                 <td className="px-4 py-3">
@@ -375,9 +408,13 @@ export default function Prospects() {
                 <td className="px-4 py-3 text-muted-foreground">{displayDate(prospect.lastInteractionAt)}</td>
                 <td className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">{prospect.contact || "—"}</td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     {prospect.convertedProjectId != null && <Button variant="outline" size="sm" asChild><Link href={`/projects/${prospect.convertedProjectId}`}>Open project</Link></Button>}
                     <Button variant="ghost" size="sm" onClick={() => startEdit(prospect)}>Edit</Button>
+                    {prospect.archivedAt
+                      ? <Button variant="outline" size="sm" onClick={() => restoreMutation.mutate({ id: prospect.id })} disabled={restoreMutation.isPending}><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore</Button>
+                      : <Button variant="outline" size="sm" onClick={() => archiveMutation.mutate({ id: prospect.id })} disabled={archiveMutation.isPending}><Archive className="mr-1 h-3.5 w-3.5" />Archive</Button>}
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteTargetId(prospect.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Permanently delete</Button>
                   </div>
                 </td>
               </tr>
@@ -498,7 +535,7 @@ export default function Prospects() {
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <span className="text-xs text-muted-foreground">{outcomeMode === "undated" ? "Undated terminal records · date bounds do not apply" : outcomeMode === "dated" ? "Dated terminal outcomes only" : outcomeFrom || outcomeTo ? "Open snapshot unaffected · dated outcomes constrained by decision date" : "Open snapshot + all terminal outcomes"}</span>
-                <span className="text-sm text-muted-foreground">{visibleProspects.length} of {recordList.length} prospects</span>
+                <span className="text-sm text-muted-foreground">{visibleProspects.length} of {activeRecords.length} active prospects</span>
                 <Button variant="ghost" size="sm" onClick={() => setSortDescending(!sortDescending)} aria-label={`Sort ${sortDescending ? "ascending" : "descending"}`} title="Reverse sort direction"><ArrowDownWideNarrow className="h-4 w-4" /> {sortDescending ? "Descending" : "Ascending"}</Button>
               </div>
             </div>
@@ -512,8 +549,8 @@ export default function Prospects() {
             {!isLoading && !error && visibleProspects.length === 0 ? (
               <div className="p-10 text-center">
                 <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
-                <h2 className="mt-3 font-semibold">{recordList.length ? "No matching prospects" : "Start your prospect pipeline"}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{recordList.length ? "Try clearing one or more filters." : "Add an opportunity here; it will stay separate from projects until you convert it."}</p>
+                <h2 className="mt-3 font-semibold">{activeRecords.length ? "No matching prospects" : archivedRecords.length ? "No active prospects" : "Start your prospect pipeline"}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{activeRecords.length ? "Try clearing one or more filters." : archivedRecords.length ? "Archived records are listed below; restore one to return it to the active list." : "Add an opportunity here; it will stay separate from projects until you convert it."}</p>
               </div>
             ) : null}
             {workingProspects.length > 0 && renderProspectTable(workingProspects)}
@@ -529,12 +566,27 @@ export default function Prospects() {
           </ConvertedProspectsSection>
         )}
 
+        {!isLoading && !error && archivedRecords.length > 0 && (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <details>
+                <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">
+                  <Archive className="h-4 w-4 text-muted-foreground" />
+                  Archived prospects <Badge variant="outline">{archivedRecords.length}</Badge>
+                </summary>
+                <p className="mb-3 mt-2 text-sm text-muted-foreground">Archived records stay in historical insight totals. Restore a prospect to return it to the active list.</p>
+                <div className="mt-3">{renderProspectTable(archivedRecords)}</div>
+              </details>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="border-0 shadow-sm">
           <CardContent className="space-y-4 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold">Prospect insights</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Current open snapshot by exact stage; owner scope follows current owner. Date range below applies only to dated Won/Lost outcomes.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Archived records remain included in these insight totals. Open snapshot is by exact stage; owner scope follows current owner. Date range below applies only to dated Won/Lost outcomes.</p>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:min-w-[340px]">
                 <div><Label htmlFor="outcome-from" className="text-xs text-muted-foreground">Closed outcomes from</Label><Input id="outcome-from" type="date" value={outcomeFrom} onChange={(event) => setOutcomeFrom(event.target.value)} /></div>
@@ -663,6 +715,30 @@ export default function Prospects() {
             <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPrintDialogOpen(false)}>Cancel</Button><Button onClick={printVisible}><Printer className="mr-2 h-4 w-4" /> Print</Button></div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteTarget != null} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Permanently delete this prospect?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently deletes “{deleteTarget?.opportunityName}” and its prospect interaction history. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteTarget?.convertedProjectId != null && (
+              <p className="text-sm text-muted-foreground">The converted project and its copied project notes will remain intact.</p>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={permanentlyDeleteMutation.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { if (deleteTarget) permanentlyDeleteMutation.mutate({ id: deleteTarget.id }); }}
+                disabled={!deleteTarget || permanentlyDeleteMutation.isPending}
+              >
+                {permanentlyDeleteMutation.isPending ? "Deleting…" : "Permanently delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div id="prospects-print-view" className="prospects-print-only p-5 text-black">

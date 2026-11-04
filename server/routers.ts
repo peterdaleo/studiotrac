@@ -432,6 +432,12 @@ export const appRouter = router({
       const { id, ...patch } = input;
       return prospectsDb.updateProspect(id, patch, requireProspectOrganization(ctx.organizationId));
     }),
+    archive: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input, ctx }) => prospectsDb.archiveProspect(input.id, requireProspectOrganization(ctx.organizationId))),
+    restore: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input, ctx }) => prospectsDb.restoreProspect(input.id, requireProspectOrganization(ctx.organizationId))),
+    permanentlyDelete: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input, ctx }) => prospectsDb.permanentlyDeleteProspect(input.id, requireProspectOrganization(ctx.organizationId))),
     addInteraction: adminOrPmProcedure.input(z.object({
       prospectId: z.number().int().positive(),
       type: z.enum(["note", "call", "email", "meeting", "proposal"]),

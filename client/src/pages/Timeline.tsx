@@ -8,6 +8,14 @@ import { Loader2, ChevronLeft, ChevronRight, AlertTriangle, Calendar, Users } fr
 import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { getPhaseLabel } from "@shared/constants";
+import { findProjectScheduleOverlaps, type ProjectScheduleOverlap } from "@shared/projectScheduleOverlaps";
+
+function formatOverlapRange(overlap: ProjectScheduleOverlap): string {
+  const format = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return overlap.overlapStart.toDateString() === overlap.overlapEnd.toDateString()
+    ? format(overlap.overlapStart)
+    : `${format(overlap.overlapStart)} – ${format(overlap.overlapEnd)}`;
+}
 
 const STATUS_BADGE_COLORS: Record<string, string> = {
   on_track: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -65,42 +73,10 @@ export default function Timeline() {
     return p;
   }, [ganttData, filterStatus]);
 
-  // Detect resource conflicts (same team member on overlapping projects)
+  // This is an indicator based on project date ranges, not task dates or team capacity.
   const conflicts = useMemo(() => {
-    if (!ganttData) return new Set<number>();
-    const memberProjects: Record<number, Array<{ projectId: number; start: number; end: number }>> = {};
-    
-    // Group tasks by assignee and project
-    for (const task of ganttData.tasks) {
-      if (!task.assigneeId) continue;
-      if (!memberProjects[task.assigneeId]) memberProjects[task.assigneeId] = [];
-      const project = ganttData.projects.find(p => p.id === task.projectId);
-      if (!project?.startDate || !project?.deadline) continue;
-      const existing = memberProjects[task.assigneeId].find(mp => mp.projectId === project.id);
-      if (!existing) {
-        memberProjects[task.assigneeId].push({
-          projectId: project.id,
-          start: new Date(project.startDate).getTime(),
-          end: new Date(project.deadline).getTime(),
-        });
-      }
-    }
-
-    const conflictProjectIds = new Set<number>();
-    for (const assignments of Object.values(memberProjects)) {
-      if (assignments.length < 2) continue;
-      for (let i = 0; i < assignments.length; i++) {
-        for (let j = i + 1; j < assignments.length; j++) {
-          const a = assignments[i]!;
-          const b = assignments[j]!;
-          if (a.start <= b.end && b.start <= a.end) {
-            conflictProjectIds.add(a.projectId);
-            conflictProjectIds.add(b.projectId);
-          }
-        }
-      }
-    }
-    return conflictProjectIds;
+    if (!ganttData) return [];
+    return findProjectScheduleOverlaps(ganttData.projects, ganttData.tasks, ganttData.members);
   }, [ganttData]);
 
   const getBarPosition = (projStart: Date | null, projEnd: Date | null) => {
@@ -113,6 +89,15 @@ export default function Timeline() {
     const left = (Math.max(0, leftDays) / totalDays) * 100;
     const width = ((rightDays - Math.max(0, leftDays)) / totalDays) * 100;
     return { left: `${left}%`, width: `${Math.max(width, 0.5)}%` };
+  };
+
+  const getOverlapPosition = (overlapStart: Date, overlapEnd: Date) => {
+    const localDayIndex = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
+    const windowStart = localDayIndex(startDate);
+    const leftDay = Math.max(windowStart, localDayIndex(overlapStart));
+    const rightDay = Math.min(windowStart + totalDays, localDayIndex(overlapEnd) + 1);
+    if (rightDay <= leftDay) return null;
+    return { left: `${((leftDay - windowStart) / totalDays) * 100}%`, width: `${((rightDay - leftDay) / totalDays) * 100}%` };
   };
 
   const todayPosition = useMemo(() => {
@@ -162,17 +147,26 @@ export default function Timeline() {
       </div>
 
       {/* Conflict Alert */}
-      {Array.from(conflicts).length > 0 && (
+      {conflicts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="py-3 px-4 flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-amber-800">
-                Resource Conflict Detected
+                Potential schedule overlap
               </p>
-              <p className="text-xs text-amber-600">
-                {Array.from(conflicts).length} project(s) have overlapping schedules with shared team members. Review assignments to avoid overallocation.
+              <p className="mt-1 text-xs text-amber-700">
+                {conflicts.length} overlapping assignment pair{conflicts.length === 1 ? "" : "s"}. This checks project start/end dates for people assigned to tasks in both projects; it does not compare task dates or team capacity.
               </p>
+              <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto text-xs text-amber-950">
+                {conflicts.map((overlap) => (
+                  <li key={`${overlap.memberId}-${overlap.projectA.id}-${overlap.projectB.id}`} className="flex flex-wrap gap-x-1">
+                    <span className="font-semibold">{overlap.memberName}:</span>
+                    <span>{overlap.projectA.name} + {overlap.projectB.name}</span>
+                    <span className="text-amber-800">({formatOverlapRange(overlap)})</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </CardContent>
         </Card>
@@ -243,6 +237,7 @@ export default function Timeline() {
                     }
                   }
                   const projectBars = Array.from(projectMap.values());
+                  const memberOverlaps = conflicts.filter((overlap) => overlap.memberId === member.id);
                   if (projectBars.length === 0) return null;
                   return (
                     <div key={member.id}>
@@ -263,6 +258,22 @@ export default function Timeline() {
                           <div className="absolute inset-0 flex pointer-events-none">
                             {months.map((_, i) => <div key={i} className="flex-1 border-r border-border/30 last:border-r-0" />)}
                           </div>
+                          {memberOverlaps.map((overlap) => {
+                            const position = getOverlapPosition(overlap.overlapStart, overlap.overlapEnd);
+                            if (!position) return null;
+                            return (
+                              <Tooltip key={`${overlap.memberId}-${overlap.projectA.id}-${overlap.projectB.id}`}>
+                                <TooltipTrigger asChild>
+                                  <div aria-label={`Potential schedule overlap: ${overlap.projectA.name} and ${overlap.projectB.name}, ${formatOverlapRange(overlap)}`} className="absolute inset-y-0 z-0 border-x-2 border-amber-500/90 bg-amber-300/40" style={position} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs font-medium">Potential schedule overlap · {member.name}</p>
+                                  <p className="text-xs">{overlap.projectA.name} + {overlap.projectB.name}</p>
+                                  <p className="text-xs text-muted-foreground">{formatOverlapRange(overlap)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })}
                           {todayPosition && <div className="absolute top-0 bottom-0 w-px bg-red-400 z-10 pointer-events-none" style={{ left: todayPosition }} />}
                         </div>
                       </div>
@@ -308,7 +319,8 @@ export default function Timeline() {
               ) : (
                 filteredProjects.map((project) => {
                   const bar = getBarPosition(project.startDate, project.deadline);
-                  const hasConflict = conflicts.has(project.id);
+                  const projectOverlaps = conflicts.filter((overlap) => overlap.projectA.id === project.id || overlap.projectB.id === project.id);
+                  const hasConflict = projectOverlaps.length > 0;
                   const taskCount = ganttData?.tasks.filter(t => t.projectId === project.id).length ?? 0;
                   const phaseColor = PHASE_COLORS[project.phase] || "#6366f1";
 
@@ -354,7 +366,7 @@ export default function Timeline() {
                                     <TooltipTrigger>
                                       <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                                     </TooltipTrigger>
-                                    <TooltipContent>Resource conflict detected</TooltipContent>
+                                    <TooltipContent>Potential schedule overlap. See the highlighted interval and details above.</TooltipContent>
                                   </Tooltip>
                                 )}
                               </div>
@@ -392,7 +404,7 @@ export default function Timeline() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div
-                                  className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-md transition-all group-hover:h-8 ${hasConflict ? "ring-2 ring-amber-400 ring-offset-1" : ""}`}
+                                  className="absolute top-1/2 -translate-y-1/2 h-7 rounded-md transition-all group-hover:h-8"
                                   style={{
                                     left: bar.left,
                                     width: bar.width,
@@ -430,6 +442,23 @@ export default function Timeline() {
                               </TooltipContent>
                             </Tooltip>
                           )}
+
+                          {projectOverlaps.map((overlap) => {
+                            const position = getOverlapPosition(overlap.overlapStart, overlap.overlapEnd);
+                            if (!position) return null;
+                            return (
+                              <Tooltip key={`${overlap.memberId}-${overlap.projectA.id}-${overlap.projectB.id}`}>
+                                <TooltipTrigger asChild>
+                                  <div aria-label={`Potential schedule overlap for ${overlap.memberName}: ${overlap.projectA.name} and ${overlap.projectB.name}, ${formatOverlapRange(overlap)}`} className="absolute top-1/2 z-20 h-7 -translate-y-1/2 border-x-2 border-amber-600 bg-amber-300/75 transition-all group-hover:h-8" style={position} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs font-medium">Potential schedule overlap · {overlap.memberName}</p>
+                                  <p className="text-xs">{overlap.projectA.name} + {overlap.projectB.name}</p>
+                                  <p className="text-xs text-muted-foreground">{formatOverlapRange(overlap)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })}
 
                           {/* Task markers */}
                           {ganttData?.tasks
@@ -549,8 +578,8 @@ export default function Timeline() {
               Overdue Task
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <AlertTriangle className="h-3 w-3 text-amber-500" />
-              Resource Conflict
+              <div className="h-3 w-4 border-x-2 border-amber-600 bg-amber-300/75" />
+              Potential schedule overlap
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <div className="w-4 h-2.5 rounded-sm bg-indigo-400 opacity-60" />
