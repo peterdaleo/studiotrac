@@ -1321,10 +1321,18 @@ export async function getGanttData(orgId?: number | null) {
   if (!db) return { projects: [], tasks: [], members: [] };
   const pConds = [ne(projects.status, 'completed')];
   const tConds = [ne(tasks.status, 'done')];
-  const mConds = [eq(teamMembers.isActive, true)];
-  if (orgId) { pConds.push(eq(projects.organizationId, orgId)); tConds.push(eq(tasks.organizationId, orgId)); mConds.push(eq(teamMembers.organizationId, orgId)); }
+  if (orgId) { pConds.push(eq(projects.organizationId, orgId)); tConds.push(eq(tasks.organizationId, orgId)); }
   const allProjects = await db.select().from(projects).where(and(...pConds)).orderBy(asc(projects.startDate));
   const allTasks = await db.select().from(tasks).where(and(...tConds)).orderBy(asc(tasks.deadline));
+  const visibleProjectIds = new Set(allProjects.map((project) => project.id));
+  const assignedMemberIds = Array.from(new Set(allTasks
+    .filter((task) => task.assigneeId != null && visibleProjectIds.has(task.projectId))
+    .map((task) => task.assigneeId!)));
+  const memberActivityCondition = assignedMemberIds.length > 0
+    ? or(eq(teamMembers.isActive, true), inArray(teamMembers.id, assignedMemberIds))
+    : eq(teamMembers.isActive, true);
+  const mConds = [memberActivityCondition];
+  if (orgId) mConds.push(eq(teamMembers.organizationId, orgId));
   const allMembers = await db.select().from(teamMembers).where(and(...mConds));
   return { projects: allProjects, tasks: allTasks, members: allMembers };
 }
