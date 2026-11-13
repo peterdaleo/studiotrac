@@ -11,6 +11,10 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]!));
 }
 
+export function createCoordinationSmsStatusCallbackUrl(baseUrl: string): string {
+  return `${new URL(baseUrl).origin}/api/twilio/coordination-sms-status`;
+}
+
 /** Builds a notification for exactly one audience; never mixes capability links. */
 export function createCoordinationNotice(
   sheet: CoordinationNoticeSheet,
@@ -39,12 +43,6 @@ export function createCoordinationNotice(
     collaborator: "The coordination sheet has been updated. This no-login shared view includes only items marked visible to collaborators.",
     team: "The team coordination sheet has been updated. Sign in to the project to review it.",
   }[audience];
-  const smsViewLabel = {
-    client: "Client-visible view",
-    collaborator: "Collaborator-visible view (no login)",
-    team: "Team project (sign-in required)",
-  }[audience];
-
   return {
     subject: `[${projectName}] ${label} coordination update`,
     html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px">
@@ -54,6 +52,6 @@ export function createCoordinationNotice(
       <p><a href="${escapeHtml(viewUrl)}">${escapeHtml(viewLabel)}</a></p>
       <p>This notification was sent automatically by StudioTrac.</p>
     </div>`,
-    smsBody: `[StudioTrac] ${label} coordination update for ${projectName}. ${smsViewLabel}: ${viewUrl}`,
+    smsBody: `[StudioTrac] ${label} coordination update for ${projectName}. Reply STOP to unsubscribe`,
   };
 }

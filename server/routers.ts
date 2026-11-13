@@ -1,6 +1,6 @@
 import { assertOrganizationWorkspaceAccess, isOrganizationWorkspaceAccessible, resolveOrganizationWorkspaceAccess } from "./workspaceAccess";
 import { platformAccessRouter } from "./platformAccessRouter";
-import { createCoordinationNotice } from "./coordinationNotifications";
+import { createCoordinationNotice, createCoordinationSmsStatusCallbackUrl } from "./coordinationNotifications";
 import { selectCollaboratorVisibleItems } from "./coordinationSharing";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -1828,7 +1828,12 @@ async function sendCoordinationNotification(
           setTimeout(() => reject(new Error("Twilio SMS timeout after 10s")), 10_000)
         );
         const msg = await Promise.race([
-          twilioClient.messages.create({ body: notice.smsBody, from: twilioFrom, to: sub.phone }),
+          twilioClient.messages.create({
+            body: notice.smsBody,
+            from: twilioFrom,
+            to: sub.phone,
+            statusCallback: createCoordinationSmsStatusCallbackUrl(baseUrl),
+          }),
           smsTimeout,
         ]);
         console.log(`[Coordination] SMS sent to ${sub.phone}, sid: ${msg.sid}`);

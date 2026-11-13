@@ -1,5 +1,5 @@
 import { isOrganizationWorkspaceAccessible } from "./workspaceAccess";
-import { createCoordinationNotice } from "./coordinationNotifications";
+import { createCoordinationNotice, createCoordinationSmsStatusCallbackUrl } from "./coordinationNotifications";
 /**
  * Coordination Sheet Notification Cron Job
  *
@@ -104,7 +104,12 @@ async function runCoordinationDigest() {
               setTimeout(() => reject(new Error("Twilio SMS timeout after 10s")), 10_000)
             );
             const msg = await Promise.race([
-              twilioClient.messages.create({ body: notice.smsBody, from: twilioFrom, to: sub.phone }),
+              twilioClient.messages.create({
+                body: notice.smsBody,
+                from: twilioFrom,
+                to: sub.phone,
+                statusCallback: createCoordinationSmsStatusCallbackUrl(baseUrl),
+              }),
               smsTimeout,
             ]);
             console.log(`[CoordinationCron] SMS sent to ${sub.phone} for sheet "${sheet.projectName}", sid: ${msg.sid}`);

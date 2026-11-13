@@ -23,7 +23,8 @@ describe("coordination notification audience isolation", () => {
     expect(output).not.toContain("/projects/42");
     expect(output).not.toContain(sheet.privateItemContent);
     expect(notice!.subject).toContain("Client coordination update");
-    expect(notice!.smsBody).toContain("Client-visible view");
+    expect(notice!.smsBody).toContain("Reply STOP to unsubscribe");
+    expect(notice!.smsBody).not.toContain("/coordination/");
   });
 
   it("sends external collaborators only the no-login filtered coordination link", () => {
@@ -45,7 +46,7 @@ describe("coordination notification audience isolation", () => {
     const notice = createCoordinationNotice(sheet, "team", "https://example.invalid");
     const output = JSON.stringify(notice);
     expect(output).toContain("/projects/42");
-    expect(output).toContain("sign-in required");
+    expect(output).toContain("Sign in to view the team project");
     expect(output).not.toContain("/coordination/");
     expect(output).not.toContain("client-capability");
     expect(output).not.toContain("collaborator-capability");
@@ -76,6 +77,7 @@ describe("coordination notification audience isolation", () => {
     const source = readFileSync(file, "utf8");
     expect(source).toContain("createCoordinationNotice(");
     expect(source).toContain("resolveCoordinationSubscriberAudience(");
+    expect(source).toContain("statusCallback: createCoordinationSmsStatusCallbackUrl(baseUrl)");
     expect(source).not.toContain("createSafeCoordinationNotice");
   });
 });

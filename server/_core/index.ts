@@ -17,6 +17,7 @@ import { createCoordinationImageHandler } from "./coordinationImageRoute";
 import { createProtectedUploadHandler, createUploadAuthorizer, getLocalUploadUrl } from "./protectedUploadRoute";
 import { getDb } from "../db";
 import { DatabaseSchemaValidationError } from "../databaseSchema";
+import { createCoordinationSmsStatusCallbackHandler } from "../coordinationSmsStatus";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -50,6 +51,7 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.post("/api/twilio/coordination-sms-status", createCoordinationSmsStatusCallbackHandler());
 
   // Enable CORS for the marketing site
   app.use(cors({
