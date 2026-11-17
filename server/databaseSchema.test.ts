@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   assertDatabaseSchemaReady,
@@ -34,6 +35,22 @@ describe("assertDatabaseSchemaReady", () => {
       name: "DatabaseSchemaValidationError",
       missingColumns: { prospects: ["archivedAt"] },
     });
+  });
+
+  it("requires prospects.urgentFollowUp before enabling urgent follow-up toggles", async () => {
+    expect(REQUIRED_DATABASE_SCHEMA.prospects).toContain("urgentFollowUp");
+    const rows = completeMetadata().filter(row => !(row.tableName === "prospects" && row.columnName === "urgentFollowUp"));
+    await expect(assertDatabaseSchemaReady(fakeDatabase(rows) as never)).rejects.toMatchObject({
+      name: "DatabaseSchemaValidationError",
+      missingColumns: { prospects: ["urgentFollowUp"] },
+    });
+  });
+
+  it("uses only an instant additive migration with existing prospects defaulting to non-urgent", () => {
+    const migration = readFileSync(new URL("../drizzle/0020_add_prospect_urgent_followup.sql", import.meta.url), "utf8");
+    const executableSql = migration.replace(/^\s*--.*$/gm, "");
+    expect(executableSql).toMatch(/ALTER TABLE prospects\s+ADD COLUMN urgentFollowUp boolean NOT NULL DEFAULT false,\s+ALGORITHM=INSTANT;/i);
+    expect(executableSql).not.toMatch(/\b(?:UPDATE|DELETE|DROP|TRUNCATE)\b/i);
   });
 
   it("requires the verified legacy file and preference columns, not API aliases or invented storage", () => {

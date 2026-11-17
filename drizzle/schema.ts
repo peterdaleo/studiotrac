@@ -472,6 +472,7 @@ export const prospects = mysqlTable("prospects", {
   ownerId: int("ownerId"),
   nextFollowUpDate: date("nextFollowUpDate", { mode: "string" }),
   lastInteractionAt: date("lastInteractionAt", { mode: "string" }),
+  urgentFollowUp: boolean("urgentFollowUp").default(false).notNull(),
   convertedProjectId: int("convertedProjectId"),
   convertedAt: timestamp("convertedAt"),
   archivedAt: timestamp("archivedAt"),

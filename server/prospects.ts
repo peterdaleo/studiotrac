@@ -16,7 +16,7 @@ export type ProspectDraft = {
   lastInteractionAt?: string | null;
 };
 
-export type ProspectPatch = Partial<ProspectDraft>;
+export type ProspectPatch = Partial<ProspectDraft> & { urgentFollowUp?: boolean };
 
 function organizationCondition<T extends { organizationId: any }>(table: T, orgId?: number | null) {
   requireOrganizationId(orgId);
@@ -122,6 +122,7 @@ export async function updateProspect(
   if (data.ownerId !== undefined) patch.ownerId = data.ownerId;
   if (data.nextFollowUpDate !== undefined) patch.nextFollowUpDate = data.nextFollowUpDate || null;
   if (data.lastInteractionAt !== undefined) patch.lastInteractionAt = data.lastInteractionAt || null;
+  if (data.urgentFollowUp !== undefined) patch.urgentFollowUp = data.urgentFollowUp;
   return db.transaction(async (tx) => {
     const condition = scopedConditions(prospects, id, orgId);
     const [existing] = await tx.select({

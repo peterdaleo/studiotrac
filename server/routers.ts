@@ -428,6 +428,7 @@ export const appRouter = router({
       ownerId: z.number().int().positive().optional().nullable(),
       nextFollowUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
       lastInteractionAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+      urgentFollowUp: z.boolean().optional(),
     })).mutation(({ input, ctx }) => {
       const { id, ...patch } = input;
       return prospectsDb.updateProspect(id, patch, requireProspectOrganization(ctx.organizationId));

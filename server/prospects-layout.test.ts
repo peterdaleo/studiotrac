@@ -60,6 +60,7 @@ type Prospect = {
   stage: "Contacted" | "Won";
   closedAt: string | null;
   ownerId: number | null;
+  urgentFollowUp: boolean;
   nextFollowUpDate: string | null;
   convertedProjectId: number | null;
   convertedAt: string | null;
@@ -79,6 +80,7 @@ const workingProspect: Prospect = {
   stage: "Contacted",
   closedAt: null,
   ownerId: null,
+  urgentFollowUp: false,
   nextFollowUpDate: null,
   convertedProjectId: null,
   convertedAt: null,
@@ -95,6 +97,7 @@ const convertedProspect: Prospect = {
   opportunityName: "Converted opportunity marker",
   stage: "Won",
   closedAt: "2026-02-01T12:00:00.000Z",
+  urgentFollowUp: true,
   convertedProjectId: 22,
   convertedAt: "2026-02-02T12:00:00.000Z",
 };
@@ -137,6 +140,9 @@ describe("Prospects page layout", () => {
       "Prospect insights",
     ]);
     expect(html).toContain("Converted opportunity marker");
+    expect(html).toContain("Urgent follow-up");
+    expect(html).toContain('aria-label="Mark urgent follow-up for Working opportunity marker"');
+    expect(html).toContain('aria-label="Clear urgent follow-up for Converted opportunity marker"');
     expect(mocks.prospectsQuery).toHaveBeenCalledWith(undefined, { enabled: true });
   });
 

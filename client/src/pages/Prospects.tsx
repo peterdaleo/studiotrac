@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Archive, ArrowDownWideNarrow, Download, Plus, Printer, RotateCcw, Search, Trash2, UserRound, X } from "lucide-react";
+import { Archive, ArrowDownWideNarrow, Download, Flame, Plus, Printer, RotateCcw, Search, Trash2, UserRound, X } from "lucide-react";
 import { computeProspectInsights, groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, matchesProspectOutcomeList, prospectDateInRange, prospectReferralSourceKey, PROSPECT_STAGES, validProspectDate, type ProspectOutcomeListMode, type ProspectStage } from "@shared/prospects";
 import { buildProspectSubmissionPayload } from "@shared/prospectSubmission";
 
@@ -40,6 +40,7 @@ type ProspectRecord = {
   stage: ProspectStage;
   closedAt: Date | string | null;
   ownerId: number | null;
+  urgentFollowUp: boolean;
   nextFollowUpDate: string | null;
   convertedProjectId: number | null;
   convertedAt: Date | string | null;
@@ -192,8 +193,12 @@ export default function Prospects() {
     onError: (err) => toast.error(err.message || "Could not add prospect"),
   });
   const updateMutation = trpc.prospects.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       refreshProspects();
+      if (variables.urgentFollowUp !== undefined) {
+        toast.success(variables.urgentFollowUp ? "Urgent follow-up marked" : "Urgent follow-up cleared");
+        return;
+      }
       setDraftOpen(false);
       setEditId(null);
       toast.success("Prospect updated");
@@ -395,6 +400,7 @@ export default function Prospects() {
                 <td className="px-4 py-3">
                   <button type="button" onClick={() => setDetailId(prospect.id)} className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
                     <span className="block font-semibold text-foreground hover:text-primary">{prospect.opportunityName}</span>
+                    {prospect.urgentFollowUp && <Badge className="mt-1 border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-50"><Flame className="mr-1 h-3 w-3" />Urgent follow-up</Badge>}
                     {prospect.firm && <span className="block text-xs text-muted-foreground">{prospect.firm}</span>}
                     {decisionLabel(prospect) && <span className="mt-1 block text-xs text-muted-foreground">{decisionLabel(prospect)}</span>}
                   </button>
@@ -409,6 +415,7 @@ export default function Prospects() {
                 <td className="max-w-[220px] truncate px-4 py-3 text-muted-foreground">{prospect.contact || "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1">
+                    <Button variant={prospect.urgentFollowUp ? "destructive" : "outline"} size="sm" onClick={() => updateMutation.mutate({ id: prospect.id, urgentFollowUp: !prospect.urgentFollowUp })} disabled={updateMutation.isPending} aria-pressed={prospect.urgentFollowUp} aria-label={`${prospect.urgentFollowUp ? "Clear" : "Mark"} urgent follow-up for ${prospect.opportunityName}`}><Flame className="mr-1 h-3.5 w-3.5" />{prospect.urgentFollowUp ? "Clear urgent" : "Mark urgent"}</Button>
                     {prospect.convertedProjectId != null && <Button variant="outline" size="sm" asChild><Link href={`/projects/${prospect.convertedProjectId}`}>Open project</Link></Button>}
                     <Button variant="ghost" size="sm" onClick={() => startEdit(prospect)}>Edit</Button>
                     {prospect.archivedAt

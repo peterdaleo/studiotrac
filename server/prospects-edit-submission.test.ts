@@ -23,6 +23,8 @@ beforeEach(() => {
     closedAt: new Date("2026-10-01T00:00:00.000Z"),
     convertedProjectId: 940,
     referralSource: "Previous source",
+    nextFollowUpDate: "2026-10-15",
+    urgentFollowUp: false,
   });
   mocks.getDb.mockResolvedValue({
     transaction: async (operation: (tx: any) => Promise<unknown>) => operation({
@@ -43,6 +45,14 @@ beforeEach(() => {
 });
 
 describe("converted prospect edit submission", () => {
+  it("marks and clears urgent follow-up without changing the scheduled date", async () => {
+    await updateProspect(85, { urgentFollowUp: true }, 42);
+    expect(mocks.record).toMatchObject({ urgentFollowUp: true, nextFollowUpDate: "2026-10-15" });
+
+    await updateProspect(85, { urgentFollowUp: false }, 42);
+    expect(mocks.record).toMatchObject({ urgentFollowUp: false, nextFollowUpDate: "2026-10-15" });
+  });
+
   it("keeps referral-source edits and omits the disabled stage from an edit payload", async () => {
     // A disabled select is not included in the browser's FormData.
     const payload = buildProspectSubmissionPayload(formData({
