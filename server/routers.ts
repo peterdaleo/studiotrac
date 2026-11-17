@@ -23,6 +23,7 @@ import bcrypt from "bcryptjs";
 import { getPlanLimits, type PlanTier } from "@shared/subscription";
 import { PROJECT_PHASES, toSubBudgetStatusItem } from "@shared/subBudgets";
 import { assertTenantEntity, assertTenantReference, filterTenantRows, listOrganizationEmailLog } from "./tenantAuthorization";
+import { canPmSelfAssignUnassignedTask } from "./taskAssignmentAuthorization";
 import { getLocalUploadUrl } from "./_core/protectedUploadRoute";
 import { validateCoordinationAttachmentUpload } from "./coordinationAttachmentValidation";
 // Resend and Twilio are lazy-loaded on first use to avoid OOM on Railway startup.
@@ -735,11 +736,27 @@ export const appRouter = router({
     })).mutation(async ({ input, ctx }) => {
       const task = await assertTenantEntity("task", input.id, ctx.organizationId);
       await assertTenantReference("teamMember", input.assigneeId, ctx.organizationId);
+      let pmSelfAssignmentAllowed = false;
+      if (ctx.user.role === "pm" && task.assigneeId == null && input.assigneeId != null) {
+        const project = await assertTenantEntity("project", task.projectId, ctx.organizationId);
+        const actorTeamMember = (await db.listTeamMembers(ctx.organizationId))
+          .find(member => member.userId === ctx.user.id && member.id === project.projectManagerId);
+        pmSelfAssignmentAllowed = canPmSelfAssignUnassignedTask({
+          role: ctx.user.role,
+          currentAssigneeId: task.assigneeId,
+          requestedAssigneeId: input.assigneeId,
+          actorTeamMemberId: actorTeamMember?.id ?? null,
+          projectManagerId: project.projectManagerId,
+        });
+      }
       if (ctx.user.role !== "admin") {
-        if (task.assigneeId == null) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you" });
-        const assignee = await assertTenantEntity("teamMember", task.assigneeId, ctx.organizationId);
-        if (assignee.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you" });
-        if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) throw new TRPCError({ code: "FORBIDDEN", message: "You cannot reassign this task" });
+        if (task.assigneeId == null) {
+          if (!pmSelfAssignmentAllowed) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you" });
+        } else {
+          const assignee = await assertTenantEntity("teamMember", task.assigneeId, ctx.organizationId);
+          if (assignee.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only update tasks assigned to you" });
+          if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) throw new TRPCError({ code: "FORBIDDEN", message: "You cannot reassign this task" });
+        }
       }
       const { id, ...data } = input;
       return db.updateTask(id, data, ctx.organizationId);

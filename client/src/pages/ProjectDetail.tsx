@@ -362,6 +362,9 @@ export default function ProjectDetail() {
       setEditingTaskId(null);
       setEditTaskData(null);
     },
+    onError: (error) => {
+      toast.error(`Failed to update task: ${error.message}`);
+    },
   });
 
   const deleteTask = trpc.tasks.delete.useMutation({
@@ -618,8 +621,9 @@ export default function ProjectDetail() {
       deadline: editTaskData.deadline ? new Date(editTaskData.deadline) : null,
       status: editTaskData.status,
       completedAt: editTaskData.status === "done" ? new Date() : null,
+    }, {
+      onSuccess: () => toast.success("Task updated"),
     });
-    toast.success("Task updated");
   };
 
   if (isLoading) {
