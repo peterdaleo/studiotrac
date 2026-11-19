@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Archive, ArrowDownWideNarrow, Download, Flame, Plus, Printer, RotateCcw, Search, Trash2, UserRound, X } from "lucide-react";
+import { Archive, ArrowDownWideNarrow, Check, Download, Flame, Pencil, Plus, Printer, RotateCcw, Search, Trash2, UserRound, X } from "lucide-react";
 import { computeProspectInsights, groupProspectsByConversion, escapeCsvCell, getFollowUpStatus, localDateKey, matchesProspectOutcomeList, prospectDateInRange, prospectReferralSourceKey, PROSPECT_STAGES, validProspectDate, type ProspectOutcomeListMode, type ProspectStage } from "@shared/prospects";
 import { buildProspectSubmissionPayload } from "@shared/prospectSubmission";
 
@@ -144,6 +144,7 @@ export default function Prospects() {
   const [draftOpen, setDraftOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [editingInteraction, setEditingInteraction] = useState<{ id: number; content: string; happenedAt: string } | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [includePrivateExport, setIncludePrivateExport] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -235,6 +236,14 @@ export default function Prospects() {
       toast.success("Interaction added to timeline");
     },
     onError: (err) => toast.error(err.message || "Could not add interaction"),
+  });
+  const updateInteractionMutation = trpc.prospects.updateInteraction.useMutation({
+    onSuccess: () => {
+      refreshProspects();
+      setEditingInteraction(null);
+      toast.success("Interaction updated");
+    },
+    onError: (err) => toast.error(err.message || "Could not update interaction"),
   });
   const convertMutation = trpc.prospects.convertToProject.useMutation({
     onSuccess: ({ projectId }) => {
@@ -348,6 +357,30 @@ export default function Prospects() {
     event.currentTarget.reset();
   };
 
+  const startEditInteraction = (item: ProspectInteraction) => {
+    const happenedAt = asDate(item.happenedAt);
+    setEditingInteraction({
+      id: item.id,
+      content: item.content,
+      happenedAt: localDateTimeValue(happenedAt ?? new Date()),
+    });
+  };
+
+  const submitInteractionEdit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeProspect || !editingInteraction) return;
+    const form = new FormData(event.currentTarget);
+    const content = String(form.get("content") ?? "").trim();
+    const happenedAtValue = String(form.get("happenedAt") ?? "");
+    if (!content || !happenedAtValue) return;
+    updateInteractionMutation.mutate({
+      id: editingInteraction.id,
+      prospectId: activeProspect.id,
+      content,
+      happenedAt: new Date(happenedAtValue),
+    });
+  };
+
   const exportCsv = () => {
     const headers = ["Client / organization", "Opportunity", "Contact", "Referral source", "Stage", "Assigned owner", "Next follow-up", "Last interaction", "Interaction history"];
     const lines = [headers.map(escapeCsvCell).join(",")];
@@ -380,6 +413,7 @@ export default function Prospects() {
   };
 
   const startEdit = (prospect: ProspectRecord) => {
+    setEditingInteraction(null);
     setDetailId(null);
     setEditId(prospect.id);
     setDraftOpen(true);
@@ -657,7 +691,7 @@ export default function Prospects() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!activeProspect} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
+        <Dialog open={!!activeProspect} onOpenChange={(open) => { if (!open) { setDetailId(null); setEditingInteraction(null); } }}>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
             {activeProspect && <>
               <DialogHeader>
@@ -696,8 +730,14 @@ export default function Prospects() {
                   {activeProspect.interactions.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No interactions yet.</p>}
                   {activeProspect.interactions.map((item) => (
                     <article key={item.id} className={`rounded-lg border p-3 ${item.isPrivate ? "border-violet-300 bg-violet-50/70" : "bg-background"}`}>
-                      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><Badge variant="outline">{item.type}</Badge>{item.isPrivate && <Badge className="border-violet-700 bg-violet-100 text-violet-950">Private</Badge>}</div><span className="text-xs text-muted-foreground">{displayDate(item.happenedAt)} · {asDate(item.happenedAt)?.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} · {item.authorName}</span></div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm">{item.content}</p>
+                      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><Badge variant="outline">{item.type}</Badge>{item.isPrivate && <Badge className="border-violet-700 bg-violet-100 text-violet-950">Private</Badge>}</div><div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{editingInteraction?.id === item.id ? item.authorName : `${displayDate(item.happenedAt)} · ${asDate(item.happenedAt)?.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} · ${item.authorName}`}</span>{editingInteraction?.id !== item.id && <Button type="button" variant="ghost" size="sm" onClick={() => startEditInteraction(item)} aria-label={`Edit interaction from ${item.authorName}`}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>}</div></div>
+                      {editingInteraction?.id === item.id ? (
+                        <form onSubmit={submitInteractionEdit} className="mt-3 space-y-3 rounded-md bg-muted/30 p-3">
+                          <div className="space-y-2"><Label htmlFor={`interaction-edit-date-${item.id}`}>Date and time</Label><Input id={`interaction-edit-date-${item.id}`} name="happenedAt" type="datetime-local" value={editingInteraction.happenedAt} onChange={(event) => setEditingInteraction((current) => current?.id === item.id ? { ...current, happenedAt: event.target.value } : current)} required /></div>
+                          <div className="space-y-2"><Label htmlFor={`interaction-edit-content-${item.id}`}>Comment</Label><Textarea id={`interaction-edit-content-${item.id}`} name="content" value={editingInteraction.content} onChange={(event) => setEditingInteraction((current) => current?.id === item.id ? { ...current, content: event.target.value } : current)} required maxLength={10000} rows={3} /></div>
+                          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditingInteraction(null)} disabled={updateInteractionMutation.isPending}>Cancel</Button><Button type="submit" size="sm" disabled={updateInteractionMutation.isPending || !editingInteraction.content.trim()}><Check className="mr-2 h-4 w-4" />{updateInteractionMutation.isPending ? "Saving…" : "Save"}</Button></div>
+                        </form>
+                      ) : <p className="mt-2 whitespace-pre-wrap text-sm">{item.content}</p>}
                     </article>
                   ))}
                 </div>

@@ -37,6 +37,7 @@ vi.mock("@/lib/trpc", () => {
         restore: mutation(),
         permanentlyDelete: mutation(),
         addInteraction: mutation(),
+        updateInteraction: mutation(),
         convertToProject: mutation(),
       },
       teamMembers: { list: { useQuery: mocks.teamMembersQuery } },

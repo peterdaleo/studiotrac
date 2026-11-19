@@ -448,6 +448,12 @@ export const appRouter = router({
       lastInteractionAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       isPrivate: z.boolean().default(false),
     })).mutation(({ input, ctx }) => prospectsDb.addProspectInteraction(input, requireProspectOrganization(ctx.organizationId), ctx.user.id)),
+    updateInteraction: adminOrPmProcedure.input(z.object({
+      id: z.number().int().positive(),
+      prospectId: z.number().int().positive(),
+      content: z.string().trim().min(1).max(10000),
+      happenedAt: z.date(),
+    })).mutation(({ input, ctx }) => prospectsDb.updateProspectInteraction(input, requireProspectOrganization(ctx.organizationId))),
     convertToProject: adminOrPmProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
       const organizationId = requireProspectOrganization(ctx.organizationId);
       const limits = await getOrgPlanLimits(ctx);

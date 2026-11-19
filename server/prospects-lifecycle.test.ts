@@ -4,7 +4,7 @@ import { prospectInteractions, prospects, projectNotes, projects } from "../driz
 const mocks = vi.hoisted(() => ({ getDb: vi.fn() }));
 vi.mock("./db", () => ({ getDb: mocks.getDb }));
 
-import { archiveProspect, permanentlyDeleteProspect, restoreProspect } from "./prospects";
+import { archiveProspect, permanentlyDeleteProspect, restoreProspect, updateProspectInteraction } from "./prospects";
 
 function fakeDatabase(row: Record<string, unknown> | null) {
   const selectedRows = row ? [row] : [];
@@ -72,6 +72,47 @@ describe("prospect archive and permanent deletion", () => {
 
   it("requires a workspace before changing a prospect", async () => {
     await expect(archiveProspect(31, null)).rejects.toThrow();
+    expect(mocks.getDb).not.toHaveBeenCalled();
+  });
+});
+
+describe("prospect interaction editing", () => {
+  it("updates only the interaction comment and event time", async () => {
+    const fake = fakeDatabase({ id: 63 });
+    mocks.getDb.mockResolvedValue(fake.db);
+    const happenedAt = new Date("2026-11-19T15:25:00.000Z");
+
+    await expect(updateProspectInteraction({
+      id: 63,
+      prospectId: 44,
+      content: "  Updated call notes  ",
+      happenedAt,
+    }, 5)).resolves.toEqual({ success: true });
+
+    expect(fake.updatedValues).toEqual([{ content: "Updated call notes", happenedAt }]);
+    expect(fake.tx.select).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not update an interaction that is not in the requested prospect workspace", async () => {
+    const fake = fakeDatabase(null);
+    mocks.getDb.mockResolvedValue(fake.db);
+
+    await expect(updateProspectInteraction({
+      id: 63,
+      prospectId: 44,
+      content: "Updated call notes",
+      happenedAt: new Date("2026-11-19T15:25:00.000Z"),
+    }, 5)).rejects.toThrow("Prospect interaction not found");
+    expect(fake.updatedValues).toEqual([]);
+  });
+
+  it("requires a workspace before changing an interaction", async () => {
+    await expect(updateProspectInteraction({
+      id: 63,
+      prospectId: 44,
+      content: "Updated call notes",
+      happenedAt: new Date("2026-11-19T15:25:00.000Z"),
+    }, null)).rejects.toThrow();
     expect(mocks.getDb).not.toHaveBeenCalled();
   });
 });

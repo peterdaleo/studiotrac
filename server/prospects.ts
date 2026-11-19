@@ -223,6 +223,30 @@ export async function addProspectInteraction(
   });
 }
 
+export async function updateProspectInteraction(
+  input: { id: number; prospectId: number; content: string; happenedAt: Date },
+  orgId: number | null,
+) {
+  requireOrganizationId(orgId);
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const condition = and(
+    eq(prospectInteractions.id, input.id),
+    eq(prospectInteractions.prospectId, input.prospectId),
+    organizationCondition(prospectInteractions, orgId),
+  );
+  return db.transaction(async (tx) => {
+    const [interaction] = await tx.select({ id: prospectInteractions.id }).from(prospectInteractions)
+      .where(condition).limit(1).for("update");
+    if (!interaction) throw new Error("Prospect interaction not found");
+    await tx.update(prospectInteractions).set({
+      content: input.content.trim(),
+      happenedAt: input.happenedAt,
+    }).where(condition);
+    return { success: true };
+  });
+}
+
 export async function convertProspectToProject(id: number, orgId: number | null) {
   requireOrganizationId(orgId);
   const db = await getDb();

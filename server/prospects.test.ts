@@ -65,6 +65,7 @@ describe("prospect API access", () => {
     await expect(caller.prospects.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.prospects.archive({ id: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.prospects.permanentlyDelete({ id: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.prospects.updateInteraction({ id: 1, prospectId: 2, content: "Edit", happenedAt: new Date() })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects staff even when they belong to an organization", async () => {
@@ -77,5 +78,6 @@ describe("prospect API access", () => {
     await expect(caller.prospects.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.prospects.archive({ id: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.prospects.permanentlyDelete({ id: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.prospects.updateInteraction({ id: 1, prospectId: 2, content: "Edit", happenedAt: new Date() })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
